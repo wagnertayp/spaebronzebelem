@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
-import { BarChart3, PieChart, TrendingUp, Download, PackageOpen, Users, Calendar as CalendarIcon } from 'lucide-react';
+import { BarChart3, PieChart, TrendingUp, Download, PackageOpen, Users, Calendar as CalendarIcon, WalletCards, ArrowUpCircle, ArrowDownCircle, Clock3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useGetFinanceSummary, useListInventory, useListClients } from '@workspace/api-client-react';
+import { useListFinancialMovements, useListInventory, useListClients } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format, isAfter, isBefore, startOfDay, endOfDay, subDays } from 'date-fns';
@@ -18,8 +18,10 @@ export function Relatorios() {
   const [customFrom, setCustomFrom] = useState<string>('');
   const [customTo, setCustomTo] = useState<string>('');
   const [isFinanceRevealed, setIsFinanceRevealed] = useState<boolean>(false);
+  const [financeType, setFinanceType] = useState<'all' | 'revenue' | 'expense' | 'receivable'>('all');
+  const [financeStatus, setFinanceStatus] = useState<'all' | 'paid' | 'pending'>('all');
   
-  const { data: financeData, isLoading: loadingFinance } = useGetFinanceSummary();
+  const { data: financialMovements = [], isLoading: loadingFinance } = useListFinancialMovements();
   const { data: inventoryData = [], isLoading: loadingInventory } = useListInventory();
   const { data: clientsData = [], isLoading: loadingClients } = useListClients();
 
@@ -70,11 +72,25 @@ export function Relatorios() {
     return true;
   };
 
+  const filteredFinancialMovements = financialMovements.filter(movement => {
+    const matchesDate = filterByDate(movement.date);
+    const matchesType = financeType === 'all' || movement.type === financeType;
+    const matchesStatus = financeStatus === 'all' || movement.status === financeStatus;
+    return matchesDate && matchesType && matchesStatus;
+  });
+  const financialTotals = filteredFinancialMovements.reduce((totals, movement) => {
+    if (movement.type === 'revenue') totals.revenue += movement.amount;
+    if (movement.type === 'expense') totals.expense += movement.amount;
+    if (movement.type === 'receivable' || (movement.status === 'pending' && movement.type !== 'expense')) {
+      totals.receivable += movement.amount;
+    }
+    if (movement.status === 'pending') totals.pending += movement.amount;
+    return totals;
+  }, { revenue: 0, expense: 0, receivable: 0, pending: 0 });
   const filteredInventory = activeReport === 'inventory' ? inventoryData.filter(item => filterByDate(item.nextExpiration)) : [];
   const filteredClients = activeReport === 'clients' ? clientsData.filter(client => filterByDate(client.lastVisit)) : [];
 
   const getPeriodLabel = () => {
-    if (activeReport === 'finance') return 'Visão geral';
     if (period === 'all') return 'Todo o período';
     if (period === '7d') return 'Últimos 7 dias';
     if (period === '30d') return 'Últimos 30 dias';
@@ -93,14 +109,12 @@ export function Relatorios() {
     const bom = '\uFEFF';
     let headers: string[] = [];
     let rows: any[][] = [];
-    const rangeSuffix = activeReport === 'finance'
-      ? 'geral'
-      : period === 'custom' && customFrom && customTo
+    const rangeSuffix = period === 'custom' && customFrom && customTo
         ? `${customFrom}_a_${customTo}`
         : period;
     let filename = `relatorio_${activeReport}_${rangeSuffix}.csv`;
 
-    if (activeReport === 'finance' && financeData) {
+    if (activeReport === 'finance' && filteredFinancialMovements.length > 0) {
       if (!isFinanceRevealed) {
         toast({
           title: 'Ação necessária',
@@ -109,15 +123,18 @@ export function Relatorios() {
         });
         return;
       }
-      headers = ['Métrica', 'Valor'];
-      rows = [
-        ['Entradas', financeData.inflow],
-        ['Saídas', financeData.outflow],
-        ['Saldo Líquido', financeData.net],
-        ['Comandas', financeData.openAccounts],
-        ['Clientes com uma comanda', financeData.newClients],
-        ['Clientes recorrentes', financeData.returningClients]
-      ];
+      headers = ['Data', 'Tipo', 'Situação', 'Descrição', 'Categoria', 'Cliente', 'Serviço', 'Profissional', 'Valor'];
+      rows = filteredFinancialMovements.map(movement => [
+        movement.date,
+        movement.type === 'revenue' ? 'Entrada' : movement.type === 'expense' ? 'Saída' : 'A receber',
+        movement.status === 'paid' ? 'Pago' : 'Pendente',
+        movement.description,
+        movement.category,
+        movement.client || '',
+        movement.service || '',
+        movement.professional || '',
+        movement.amount
+      ]);
     } else if (activeReport === 'inventory' && filteredInventory.length > 0) {
       headers = ['Produto', 'Marca', 'Categoria', 'Estoque', 'Estoque Minimo', 'Status', 'Preço', 'Validade'];
       rows = filteredInventory.map(item => [
@@ -189,48 +206,36 @@ export function Relatorios() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all hover:border-primary/50",
-            activeReport === 'finance' ? "border-primary bg-primary/5 shadow-sm" : "bg-surface"
-          )}
-          onClick={() => setActiveReport('finance')}
-        >
-          <div className="p-6 flex flex-col items-center text-center">
-            <TrendingUp className={cn("w-6 h-6 mb-3", activeReport === 'finance' ? "text-primary" : "text-text-muted")} />
-            <h3 className="text-[14px] font-semibold text-text-primary mb-1">Performance Financeira</h3>
-            <p className="text-[12px] text-text-secondary">Visão geral de faturamento.</p>
-          </div>
-        </Card>
-        
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all hover:border-primary/50",
-            activeReport === 'inventory' ? "border-primary bg-primary/5 shadow-sm" : "bg-surface"
-          )}
-          onClick={() => setActiveReport('inventory')}
-        >
-          <div className="p-6 flex flex-col items-center text-center">
-            <PackageOpen className={cn("w-6 h-6 mb-3", activeReport === 'inventory' ? "text-primary" : "text-text-muted")} />
-            <h3 className="text-[14px] font-semibold text-text-primary mb-1">Status de Estoque</h3>
-            <p className="text-[12px] text-text-secondary">Produtos, insumos e validades.</p>
-          </div>
-        </Card>
-
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all hover:border-primary/50",
-            activeReport === 'clients' ? "border-primary bg-primary/5 shadow-sm" : "bg-surface"
-          )}
-          onClick={() => setActiveReport('clients')}
-        >
-          <div className="p-6 flex flex-col items-center text-center">
-            <Users className={cn("w-6 h-6 mb-3", activeReport === 'clients' ? "text-primary" : "text-text-muted")} />
-            <h3 className="text-[14px] font-semibold text-text-primary mb-1">Clientes</h3>
-            <p className="text-[12px] text-text-secondary">Relação completa de clientes.</p>
-          </div>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {[
+          { id: 'finance' as const, label: 'Financeiro', description: 'Entradas, saídas e valores a receber', icon: TrendingUp },
+          { id: 'inventory' as const, label: 'Estoque', description: 'Produtos, insumos e validades', icon: PackageOpen },
+          { id: 'clients' as const, label: 'Clientes', description: 'Base completa de clientes', icon: Users },
+        ].map(report => {
+          const Icon = report.icon;
+          const selected = activeReport === report.id;
+          return (
+            <button
+              key={report.id}
+              type="button"
+              onClick={() => setActiveReport(report.id)}
+              className={cn(
+                "flex items-center gap-4 rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                selected
+                  ? "border-primary bg-primary text-white shadow-button"
+                  : "border-border bg-surface text-text-primary hover:border-primary/40 hover:bg-primary-soft/40 hover:-translate-y-0.5"
+              )}
+            >
+              <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", selected ? "bg-white/18" : "bg-primary-soft text-primary")}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-[14px] font-bold">{report.label}</span>
+                <span className={cn("mt-0.5 block text-[11px]", selected ? "text-white/80" : "text-text-secondary")}>{report.description}</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="bg-surface rounded-2xl border border-border shadow-sm p-6 mt-4 min-h-[400px]">
@@ -241,30 +246,29 @@ export function Relatorios() {
             {activeReport === 'clients' && <><Users className="w-5 h-5 text-primary" /> Relação de Clientes</>}
           </h3>
           
-          {activeReport !== 'finance' && (
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="bg-surface-soft p-1 rounded-lg border border-border flex items-center">
+          <div className="flex flex-wrap items-center gap-2">
+              <div className="bg-primary-soft/60 p-1 rounded-xl border border-primary/15 flex flex-wrap items-center gap-1">
                 <button 
                   onClick={() => setPeriod('all')}
-                  className={cn("px-3 py-1.5 text-[12px] font-medium rounded-md transition-colors", period === 'all' ? "bg-background text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary")}
+                   className={cn("px-3 py-2 text-[12px] font-semibold rounded-lg transition-colors", period === 'all' ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-surface hover:text-primary")}
                 >
                   Todo o período
                 </button>
                 <button 
                   onClick={() => setPeriod('7d')}
-                  className={cn("px-3 py-1.5 text-[12px] font-medium rounded-md transition-colors", period === '7d' ? "bg-background text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary")}
+                   className={cn("px-3 py-2 text-[12px] font-semibold rounded-lg transition-colors", period === '7d' ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-surface hover:text-primary")}
                 >
                   Últimos 7 dias
                 </button>
                 <button 
                   onClick={() => setPeriod('30d')}
-                  className={cn("px-3 py-1.5 text-[12px] font-medium rounded-md transition-colors", period === '30d' ? "bg-background text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary")}
+                   className={cn("px-3 py-2 text-[12px] font-semibold rounded-lg transition-colors", period === '30d' ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-surface hover:text-primary")}
                 >
                   Últimos 30 dias
                 </button>
                 <button 
                   onClick={() => setPeriod('custom')}
-                  className={cn("px-3 py-1.5 text-[12px] font-medium rounded-md transition-colors", period === 'custom' ? "bg-background text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary")}
+                   className={cn("px-3 py-2 text-[12px] font-semibold rounded-lg transition-colors", period === 'custom' ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-surface hover:text-primary")}
                 >
                   Personalizado
                 </button>
@@ -294,20 +298,39 @@ export function Relatorios() {
                 </div>
               )}
             </div>
-          )}
         </div>
 
         {activeReport === 'finance' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between mb-6">
-              <div className="text-[13px] text-text-secondary">
-                Exibindo os valores gerais do caixa.
+            <div className="flex flex-col gap-4 mb-6">
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: 'all' as const, label: 'Todos os lançamentos' },
+                  { id: 'revenue' as const, label: 'Entradas' },
+                  { id: 'expense' as const, label: 'Saídas' },
+                  { id: 'receivable' as const, label: 'A receber' },
+                ].map(option => (
+                  <button key={option.id} type="button" onClick={() => setFinanceType(option.id)} className={cn(
+                    "rounded-xl border px-4 py-2.5 text-[12px] font-bold transition-all",
+                    financeType === option.id ? "border-primary bg-primary text-white shadow-sm" : "border-border bg-surface hover:border-primary/40 hover:text-primary"
+                  )}>{option.label}</button>
+                ))}
               </div>
-              {isFinanceRevealed && (
-                <Button variant="ghost" size="sm" onClick={() => setIsFinanceRevealed(false)} className="text-text-secondary h-8">
-                  Ocultar valores
-                </Button>
-              )}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex gap-2">
+                  {[
+                    { id: 'all' as const, label: 'Todas as situações' },
+                    { id: 'paid' as const, label: 'Pagos' },
+                    { id: 'pending' as const, label: 'Pendentes' },
+                  ].map(option => (
+                    <button key={option.id} type="button" onClick={() => setFinanceStatus(option.id)} className={cn(
+                      "rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors",
+                      financeStatus === option.id ? "bg-primary-soft text-primary-dark" : "bg-surface-soft text-text-secondary hover:text-primary"
+                    )}>{option.label}</button>
+                  ))}
+                </div>
+                {isFinanceRevealed && <Button variant="ghost" size="sm" onClick={() => setIsFinanceRevealed(false)}>Ocultar valores</Button>}
+              </div>
             </div>
             
             {!isFinanceRevealed ? (
@@ -317,41 +340,50 @@ export function Relatorios() {
                 </div>
                 <h4 className="text-[15px] font-medium text-text-primary mb-2">Relatório Financeiro Oculto</h4>
                 <p className="text-[14px] text-text-secondary max-w-md mb-6">
-                  Os valores financeiros contemplam <strong>Todo o período</strong>. Exiba os dados apenas quando for seguro visualizá-los.
+                   Os valores respeitam o período, o tipo e a situação selecionados. Exiba os dados apenas quando for seguro visualizá-los.
                 </p>
                 <Button onClick={() => setIsFinanceRevealed(true)} className="bg-primary hover:bg-primary-dark text-white rounded-lg px-6">
-                  Exibir todo o período
+                   Exibir dados financeiros
                 </Button>
               </div>
             ) : loadingFinance ? (
                <div className="h-40 bg-surface-soft animate-pulse rounded-xl" />
-            ) : financeData ? (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="p-5 bg-background rounded-xl border border-border shadow-sm">
-                  <div className="text-[13px] font-medium text-text-secondary mb-2">Entradas</div>
-                  <div className="text-[24px] font-semibold tracking-tight text-success">{formatCurrency(financeData.inflow)}</div>
-                </div>
-                <div className="p-5 bg-background rounded-xl border border-border shadow-sm">
-                  <div className="text-[13px] font-medium text-text-secondary mb-2">Saídas</div>
-                  <div className="text-[24px] font-semibold tracking-tight text-error">{formatCurrency(financeData.outflow)}</div>
-                </div>
-                <div className="p-5 bg-background rounded-xl border border-border shadow-sm ring-1 ring-primary/10">
-                  <div className="text-[13px] font-medium text-text-secondary mb-2">Saldo Líquido</div>
-                  <div className="text-[24px] font-semibold tracking-tight text-text-primary">{formatCurrency(financeData.net)}</div>
-                </div>
-                <div className="p-5 bg-background rounded-xl border border-border shadow-sm">
-                  <div className="text-[13px] font-medium text-text-secondary mb-2">Comandas</div>
-                  <div className="text-[24px] font-semibold tracking-tight text-text-primary">{financeData.openAccounts}</div>
-                </div>
-                <div className="p-5 bg-background rounded-xl border border-border shadow-sm">
-                  <div className="text-[13px] font-medium text-text-secondary mb-2">Clientes com uma comanda</div>
-                  <div className="text-[24px] font-semibold tracking-tight text-text-primary">{financeData.newClients}</div>
-                </div>
-                <div className="p-5 bg-background rounded-xl border border-border shadow-sm">
-                  <div className="text-[13px] font-medium text-text-secondary mb-2">Clientes recorrentes</div>
-                  <div className="text-[24px] font-semibold tracking-tight text-text-primary">{financeData.returningClients}</div>
-                </div>
-              </div>
+             ) : filteredFinancialMovements.length > 0 ? (
+               <div className="space-y-5">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                   {[
+                     { label: 'Entradas', value: financialTotals.revenue, icon: ArrowUpCircle, color: 'text-success' },
+                     { label: 'Saídas', value: financialTotals.expense, icon: ArrowDownCircle, color: 'text-error' },
+                     { label: 'Saldo', value: financialTotals.revenue - financialTotals.expense, icon: WalletCards, color: 'text-primary' },
+                     { label: 'Pendente', value: financialTotals.pending, icon: Clock3, color: 'text-warning' },
+                   ].map(metric => {
+                     const Icon = metric.icon;
+                     return <div key={metric.label} className="p-5 bg-background rounded-xl border border-border shadow-card">
+                       <div className="flex items-center justify-between mb-3">
+                         <span className="text-[12px] font-bold text-text-secondary">{metric.label}</span>
+                         <Icon className={cn("h-5 w-5", metric.color)} />
+                       </div>
+                       <div className={cn("text-[22px] font-bold tracking-tight", metric.color)}>{formatCurrency(metric.value)}</div>
+                     </div>;
+                   })}
+                 </div>
+                 <div className="overflow-x-auto rounded-xl border border-border">
+                   <table className="w-full min-w-[760px] text-left text-[12px]">
+                     <thead><tr className="bg-primary-soft/60 text-text-secondary">
+                       <th className="px-4 py-3">Data</th><th className="px-4 py-3">Descrição</th><th className="px-4 py-3">Categoria</th><th className="px-4 py-3">Tipo</th><th className="px-4 py-3">Situação</th><th className="px-4 py-3 text-right">Valor</th>
+                     </tr></thead>
+                     <tbody>{filteredFinancialMovements.map(movement => <tr key={movement.id} className="border-t border-border hover:bg-primary-soft/25">
+                       <td className="px-4 py-3">{format(parseBrDate(movement.date) || new Date(), 'dd/MM/yyyy')}</td>
+                       <td className="px-4 py-3 font-semibold text-text-primary">{movement.description}</td>
+                       <td className="px-4 py-3 text-text-secondary">{movement.category}</td>
+                       <td className="px-4 py-3">{movement.type === 'revenue' ? 'Entrada' : movement.type === 'expense' ? 'Saída' : 'A receber'}</td>
+                       <td className="px-4 py-3">{movement.status === 'paid' ? 'Pago' : 'Pendente'}</td>
+                       <td className={cn("px-4 py-3 text-right font-bold", movement.type === 'expense' ? "text-error" : "text-success")}>{formatCurrency(movement.amount)}</td>
+                     </tr>)}</tbody>
+                   </table>
+                 </div>
+                 <p className="text-[12px] text-text-secondary">{filteredFinancialMovements.length} lançamento(s) • {getPeriodLabel()}</p>
+               </div>
             ) : (
               <div className="text-[14px] text-text-muted text-center py-12">Nenhum dado financeiro disponível.</div>
             )}

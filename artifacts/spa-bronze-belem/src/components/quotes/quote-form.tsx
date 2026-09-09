@@ -298,15 +298,15 @@ export function QuoteForm({ quoteId }: QuoteFormProps) {
 
   return (
     <div className="space-y-6 max-w-[1200px] mx-auto pb-10">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
           <button 
             onClick={() => setLocation('/servicos')}
             className="w-10 h-10 rounded-full flex items-center justify-center bg-surface hover:bg-border transition-colors text-text-secondary"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-[24px] md:text-[28px] font-bold text-text-primary tracking-tight">
               {quoteId ? 'Editar Orçamento' : 'Novo Orçamento'}
             </h1>
@@ -315,18 +315,18 @@ export function QuoteForm({ quoteId }: QuoteFormProps) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
           <button
             onClick={() => handleSave(true)}
             disabled={createQuote.isPending || updateQuote.isPending}
-            className="px-4 py-2 rounded-xl font-medium border border-border text-text-secondary hover:bg-surface-soft transition-colors"
+            className="min-h-11 px-4 py-2 rounded-xl font-medium border border-border text-text-secondary hover:bg-surface-soft transition-colors"
           >
             Rascunho
           </button>
           <button
             onClick={() => handleSave(false)}
             disabled={createQuote.isPending || updateQuote.isPending}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl font-semibold bg-primary text-primary-foreground hover:bg-primary-dark transition-colors shadow-button"
+            className="flex min-h-11 items-center justify-center gap-2 px-5 py-2 rounded-xl font-semibold bg-primary text-primary-foreground hover:bg-primary-dark transition-colors shadow-button"
           >
             <Save className="w-[18px] h-[18px]" />
             Salvar orçamento
@@ -447,13 +447,25 @@ export function QuoteForm({ quoteId }: QuoteFormProps) {
 
         <div className="lg:col-span-8 space-y-6">
           <Card className="p-6 border-border/60 shadow-sm min-h-[400px] flex flex-col">
-            <div className="flex items-center justify-between border-b border-border/60 pb-4 mb-5">
-              <h3 className="font-bold text-[16px] text-text-primary tracking-tight">SERVIÇOS E ITENS</h3>
-              <div className="flex gap-2">
-                <button onClick={() => openAddItem('service')} className="px-3 py-1.5 bg-surface-soft hover:bg-border/50 border border-border rounded-lg text-[13px] font-medium transition-colors">+ Serviço</button>
-                <button onClick={() => openAddItem('package')} className="px-3 py-1.5 bg-surface-soft hover:bg-border/50 border border-border rounded-lg text-[13px] font-medium transition-colors">+ Pacote</button>
-                <button onClick={() => openAddItem('product')} className="px-3 py-1.5 bg-surface-soft hover:bg-border/50 border border-border rounded-lg text-[13px] font-medium transition-colors">+ Produto</button>
-                <button onClick={() => openAddItem('gift_card')} className="px-3 py-1.5 bg-surface-soft hover:bg-border/50 border border-border rounded-lg text-[13px] font-medium transition-colors">+ Gift Card</button>
+            <div className="border-b border-border/60 pb-5 mb-5">
+              <h3 className="font-bold text-[16px] text-text-primary tracking-tight mb-3">SERVIÇOS E ITENS</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { type: 'service' as const, label: 'Serviço' },
+                  { type: 'package' as const, label: 'Pacote' },
+                  { type: 'product' as const, label: 'Produto' },
+                  { type: 'gift_card' as const, label: 'Gift Card' },
+                ].map(option => (
+                  <button
+                    key={option.type}
+                    type="button"
+                    onClick={() => openAddItem(option.type)}
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary-soft/55 px-3 py-2.5 text-[12px] font-bold text-primary-dark transition-all hover:border-primary hover:bg-primary hover:text-white hover:shadow-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {option.label}
+                  </button>
+                ))}
               </div>
             </div>
 

@@ -45,54 +45,54 @@
   --radius-2xl: 22px;
   --radius-pill: 999px;
 
-  --shadow-card: 0 6px 20px rgba(40,45,38,0.035);
-  --shadow-container: 0 20px 60px rgba(40,45,38,0.08);
-  --shadow-modal: 0 25px 70px rgba(35,38,33,0.15);
-  --shadow-button: 0 6px 16px rgba(89,102,83,0.20);
+  --shadow-card: 0 8px 24px rgba(20, 89, 180, 0.07);
+  --shadow-container: 0 20px 60px rgba(16, 71, 145, 0.12);
+  --shadow-modal: 0 25px 70px rgba(8, 46, 97, 0.20);
+  --shadow-button: 0 8px 20px rgba(27, 110, 221, 0.25);
 }
 
 :root {
-  --background: #F5F3EE;
+  --background: #F3F8FF;
   --surface: #FFFFFF;
-  --surface-soft: #FAF9F6;
+  --surface-soft: #EAF3FF;
 
-  --primary: #7D8B78;
-  --primary-dark: #596653;
-  --primary-soft: #DCE2D7;
+  --primary: #1B6EDD;
+  --primary-dark: #104D9B;
+  --primary-soft: #D7E9FF;
 
-  --dark: #242923;
-  --dark-soft: #30372F;
+  --dark: #10233F;
+  --dark-soft: #173457;
 
-  --text: #272A27;
-  --text-secondary: #747871;
-  --text-muted: #A0A49E;
+  --text: #13233A;
+  --text-secondary: #526780;
+  --text-muted: #8295AB;
 
-  --accent: #C8A982;
-  --border: rgba(39, 42, 39, 0.06);
+  --accent: #00A6C7;
+  --border: rgba(21, 86, 169, 0.13);
 
-  --success: #6E9A78;
-  --warning: #C49B5B;
-  --error: #B96E68;
+  --success: #168A63;
+  --warning: #D58A10;
+  --error: #C84B56;
 }
 
 .dark {
-  --background: #1A1C1A;
-  --surface: #242923;
-  --surface-soft: #30372F;
+  --background: #071426;
+  --surface: #10233F;
+  --surface-soft: #173457;
 
-  --primary: #7D8B78;
-  --primary-dark: #596653;
-  --primary-soft: #DCE2D7;
+  --primary: #5EA2FF;
+  --primary-dark: #A8CEFF;
+  --primary-soft: #173F73;
 
-  --dark: #121412;
-  --dark-soft: #1A1C1A;
+  --dark: #050D18;
+  --dark-soft: #0B1B31;
 
-  --text: #F5F3EE;
-  --text-secondary: #A0A49E;
-  --text-muted: #747871;
+  --text: #F2F7FF;
+  --text-secondary: #B3C5DA;
+  --text-muted: #7E96B2;
 
-  --accent: #C8A982;
-  --border: rgba(255, 255, 255, 0.06);
+  --accent: #30C4E2;
+  --border: rgba(168, 206, 255, 0.13);
 
   --success: #6E9A78;
   --warning: #C49B5B;
