@@ -3,10 +3,12 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { BarChart3, PieChart, TrendingUp, Download, PackageOpen, Users, Calendar as CalendarIcon, WalletCards, ArrowUpCircle, ArrowDownCircle, Clock3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useListFinancialMovements, useListInventory, useListClients } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format, isAfter, isBefore, startOfDay, endOfDay, subDays } from 'date-fns';
+import { ExportDialog } from '@/components/export/export-dialog';
 
 type ReportType = 'finance' | 'inventory' | 'clients';
 type Period = 'all' | '7d' | '30d' | 'custom';
@@ -20,6 +22,7 @@ export function Relatorios() {
   const [isFinanceRevealed, setIsFinanceRevealed] = useState<boolean>(false);
   const [financeType, setFinanceType] = useState<'all' | 'revenue' | 'expense' | 'receivable'>('all');
   const [financeStatus, setFinanceStatus] = useState<'all' | 'paid' | 'pending'>('all');
+  const [exportOpen, setExportOpen] = useState(false);
   
   const { data: financialMovements = [], isLoading: loadingFinance } = useListFinancialMovements();
   const { data: inventoryData = [], isLoading: loadingInventory } = useListInventory();
@@ -105,24 +108,13 @@ export function Relatorios() {
     return '';
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = (filename: string) => {
     const bom = '\uFEFF';
     let headers: string[] = [];
     let rows: any[][] = [];
-    const rangeSuffix = period === 'custom' && customFrom && customTo
-        ? `${customFrom}_a_${customTo}`
-        : period;
-    let filename = `relatorio_${activeReport}_${rangeSuffix}.csv`;
+    const outputFilename = filename;
 
     if (activeReport === 'finance' && filteredFinancialMovements.length > 0) {
-      if (!isFinanceRevealed) {
-        toast({
-          title: 'Ação necessária',
-          description: 'Por favor, exiba os valores do período antes de exportar.',
-          variant: 'default'
-        });
-        return;
-      }
       headers = ['Data', 'Tipo', 'Situação', 'Descrição', 'Categoria', 'Cliente', 'Serviço', 'Profissional', 'Valor'];
       rows = filteredFinancialMovements.map(movement => [
         movement.date,
@@ -177,7 +169,7 @@ export function Relatorios() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', filename);
+    link.setAttribute('download', outputFilename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -199,12 +191,48 @@ export function Relatorios() {
         title="Relatórios"
         description="Análises avançadas e exportações."
         action={
-          <Button variant="outline" className="gap-2" onClick={handleExportCSV}>
+          <Button variant="outline" className="gap-2" onClick={() => setExportOpen(true)}>
             <Download className="w-4 h-4" />
             Exportar CSV
           </Button>
         }
       />
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title={`Configurar exportação: ${activeReport === 'finance' ? 'financeiro' : activeReport === 'inventory' ? 'estoque' : 'clientes'}`}
+        defaultFilename={`relatorio_${activeReport}_${period}`}
+        count={activeReport === 'finance' ? filteredFinancialMovements.length : activeReport === 'inventory' ? filteredInventory.length : filteredClients.length}
+        onExport={handleExportCSV}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-text-secondary">Filtros atuais: {getPeriodLabel()}.</p>
+          <div className="flex flex-wrap gap-2">
+            {(['all', '7d', '30d', 'custom'] as const).map(value => (
+              <Button key={value} type="button" size="sm" variant={period === value ? 'default' : 'outline'} onClick={() => setPeriod(value)}>
+                {value === 'all' ? 'Todo o período' : value === '7d' ? 'Últimos 7 dias' : value === '30d' ? 'Últimos 30 dias' : 'Personalizado'}
+              </Button>
+            ))}
+          </div>
+          {period === 'custom' && (
+            <div className="grid grid-cols-2 gap-2">
+              <Input type="date" value={customFrom} onChange={event => setCustomFrom(event.target.value)} aria-label="Data inicial" />
+              <Input type="date" value={customTo} onChange={event => setCustomTo(event.target.value)} aria-label="Data final" />
+            </div>
+          )}
+          {activeReport === 'finance' && (
+            <div className="grid grid-cols-2 gap-2">
+              <select className="h-10 rounded-md border border-border bg-background px-3 text-sm" value={financeType} onChange={event => setFinanceType(event.target.value as typeof financeType)}>
+                <option value="all">Todos os tipos</option><option value="revenue">Entradas</option><option value="expense">Saídas</option><option value="receivable">A receber</option>
+              </select>
+              <select className="h-10 rounded-md border border-border bg-background px-3 text-sm" value={financeStatus} onChange={event => setFinanceStatus(event.target.value as typeof financeStatus)}>
+                <option value="all">Todas as situações</option><option value="paid">Pagos</option><option value="pending">Pendentes</option>
+              </select>
+            </div>
+          )}
+        </div>
+      </ExportDialog>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {[

@@ -24,6 +24,8 @@ import { Financeiro } from '@/pages/financeiro';
 import { Estoque } from '@/pages/estoque';
 import { Relatorios } from '@/pages/relatorios';
 import { Configuracoes } from '@/pages/configuracoes';
+import { Login } from '@/pages/login';
+import { AuthGuard, AuthProvider } from '@/hooks/use-auth';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,13 +73,14 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Switch>
+            <Route path="/login"><Login /></Route>
             <Route path="/proposta/:token">
               <RoutedErrorBoundary>
                 <OrcamentoPublico />
               </RoutedErrorBoundary>
             </Route>
             <Route>
-              <Router />
+              <AuthGuard><Router /></AuthGuard>
             </Route>
           </Switch>
         </WouterRouter>
@@ -87,4 +90,6 @@ function App() {
   );
 }
 
-export default App;
+export default function AuthenticatedApp() {
+  return <AuthProvider><App /></AuthProvider>;
+}

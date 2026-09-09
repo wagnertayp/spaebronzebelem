@@ -37,6 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format, isAfter, isBefore, startOfDay, endOfDay, subDays } from 'date-fns';
+import { ExportDialog } from '@/components/export/export-dialog';
 
 function parseBrPrice(priceStr: string | undefined): number | null {
   if (!priceStr) return null;
@@ -92,6 +93,8 @@ export function Usuarios() {
   const [period, setPeriod] = useState<Period>('30d');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+  const [commissionStatus, setCommissionStatus] = useState<'all' | 'completed' | 'confirmed' | 'in_progress' | 'cancelled'>('completed');
+  const [exportOpen, setExportOpen] = useState(false);
 
   const openProfDialog = (prof?: Professional) => {
     if (prof) {
@@ -161,7 +164,7 @@ export function Usuarios() {
     const now = new Date();
     
     return appointments.filter((appt: Appointment) => {
-      if (appt.status !== 'completed') return false;
+      if (commissionStatus !== 'all' && appt.status !== commissionStatus) return false;
       
       const d = parseSafeDate(appt.start);
       if (!d) return false;
@@ -203,7 +206,7 @@ export function Usuarios() {
         commission
       };
     }).sort((a, b) => (b.dateObj?.getTime() ?? 0) - (a.dateObj?.getTime() ?? 0));
-  }, [appointments, professionals, services, period, customFrom, customTo]);
+  }, [appointments, professionals, services, period, customFrom, customTo, commissionStatus]);
 
   const commissionStats = useMemo(() => {
     let apptsCount = 0;
@@ -238,7 +241,7 @@ export function Usuarios() {
     return Object.values(stats).sort((a, b) => b.commission - a.commission);
   }, [filteredCommissions]);
 
-  const handleExportCSV = () => {
+  const handleExportCSV = (filename: string) => {
     if (filteredCommissions.length === 0) {
       toast({
         title: 'Nenhum dado para exportar',
@@ -281,7 +284,7 @@ export function Usuarios() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `comissoes_${period}.csv`);
+     link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -302,13 +305,49 @@ export function Usuarios() {
               Novo Profissional
             </Button>
           ) : (
-            <Button variant="outline" className="gap-2" onClick={handleExportCSV} disabled={filteredCommissions.length === 0}>
+             <Button variant="outline" className="gap-2" onClick={() => setExportOpen(true)}>
               <Download className="w-4 h-4" />
               Exportar Comissões
             </Button>
           )
         }
       />
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Configurar exportação de comissões"
+        defaultFilename={`comissoes_${period}`}
+        count={filteredCommissions.length}
+        onExport={handleExportCSV}
+      >
+        <div className="space-y-3">
+          <label className="space-y-1.5 text-sm font-medium text-text-primary">
+            Situação
+            <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={commissionStatus} onChange={event => setCommissionStatus(event.target.value as typeof commissionStatus)}>
+              <option value="completed">Concluídos</option>
+              <option value="all">Todas</option>
+              <option value="confirmed">Confirmados</option>
+              <option value="in_progress">Em andamento</option>
+              <option value="cancelled">Cancelados</option>
+            </select>
+          </label>
+          <p className="text-xs text-text-secondary">Período atual: {period === 'today' ? 'Hoje' : period === '7d' ? 'Últimos 7 dias' : period === '30d' ? 'Últimos 30 dias' : period === 'all' ? 'Todo o período' : 'Personalizado'}.</p>
+          <div className="flex flex-wrap gap-2">
+            {(['today', '7d', '30d', 'all', 'custom'] as const).map(value => (
+              <Button key={value} type="button" size="sm" variant={period === value ? 'default' : 'outline'} onClick={() => setPeriod(value)}>
+                {value === 'today' ? 'Hoje' : value === '7d' ? '7 dias' : value === '30d' ? '30 dias' : value === 'all' ? 'Todo o período' : 'Personalizado'}
+              </Button>
+            ))}
+          </div>
+          {period === 'custom' && (
+            <div className="grid grid-cols-2 gap-2">
+              <input type="date" value={customFrom} onChange={event => setCustomFrom(event.target.value)} className="h-10 rounded-md border border-border bg-background px-3 text-sm" aria-label="Data inicial" />
+              <input type="date" value={customTo} onChange={event => setCustomTo(event.target.value)} className="h-10 rounded-md border border-border bg-background px-3 text-sm" aria-label="Data final" />
+            </div>
+          )}
+        </div>
+      </ExportDialog>
       
       <div className="flex border-b border-border mb-6">
         <button

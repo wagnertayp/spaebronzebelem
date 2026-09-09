@@ -34,6 +34,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ExportDialog } from '@/components/export/export-dialog';
 
 const formSchema = z.object({
   type: z.enum(['revenue', 'expense', 'receivable']),
@@ -53,6 +54,8 @@ export function Financeiro() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const selectedMonth = format(currentDate, 'yyyy-MM');
   const [filterType, setFilterType] = useState<string>('all');
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportStatus, setExportStatus] = useState<'all' | 'paid' | 'pending'>('all');
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -193,12 +196,17 @@ export function Financeiro() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  const handleExportCSV = () => {
-    if (!movements.length) return;
+  const exportMovements = useMemo(() => movements.filter(m =>
+    (filterType === 'all' || m.type === filterType) &&
+    (exportStatus === 'all' || m.status === exportStatus)
+  ), [movements, filterType, exportStatus]);
+
+  const handleExportCSV = (filename: string) => {
+    if (!exportMovements.length) return;
     const bom = '\uFEFF';
     const headers = ['Data', 'Tipo', 'Descrição', 'Categoria', 'Cliente', 'Profissional', 'Serviço', 'Status', 'Valor'];
     
-    const rows = movements.map(m => [
+    const rows = exportMovements.map(m => [
       format(parseISO(m.date), 'dd/MM/yyyy'),
       m.type === 'revenue' ? 'Receita' : m.type === 'expense' ? 'Despesa' : 'A Receber',
       m.description,
@@ -219,11 +227,13 @@ export function Financeiro() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `financeiro_${selectedMonth}.csv`);
+     link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+     URL.revokeObjectURL(url);
+     toast({ title: 'Exportação concluída', description: 'O arquivo financeiro foi baixado com sucesso.' });
   };
 
   const form = useForm<FormValues>({
@@ -325,7 +335,7 @@ export function Financeiro() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="outline" className="gap-2 shadow-sm h-10 w-full sm:w-auto" onClick={handleExportCSV} disabled={!movements.length}>
+              <Button variant="outline" className="gap-2 shadow-sm h-10 w-full sm:w-auto" onClick={() => setExportOpen(true)}>
                 <Download className="w-4 h-4" />
                 Exportar
               </Button>
@@ -338,6 +348,34 @@ export function Financeiro() {
           </div>
         }
       />
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Configurar exportação financeira"
+        defaultFilename={`financeiro_${selectedMonth}`}
+        count={exportMovements.length}
+        onExport={handleExportCSV}
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="space-y-1.5 text-sm font-medium text-text-primary">
+            Tipo
+            <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={filterType} onChange={event => setFilterType(event.target.value)}>
+              <option value="all">Todos</option>
+              <option value="revenue">Entradas</option>
+              <option value="expense">Saídas</option>
+              <option value="receivable">A receber</option>
+            </select>
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-text-primary">
+            Situação
+            <select className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={exportStatus} onChange={event => setExportStatus(event.target.value as 'all' | 'paid' | 'pending')}>
+              <option value="all">Todas</option><option value="paid">Pago</option><option value="pending">Pendente</option>
+            </select>
+          </label>
+        </div>
+        <p className="text-xs text-text-secondary">Período: mês selecionado ({format(currentDate, 'MMMM/yyyy', { locale: ptBR })}).</p>
+      </ExportDialog>
 
       {isLoading ? (
         <div className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-2xl border border-border/70 bg-surface animate-pulse md:grid-cols-4 md:divide-x md:divide-y-0">

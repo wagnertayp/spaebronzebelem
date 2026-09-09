@@ -1,13 +1,15 @@
-import { Menu, X, Settings } from 'lucide-react';
+import { Menu, X, Settings, LogOut } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { navItems } from './nav-items';
 import { cn } from '@/lib/utils';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useBusinessSettings } from '@/hooks/use-business-settings';
+import { useAuth } from '@/hooks/use-auth';
 
 export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean, onOpenChange: (open: boolean) => void, className?: string }) {
   const [location] = useLocation();
   const { administrator, initials } = useBusinessSettings();
+  const { logout } = useAuth();
 
   return (
     <div className={cn("flex items-center justify-between h-[72px] px-4 border-b border-border/50 bg-surface/70 backdrop-blur-2xl shrink-0 sticky top-0 z-30", className)}>
@@ -22,7 +24,7 @@ export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean
             <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm transition-opacity duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
             <Dialog.Content className="fixed top-0 left-0 bottom-0 w-[300px] bg-surface z-50 shadow-2xl flex flex-col border-r border-border focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left duration-300 ease-out">
               <div className="px-6 pt-10 pb-6 flex items-center justify-between">
-                <img src="/logo-clean.png" alt="Spa e Bronze Belém" className="h-[36px] w-auto object-contain" />
+                <img src="/logo-clean.png" alt="Spa e Bronze Belém" className="h-[46px] w-auto object-contain" />
                 <Dialog.Close asChild>
                   <button className="p-2 -mr-2 text-text-secondary hover:text-text-primary rounded-full hover:bg-surface-soft transition-colors outline-none">
                     <X className="w-6 h-6" strokeWidth={2} />
@@ -74,6 +76,7 @@ export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean
                     <p className="text-[12px] font-medium text-text-secondary mt-0.5 transition-colors group-hover:text-primary">Ajustes</p>
                   </div>
                   <Settings className="w-5 h-5 text-text-muted shrink-0 opacity-50 group-hover:opacity-100 transition-all duration-300" />
+                  <button type="button" onClick={() => void logout()} aria-label="Sair" className="rounded-lg p-2 text-text-muted hover:bg-surface-soft hover:text-error"><LogOut className="h-5 w-5" /></button>
                 </Link>
               </div>
             </Dialog.Content>
@@ -81,7 +84,7 @@ export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean
         </Dialog.Root>
         
         <Link href="/" className="ml-1 outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-md">
-          <img src="/logo-clean.png" alt="Spa e Bronze" className="h-[28px] w-auto object-contain" />
+          <img src="/logo-clean.png" alt="Spa e Bronze" className="h-[36px] w-auto object-contain" />
         </Link>
       </div>
       

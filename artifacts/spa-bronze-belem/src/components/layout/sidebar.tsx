@@ -1,19 +1,21 @@
 import { Link, useLocation } from 'wouter';
-import { Settings } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBusinessSettings } from '@/hooks/use-business-settings';
 import { navItems } from './nav-items';
+import { useAuth } from '@/hooks/use-auth';
 
 export function Sidebar({ className }: { className?: string }) {
   const [location] = useLocation();
   const { administrator, initials } = useBusinessSettings();
+  const { logout } = useAuth();
 
   return (
     <aside className={cn("flex flex-col bg-surface border-r border-border h-[100dvh] sticky top-0 transition-all z-20", className)}>
       <div className="flex flex-col h-full">
         <div className="px-8 pt-10 pb-8 flex items-center justify-between">
           <Link href="/" className="block transition-opacity hover:opacity-80 outline-none focus-visible:ring-2 ring-primary/50 rounded-lg">
-            <img src="/logo-clean.png" alt="Spa e Bronze Belém" className="h-[40px] w-auto object-contain" />
+            <img src="/logo-clean.png" alt="Spa e Bronze Belém" className="h-[52px] w-auto object-contain" />
           </Link>
         </div>
 
@@ -49,10 +51,7 @@ export function Sidebar({ className }: { className?: string }) {
         </nav>
 
         <div className="p-4 mt-auto">
-          <Link 
-            href="/configuracoes" 
-            className="flex items-center gap-3 p-3 rounded-2xl hover:bg-surface-soft transition-all outline-none focus-visible:ring-2 ring-primary/50 group border border-transparent hover:border-border cursor-pointer shadow-sm hover:shadow-md"
-          >
+          <div className="flex items-center gap-3 p-3 rounded-2xl border border-transparent hover:border-border shadow-sm">
             <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold text-[14px] shrink-0">
               {initials}
             </div>
@@ -61,7 +60,8 @@ export function Sidebar({ className }: { className?: string }) {
               <p className="text-[12px] text-text-secondary truncate mt-0.5 font-medium group-hover:text-primary transition-colors">Ajustes</p>
             </div>
             <Settings className="w-5 h-5 text-text-muted shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300" />
-          </Link>
+            <button onClick={() => void logout()} aria-label="Sair" className="rounded-lg p-2 text-text-muted hover:bg-surface-soft hover:text-error"><LogOut className="h-5 w-5" /></button>
+          </div>
         </div>
       </div>
     </aside>

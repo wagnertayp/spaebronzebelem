@@ -80,8 +80,15 @@ import {
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import backup from "../data/spa-backup.json";
+import { requireSession } from "../lib/auth";
 
 const router: IRouter = Router();
+
+// All operational data is private; quote links remain public by design.
+router.use((req, res, next) => {
+  if (req.path.startsWith("/public/")) return next();
+  return requireSession(req, res, next);
+});
 
 type AppointmentStatus =
   | "confirmed"
