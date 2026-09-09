@@ -509,7 +509,7 @@ router.get("/clients", (req, res) => {
           .includes(normalized),
       )
     : clients;
-  res.json(ListClientsResponse.parse(filtered.slice(0, 100)));
+  res.json(ListClientsResponse.parse(filtered));
 });
 
 router.post("/clients", (req, res) => {

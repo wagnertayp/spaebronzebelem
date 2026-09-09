@@ -9,8 +9,8 @@ import {
 } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { Plus, Search, Filter, MoreHorizontal, MessageCircle, Edit, Trash, Eye, Phone, Mail, Calendar, StickyNote } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Search, Filter, MoreHorizontal, MessageCircle, Edit, Trash, Eye, Phone, Mail, Calendar, StickyNote, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -70,8 +70,10 @@ const ClientFormContent = ({ defaultValues = {} }: { defaultValues?: Partial<Cli
 );
 
 export function Clientes() {
+  const pageSize = 50;
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const { data: clients = [], isLoading } = useListClients({ search });
   
   const queryClient = useQueryClient();
@@ -86,7 +88,26 @@ export function Clientes() {
   const [deletingClient, setDeletingClient] = useState<Client | null>(null);
   const [viewingClient, setViewingClient] = useState<Client | null>(null);
 
-  const filteredClients = clients.filter(c => statusFilter === 'all' || c.status === statusFilter);
+  const filteredClients = useMemo(
+    () => clients.filter(c => statusFilter === 'all' || c.status === statusFilter),
+    [clients, statusFilter],
+  );
+  const totalPages = Math.max(1, Math.ceil(filteredClients.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * pageSize;
+  const paginatedClients = filteredClients.slice(pageStart, pageStart + pageSize);
+  const visiblePages = Array.from(
+    { length: Math.min(5, totalPages) },
+    (_, index) => Math.min(Math.max(1, safePage - 2), Math.max(1, totalPages - 4)) + index,
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -243,8 +264,8 @@ export function Clientes() {
                     <td className="px-6 py-4"></td>
                   </tr>
                 ))
-              ) : filteredClients.length > 0 ? (
-                filteredClients.map((client) => (
+              ) : paginatedClients.length > 0 ? (
+                paginatedClients.map((client) => (
                   <tr key={client.id} className="group hover:bg-surface-soft/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -317,6 +338,51 @@ export function Clientes() {
             </tbody>
           </table>
         </div>
+        {!isLoading && filteredClients.length > 0 && (
+          <div className="flex flex-col gap-4 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[13px] text-text-secondary">
+              Exibindo <span className="font-semibold text-text-primary">{pageStart + 1}</span> a{' '}
+              <span className="font-semibold text-text-primary">{Math.min(pageStart + pageSize, filteredClients.length)}</span> de{' '}
+              <span className="font-semibold text-text-primary">{filteredClients.length}</span> clientes
+            </p>
+            <nav aria-label="Paginação de clientes" className="flex items-center gap-1.5">
+              <button
+                type="button"
+                aria-label="Página anterior"
+                disabled={safePage === 1}
+                onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-secondary transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              {visiblePages.map(page => (
+                <button
+                  key={page}
+                  type="button"
+                  aria-current={safePage === page ? 'page' : undefined}
+                  onClick={() => setCurrentPage(page)}
+                  className={cn(
+                    "h-9 min-w-9 rounded-lg px-2 text-[13px] font-medium transition-colors",
+                    safePage === page
+                      ? "bg-primary text-white"
+                      : "border border-border text-text-secondary hover:border-primary/30 hover:text-primary",
+                  )}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                aria-label="Próxima página"
+                disabled={safePage === totalPages}
+                onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-secondary transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </nav>
+          </div>
+        )}
       </div>
 
       {/* New Client Dialog */}
