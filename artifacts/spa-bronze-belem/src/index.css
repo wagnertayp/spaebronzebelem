@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -25,6 +25,7 @@
   --color-dark-soft: var(--dark-soft);
   
   --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --color-accent-foreground: #FFFFFF;
 
   --color-text-primary: var(--text);
@@ -35,68 +36,74 @@
   --color-warning: var(--warning);
   --color-error: var(--error);
 
-  --font-sans: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
-  --radius-2xl: 22px;
-  --radius-pill: 999px;
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-2xl: 40px;
+  --radius-pill: 9999px;
 
-  --shadow-card: 0 8px 24px rgba(20, 89, 180, 0.07);
-  --shadow-container: 0 20px 60px rgba(16, 71, 145, 0.12);
-  --shadow-modal: 0 25px 70px rgba(8, 46, 97, 0.20);
-  --shadow-button: 0 8px 20px rgba(27, 110, 221, 0.25);
+  --shadow-sm: 0 2px 8px -2px rgba(15, 23, 42, 0.04), 0 1px 3px -1px rgba(15, 23, 42, 0.02);
+  --shadow-md: 0 4px 16px -4px rgba(15, 23, 42, 0.06), 0 2px 6px -2px rgba(15, 23, 42, 0.03);
+  --shadow-card: 0 8px 24px -4px rgba(15, 23, 42, 0.04), 0 2px 8px -2px rgba(15, 23, 42, 0.02);
+  --shadow-container: 0 20px 40px -5px rgba(15, 23, 42, 0.06), 0 8px 16px -6px rgba(15, 23, 42, 0.04);
+  --shadow-button: 0 4px 12px rgba(27, 110, 221, 0.25);
+  --shadow-button-accent: 0 4px 12px rgba(147, 51, 234, 0.25);
 }
 
 :root {
-  --background: #F3F8FF;
+  --background: #F8FAFC;
   --surface: #FFFFFF;
-  --surface-soft: #EAF3FF;
+  --surface-soft: #F1F5F9;
 
   --primary: #1B6EDD;
   --primary-dark: #104D9B;
-  --primary-soft: #D7E9FF;
+  --primary-soft: #EFF6FF;
 
-  --dark: #10233F;
-  --dark-soft: #173457;
+  --dark: #0F172A;
+  --dark-soft: #1E293B;
 
-  --text: #13233A;
-  --text-secondary: #526780;
-  --text-muted: #8295AB;
+  --text: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
 
-  --accent: #00A6C7;
-  --border: rgba(21, 86, 169, 0.13);
+  --accent: #9333EA;
+  --accent-soft: #FAF5FF;
+  
+  --border: #E2E8F0;
 
-  --success: #168A63;
-  --warning: #D58A10;
-  --error: #C84B56;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #EF4444;
 }
 
 .dark {
-  --background: #071426;
-  --surface: #10233F;
-  --surface-soft: #173457;
+  --background: #020617;
+  --surface: #0F172A;
+  --surface-soft: #1E293B;
 
-  --primary: #5EA2FF;
-  --primary-dark: #A8CEFF;
-  --primary-soft: #173F73;
+  --primary: #3B82F6;
+  --primary-dark: #60A5FA;
+  --primary-soft: #1E3A8A;
 
-  --dark: #050D18;
-  --dark-soft: #0B1B31;
+  --dark: #FFFFFF;
+  --dark-soft: #F8FAFC;
 
-  --text: #F2F7FF;
-  --text-secondary: #B3C5DA;
-  --text-muted: #7E96B2;
+  --text: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
 
-  --accent: #30C4E2;
-  --border: rgba(168, 206, 255, 0.13);
+  --accent: #C084FC;
+  --accent-soft: #3B1D6E;
+  
+  --border: #1E293B;
 
-  --success: #6E9A78;
-  --warning: #C49B5B;
-  --error: #B96E68;
+  --success: #34D399;
+  --warning: #FBBF24;
+  --error: #F87171;
 }
 
 @layer base {
@@ -105,7 +112,17 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-text-primary;
+    @apply font-sans antialiased bg-background text-text-primary selection:bg-primary/20 selection:text-primary;
     background-color: var(--background);
   }
+}
+
+.bg-subtle-grid {
+  background-size: 24px 24px;
+  background-image: linear-gradient(to right, rgba(15, 23, 42, 0.03) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+}
+.dark .bg-subtle-grid {
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
