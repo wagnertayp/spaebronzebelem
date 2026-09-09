@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { 
   Plus, Clock, MapPin, User, ChevronRight, ChevronLeft, 
   Calendar as CalendarIcon, Minus, TrendingUp, TrendingDown,
-  FileText, Users, Activity, Bell, Sparkles
+  FileText, Users, Activity, Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -83,16 +83,14 @@ function MetricCard({
   return (
     <div className={cn(
       "p-6 md:p-8 rounded-lg border flex flex-col gap-6 transition-all hover:-translate-y-1 bg-surface relative overflow-hidden group shadow-card",
-      highlight ? "border-accent shadow-button-accent/20 ring-1 ring-accent/20" : "border-border hover:shadow-md",
+      highlight ? "border-primary/30 ring-1 ring-primary/10" : "border-border hover:shadow-md",
     )}>
-      {highlight && <div className="absolute top-0 left-0 w-full h-1.5 bg-accent" />}
+      {highlight && <div className="absolute top-0 left-0 w-full h-1 bg-primary" />}
       {!highlight && <div className="absolute top-0 left-0 w-full h-1 bg-primary/20 group-hover:bg-primary transition-colors" />}
       
       <div className="flex items-center justify-between">
-        <span className="text-[12px] font-extrabold tracking-widest text-text-secondary uppercase flex items-center gap-2.5">
-          <div className={cn("p-2 rounded-xl", highlight ? "bg-accent text-white shadow-sm" : "bg-primary-soft text-primary group-hover:bg-primary group-hover:text-white transition-colors")}>
-            <Icon className="w-4 h-4" strokeWidth={2.5} />
-          </div>
+        <span className="text-[13px] font-semibold text-text-secondary flex items-center gap-2.5">
+          <Icon className={cn("w-[18px] h-[18px]", highlight ? "text-primary" : "text-text-muted group-hover:text-primary")} strokeWidth={1.8} />
           {title}
         </span>
         <MetricTrend trend={trend.trend} change={trend.text} />
@@ -108,13 +106,13 @@ function MetricCard({
         <div className="flex items-center gap-6 pt-6 border-t border-border mt-auto">
           {subLabel1 && (
             <div className="flex flex-col">
-              <span className="text-[11px] font-extrabold tracking-widest uppercase text-text-muted mb-1">{subLabel1}</span>
+              <span className="text-[11px] font-medium text-text-muted mb-1">{subLabel1}</span>
               <span className="text-[14px] font-bold text-text-primary">{subValue1}</span>
             </div>
           )}
           {subLabel2 && (
             <div className="flex flex-col border-l border-border pl-6">
-              <span className="text-[11px] font-extrabold tracking-widest uppercase text-text-muted mb-1">{subLabel2}</span>
+              <span className="text-[11px] font-medium text-text-muted mb-1">{subLabel2}</span>
               <span className="text-[14px] font-bold text-text-primary">{subValue2}</span>
             </div>
           )}
@@ -126,9 +124,9 @@ function MetricCard({
 
 const getGreeting = () => {
   const hour = new Date().getHours();
-  if (hour < 12) return 'BOM DIA';
-  if (hour < 18) return 'BOA TARDE';
-  return 'BOA NOITE';
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
 };
 
 export function Dashboard() {
@@ -298,11 +296,7 @@ export function Dashboard() {
     <div className="space-y-12 max-w-[1400px] mx-auto pb-16 relative">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border/60">
         <div>
-          <span className="text-[11px] font-extrabold text-primary uppercase tracking-[0.2em] mb-2 block flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            VISÃO GERAL
-          </span>
-          <h1 className="text-[32px] md:text-[40px] font-extrabold tracking-tight text-dark uppercase leading-[1.08]">
+          <h1 className="text-[32px] md:text-[40px] font-bold tracking-tight text-dark leading-[1.08]">
             {getGreeting()}, <span className="text-primary whitespace-nowrap">Wagner.</span>
           </h1>
           <p className="text-text-secondary mt-2 text-[15px] font-medium">
@@ -315,7 +309,7 @@ export function Dashboard() {
           onClick={() => setLocation('/agenda?novo=1')}
         >
           <Plus className="w-5 h-5 mr-2" strokeWidth={2.5} />
-          NOVO AGENDAMENTO
+          Novo agendamento
         </Button>
       </header>
 
@@ -326,7 +320,7 @@ export function Dashboard() {
               key={p}
               onClick={() => setPeriod(p)}
               className={cn(
-                "px-5 py-2.5 rounded-full text-[12px] font-extrabold uppercase tracking-wider transition-all border outline-none focus-visible:ring-2 ring-primary/50", 
+                "px-5 py-2.5 rounded-full text-[12px] font-semibold transition-all border outline-none focus-visible:ring-2 ring-primary/50", 
                 period === p 
                   ? 'bg-primary text-white border-primary shadow-button' 
                   : 'bg-surface text-text-secondary border-border hover:border-primary/30 hover:text-dark hover:bg-primary-soft/50'
@@ -421,28 +415,24 @@ export function Dashboard() {
         <section className="lg:col-span-4 flex flex-col h-full">
           <div className="bg-surface rounded-lg border border-border shadow-card overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow">
             <div className="p-6 md:p-8 border-b border-border bg-surface flex items-center justify-between">
-              <h2 className="text-[12px] font-extrabold uppercase tracking-widest text-dark flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
-                   <Activity className="w-4 h-4 text-accent" strokeWidth={3} />
-                </div>
-                ATENÇÃO COMERCIAL
+              <h2 className="text-[15px] font-semibold text-dark flex items-center gap-2.5">
+                <Activity className="w-[18px] h-[18px] text-primary" strokeWidth={1.8} />
+                Atenção comercial
               </h2>
             </div>
             <div className="p-6 md:p-8 space-y-6 flex-1">
               <div 
-                className="flex items-center justify-between p-5 rounded-2xl bg-accent/5 border border-accent/20 cursor-pointer hover:border-accent/40 hover:bg-accent/10 hover:shadow-sm transition-all group"
+                className="flex items-center justify-between p-5 rounded-2xl bg-surface-soft/70 border border-border cursor-pointer hover:border-primary/25 hover:bg-primary-soft/45 hover:shadow-sm transition-all group"
                 onClick={() => setLocation('/whatsapp')}
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-accent text-white flex items-center justify-center shadow-button-accent">
-                     <Bell className="w-5 h-5" strokeWidth={2.5} />
-                  </div>
+                   <Bell className="w-5 h-5 text-primary" strokeWidth={1.8} />
                   <div>
-                    <div className="text-[14px] font-bold text-dark mb-1 uppercase tracking-wide">LEADS NA FILA</div>
-                    <div className="text-[13px] font-medium text-accent">{leadsNew.length} contatos pendentes</div>
+                     <div className="text-[14px] font-semibold text-dark mb-1">Leads na fila</div>
+                     <div className="text-[13px] font-medium text-text-secondary">{leadsNew.length} contatos pendentes</div>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-accent/50 group-hover:text-accent group-hover:translate-x-1 transition-all" />
+                <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all" />
               </div>
               
               <div 
@@ -450,11 +440,9 @@ export function Dashboard() {
                 onClick={() => setLocation('/servicos')}
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center shadow-button">
-                     <FileText className="w-5 h-5" strokeWidth={2.5} />
-                  </div>
+                   <FileText className="w-5 h-5 text-primary" strokeWidth={1.8} />
                   <div>
-                    <div className="text-[14px] font-bold text-dark mb-1 uppercase tracking-wide">ORÇAMENTOS ENVIADOS</div>
+                     <div className="text-[14px] font-semibold text-dark mb-1">Orçamentos enviados</div>
                     <div className="text-[13px] font-medium text-primary">{leadsQuote.length} propostas aguardando</div>
                   </div>
                 </div>
@@ -463,7 +451,7 @@ export function Dashboard() {
 
               <div className="pt-4 border-t border-border">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-[11px] font-extrabold uppercase tracking-widest text-text-muted">URGENTES ({urgentLeads.length})</h3>
+                  <h3 className="text-[12px] font-semibold text-text-secondary">Urgentes ({urgentLeads.length})</h3>
                 </div>
                 <div className="space-y-3">
                   {urgentLeads.length === 0 ? (
@@ -494,17 +482,13 @@ export function Dashboard() {
 
         <section className="lg:col-span-4 flex flex-col h-full">
           <div className="bg-surface rounded-lg border border-border shadow-card overflow-hidden flex flex-col h-full relative hover:shadow-md transition-shadow">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3" />
             <div className="p-6 md:p-8 border-b border-border flex items-center justify-between relative z-10">
-              <h2 className="text-[12px] font-extrabold uppercase tracking-widest text-dark flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center relative">
-                   <div className="absolute inset-0 rounded-full bg-success/20 animate-ping" />
-                   <div className="w-2.5 h-2.5 rounded-full bg-success" />
-                </div>
-                EM ATENDIMENTO
+              <h2 className="text-[15px] font-semibold text-dark flex items-center gap-2.5">
+                <Clock className="w-[18px] h-[18px] text-primary" strokeWidth={1.8} />
+                Em atendimento
               </h2>
-              <span className="text-[11px] font-extrabold tracking-widest uppercase bg-surface-soft px-3 py-1.5 rounded-full text-text-secondary border border-border">
-                {inProgressAppts.length} AGORA
+              <span className="text-[11px] font-medium bg-surface-soft px-3 py-1.5 rounded-full text-text-secondary border border-border">
+                {inProgressAppts.length} agora
               </span>
             </div>
             <div className="p-6 md:p-8 flex-1 relative z-10 bg-surface-soft/30">
@@ -513,7 +497,7 @@ export function Dashboard() {
                   <div className="w-16 h-16 rounded-full bg-surface flex items-center justify-center mb-6 shadow-sm border border-border">
                     <Clock className="w-6 h-6 text-text-muted" strokeWidth={2.5} />
                   </div>
-                  <p className="text-[16px] font-bold text-dark uppercase tracking-wide">Nenhum atendimento</p>
+                  <p className="text-[16px] font-semibold text-dark">Nenhum atendimento</p>
                   <p className="text-[14px] font-medium text-text-secondary mt-2">As salas estão livres no momento.</p>
                 </div>
               ) : (
@@ -550,11 +534,9 @@ export function Dashboard() {
         <section className="lg:col-span-4 flex flex-col h-full">
           <div className="bg-surface rounded-lg border border-border shadow-card overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow">
             <div className="p-6 md:p-8 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <h2 className="text-[12px] font-extrabold uppercase tracking-widest text-dark flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                   <CalendarIcon className="w-4 h-4 text-primary" strokeWidth={3} />
-                </div>
-                AGENDA
+              <h2 className="text-[15px] font-semibold text-dark flex items-center gap-2.5">
+                <CalendarIcon className="w-[18px] h-[18px] text-primary" strokeWidth={1.8} />
+                Agenda
               </h2>
               <div className="flex items-center gap-1 bg-surface-soft p-1.5 rounded-full border border-border shadow-sm">
                 <button className="p-2 rounded-full hover:bg-surface text-text-secondary hover:text-primary transition-colors outline-none focus-visible:ring-2 ring-primary/50" onClick={() => setAgendaDate(subDays(agendaDate, 1))}>

@@ -17,8 +17,7 @@ export function Sidebar({ className }: { className?: string }) {
           </Link>
         </div>
 
-        <nav aria-label="Navegação principal" className="flex-1 overflow-y-auto px-4 space-y-1 mt-4">
-          <div className="px-4 mb-4 text-[11px] font-extrabold uppercase tracking-widest text-text-muted">Menu Principal</div>
+        <nav aria-label="Navegação principal" className="flex-1 overflow-y-auto px-4 space-y-1 mt-2">
           {navItems.map((item) => {
             const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
             const Icon = item.icon;
@@ -29,21 +28,21 @@ export function Sidebar({ className }: { className?: string }) {
                 href={item.href}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  "group relative flex min-h-[48px] items-center gap-4 rounded-xl px-4 py-2 text-[14px] outline-none transition-all duration-300",
+                  "group relative flex min-h-[46px] items-center gap-3.5 rounded-xl border px-4 py-2 text-[14px] outline-none transition-all duration-200",
                   isActive 
-                    ? "bg-primary-soft text-primary font-bold shadow-sm"
-                    : "text-text-secondary font-semibold hover:bg-surface-soft hover:text-text-primary"
+                    ? "border-primary/15 bg-primary-soft/55 text-primary-dark font-semibold"
+                    : "border-transparent text-text-secondary font-medium hover:bg-surface-soft hover:text-text-primary"
                 )}
               >
-                {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-primary rounded-r-full" />}
                 <Icon 
                   className={cn(
-                    "w-[20px] h-[20px] shrink-0 transition-colors", 
+                    "w-[19px] h-[19px] shrink-0 transition-colors", 
                     isActive ? "text-primary" : "text-text-muted group-hover:text-text-primary"
                   )} 
-                  strokeWidth={isActive ? 2.5 : 2} 
+                  strokeWidth={isActive ? 2 : 1.7} 
                 />
                 <span className="flex-1">{item.label}</span>
+                {isActive && <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />}
               </Link>
             );
           })}
@@ -59,7 +58,7 @@ export function Sidebar({ className }: { className?: string }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[14px] font-bold text-text-primary truncate leading-tight">{administrator}</p>
-              <p className="text-[12px] text-text-secondary truncate mt-0.5 font-medium group-hover:text-primary transition-colors uppercase tracking-wide">Ajustes</p>
+              <p className="text-[12px] text-text-secondary truncate mt-0.5 font-medium group-hover:text-primary transition-colors">Ajustes</p>
             </div>
             <Settings className="w-5 h-5 text-text-muted shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300" />
           </Link>

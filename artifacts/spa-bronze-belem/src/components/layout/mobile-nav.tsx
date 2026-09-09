@@ -31,7 +31,6 @@ export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean
               </div>
               
               <div className="flex-1 overflow-y-auto px-4 space-y-1">
-                <div className="px-4 mb-4 mt-2 text-[11px] font-extrabold uppercase tracking-widest text-text-muted">Menu Principal</div>
                 {navItems.map((item) => {
                   const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
                   const Icon = item.icon;
@@ -41,21 +40,21 @@ export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean
                       href={item.href}
                       onClick={() => onOpenChange(false)}
                       className={cn(
-                        "flex items-center gap-4 px-4 py-4 rounded-xl text-[15px] transition-all duration-300 outline-none relative",
+                        "flex items-center gap-3.5 px-4 py-3.5 rounded-xl border text-[15px] transition-all duration-200 outline-none relative",
                         isActive 
-                          ? "bg-primary-soft text-primary font-bold"
-                          : "text-text-secondary font-semibold hover:text-text-primary hover:bg-surface-soft"
+                          ? "border-primary/15 bg-primary-soft/55 text-primary-dark font-semibold"
+                          : "border-transparent text-text-secondary font-medium hover:text-text-primary hover:bg-surface-soft"
                       )}
                     >
-                      {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-primary rounded-r-full" />}
                       <Icon 
                         className={cn(
-                          "w-[22px] h-[22px] transition-colors", 
+                          "w-[20px] h-[20px] transition-colors", 
                           isActive ? "text-primary" : "text-text-muted"
                         )} 
-                        strokeWidth={isActive ? 2.5 : 2} 
+                        strokeWidth={isActive ? 2 : 1.7} 
                       />
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {isActive && <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />}
                     </Link>
                   );
                 })}
@@ -72,7 +71,7 @@ export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[15px] font-bold text-text-primary truncate">{administrator}</p>
-                    <p className="text-[11px] font-extrabold text-text-secondary uppercase tracking-widest mt-0.5 transition-colors group-hover:text-primary">Ajustes</p>
+                    <p className="text-[12px] font-medium text-text-secondary mt-0.5 transition-colors group-hover:text-primary">Ajustes</p>
                   </div>
                   <Settings className="w-5 h-5 text-text-muted shrink-0 opacity-50 group-hover:opacity-100 transition-all duration-300" />
                 </Link>
