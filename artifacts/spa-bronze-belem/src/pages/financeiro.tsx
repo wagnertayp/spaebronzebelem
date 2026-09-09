@@ -340,73 +340,61 @@ export function Financeiro() {
       />
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-pulse">
+        <div className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-2xl border border-border/70 bg-surface animate-pulse md:grid-cols-4 md:divide-x md:divide-y-0">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-32 bg-surface-soft rounded-[18px]" />
+            <div key={i} className="h-32 bg-surface-soft/60" />
           ))}
         </div>
       ) : (
         <div className="space-y-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            <Card className="bg-surface relative overflow-hidden shadow-card border-none">
-              <div className="absolute top-0 left-0 w-1 h-full bg-success" />
-              <CardContent className="p-6">
+          <div className="grid grid-cols-1 divide-y divide-border/80 overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-[0_12px_34px_-28px_rgba(15,23,42,0.35)] sm:grid-cols-2 sm:[&>*:nth-child(odd)]:border-r sm:[&>*:nth-child(n+3)]:border-t lg:grid-cols-4 lg:divide-y-0 lg:[&>*:not(:last-child)]:border-r lg:[&>*:nth-child(n+3)]:border-t-0">
+            <div>
+              <CardContent className="p-6 md:p-7">
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-[13px] font-medium text-text-secondary">Faturamento</span>
-                  <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center shrink-0">
-                    <TrendingUp className="w-4 h-4 text-success" />
-                  </div>
+                  <TrendingUp className="w-[18px] h-[18px] text-text-muted" />
                 </div>
                 <div className="text-[20px] lg:text-[24px] xl:text-[28px] font-semibold tracking-[-0.04em] text-text-primary whitespace-nowrap truncate">
                   {formatCurrency(summary.inflow)}
                 </div>
               </CardContent>
-            </Card>
+            </div>
 
-            <Card className="bg-surface relative overflow-hidden shadow-card border-none">
-              <div className="absolute top-0 left-0 w-1 h-full bg-error" />
+            <div>
               <CardContent className="p-6">
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-[13px] font-medium text-text-secondary">Despesas</span>
-                  <div className="w-8 h-8 rounded-full bg-error/10 flex items-center justify-center shrink-0">
-                    <TrendingDown className="w-4 h-4 text-error" />
-                  </div>
+                  <TrendingDown className="w-[18px] h-[18px] text-text-muted" />
                 </div>
                 <div className="text-[20px] lg:text-[24px] xl:text-[28px] font-semibold tracking-[-0.04em] text-text-primary whitespace-nowrap truncate">
                   {formatCurrency(summary.outflow)}
                 </div>
               </CardContent>
-            </Card>
+            </div>
 
-            <Card className="bg-dark border-none text-white relative overflow-hidden shadow-card">
-              <div className="absolute top-0 left-0 w-1 h-full bg-accent" />
+            <div className="bg-primary-soft/35">
               <CardContent className="p-6">
                 <div className="flex justify-between items-start mb-2">
-                  <span className="text-[13px] font-medium text-primary-soft">Lucro</span>
-                  <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
-                    <Wallet className="w-4 h-4 text-accent" />
-                  </div>
+                  <span className="text-[13px] font-medium text-text-secondary">Lucro</span>
+                  <Wallet className="w-[18px] h-[18px] text-primary" />
                 </div>
-                <div className="text-[20px] lg:text-[24px] xl:text-[28px] font-semibold tracking-[-0.04em] text-white whitespace-nowrap truncate">
+                <div className="text-[20px] lg:text-[24px] xl:text-[28px] font-semibold tracking-[-0.04em] text-text-primary whitespace-nowrap truncate">
                   {formatCurrency(summary.net)}
                 </div>
               </CardContent>
-            </Card>
+            </div>
 
-            <Card className="bg-surface relative overflow-hidden shadow-card border-none">
-              <div className="absolute top-0 left-0 w-1 h-full bg-warning" />
+            <div>
               <CardContent className="p-6">
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-[13px] font-medium text-text-secondary">A receber</span>
-                  <div className="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center shrink-0">
-                    <AlertCircle className="w-4 h-4 text-warning" />
-                  </div>
+                  <AlertCircle className="w-[18px] h-[18px] text-text-muted" />
                 </div>
                 <div className="text-[20px] lg:text-[24px] xl:text-[28px] font-semibold tracking-[-0.04em] text-text-primary whitespace-nowrap truncate">
                   {formatCurrency(summary.receivables)}
                 </div>
               </CardContent>
-            </Card>
+            </div>
           </div>
 
           <Card className="shadow-card border-none overflow-hidden">

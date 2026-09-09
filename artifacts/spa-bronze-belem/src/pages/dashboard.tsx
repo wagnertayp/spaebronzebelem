@@ -6,11 +6,22 @@ import {
   useListClients
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
-import { 
-  Plus, Clock, MapPin, User, ChevronRight, ChevronLeft, 
-  Calendar as CalendarIcon, Minus, TrendingUp, TrendingDown,
-  FileText, Users, Activity, Bell
-} from 'lucide-react';
+import {
+  FiPlus as Plus,
+  FiClock as Clock,
+  FiMapPin as MapPin,
+  FiUser as User,
+  FiChevronRight as ChevronRight,
+  FiChevronLeft as ChevronLeft,
+  FiCalendar as CalendarIcon,
+  FiMinus as Minus,
+  FiTrendingUp as TrendingUp,
+  FiTrendingDown as TrendingDown,
+  FiFileText as FileText,
+  FiUsers as Users,
+  FiActivity as Activity,
+  FiBell as Bell,
+} from 'react-icons/fi';
 import { cn } from '@/lib/utils';
 import { 
   format, addDays, subDays, isToday, parseISO, 
@@ -81,45 +92,34 @@ function MetricCard({
   const displayValue = isCurrency ? formatCurrency(current) : current;
   
   return (
-    <div className={cn(
-      "min-h-[260px] rounded-[22px] border bg-surface px-5 pb-5 pt-8 relative overflow-hidden group transition-all duration-300",
-      "shadow-[0_14px_35px_-22px_rgba(15,23,42,0.38)] hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_22px_45px_-24px_rgba(27,110,221,0.3)]",
-      highlight ? "border-primary/25" : "border-border",
-    )}>
-      <div className={cn(
-        "absolute left-1/2 top-0 h-1.5 w-[42%] -translate-x-1/2 rounded-b-full transition-all duration-300",
-        highlight ? "bg-primary" : "bg-primary/35 group-hover:w-[52%] group-hover:bg-primary"
-      )} />
-      
-      <div className="absolute right-4 top-4">
+    <div className="relative flex min-h-[205px] flex-col justify-between px-6 py-7 lg:px-7">
+      <div className="absolute right-5 top-6">
         <MetricTrend trend={trend.trend} change={trend.text} />
       </div>
 
-      <div className="flex flex-col items-center text-center">
-        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-[13px] border border-primary/15 bg-primary-soft/60 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
-          <Icon className="h-5 w-5" strokeWidth={1.8} />
+      <div>
+        <div className="mb-6 flex items-center gap-2.5 pr-16 text-text-secondary">
+          <Icon className={cn("h-[18px] w-[18px]", highlight ? "text-primary" : "text-text-muted")} />
+          <span className="text-[13px] font-semibold">{title}</span>
         </div>
-        <span className="min-h-10 max-w-[150px] text-[13px] font-semibold leading-5 text-text-secondary">
-          {title}
-        </span>
-        <span className={cn("mt-1 text-[38px] font-bold tracking-[-0.04em] leading-none", invalid ? "text-text-muted" : "text-dark")}>
+        <span className={cn("text-[38px] font-bold tracking-[-0.04em] leading-none", invalid ? "text-text-muted" : "text-dark")}>
           {invalid ? '-' : displayValue}
         </span>
       </div>
 
       {(subLabel1 || subLabel2) && !invalid && (
         <div className={cn(
-          "mt-6 grid min-h-[62px] items-center rounded-2xl border border-border/80 bg-surface-soft/55",
+          "mt-7 grid items-center border-t border-border/80 pt-4",
           subLabel2 ? "grid-cols-2" : "grid-cols-1"
         )}>
           {subLabel1 && (
-            <div className="flex flex-col items-center justify-center px-3 py-2.5">
+            <div className="flex flex-col">
               <span className="mb-1 text-[11px] font-medium text-text-muted">{subLabel1}</span>
               <span className="text-[14px] font-semibold text-text-primary">{subValue1}</span>
             </div>
           )}
           {subLabel2 && (
-            <div className="flex flex-col items-center justify-center border-l border-border px-3 py-2.5">
+            <div className="flex flex-col border-l border-border pl-5">
               <span className="mb-1 text-[11px] font-medium text-text-muted">{subLabel2}</span>
               <span className="text-[14px] font-semibold text-text-primary">{subValue2}</span>
             </div>
@@ -371,7 +371,7 @@ export function Dashboard() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 divide-y divide-border/80 overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-[0_12px_34px_-28px_rgba(15,23,42,0.35)] lg:grid-cols-4 lg:divide-x lg:divide-y-0">
           <MetricCard 
             title="Agendamentos" 
             icon={CalendarIcon}

@@ -49,7 +49,7 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 - O Agente IA deve consultar a mesma tabela de serviços e preços usada nos orçamentos, sem inventar valores ou disponibilidade.
 - A dashboard é operacional e orientada por período: prioriza agenda, clientes atendidos, orçamentos e pendências comerciais; totais financeiros acumulados ficam no Financeiro.
 - Alertas de leads sem resposta e orçamentos sem retorno devem aparecer com destaque na dashboard.
-- A linguagem visual usa Inter, azul vivo como única cor principal, fundos neutros com grid sutil, ícones lineares sem fundos coloridos e cards modulares; cores semânticas ficam restritas a estados reais. Evitar títulos auxiliares em caixa alta e manter o menu ativo suave.
+- A linguagem visual usa Inter, azul vivo como única cor principal, fundos neutros lisos e ícones lineares sem fundos coloridos; priorizar espaço, alinhamento e divisores em vez de muitos cards independentes. Cores semânticas ficam restritas a estados reais. Evitar títulos auxiliares em caixa alta e manter o menu ativo suave.
 - “Usuários” representa os profissionais do spa; cada profissional possui percentual de comissão próprio.
 - Comissões são calculadas por período somente sobre atendimentos concluídos, usando o preço cadastrado do serviço; valores sem correspondência não podem ser estimados.
 - A Agenda deve usar a lista ativa de Usuários como fonte de profissionais, evitando listas duplicadas.

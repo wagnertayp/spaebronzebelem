@@ -20,8 +20,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="flex md:hidden z-30 relative"
       />
       
-      <div className="flex-1 flex flex-col min-w-0 bg-background relative z-10 bg-subtle-grid h-[100dvh]">
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-10 lg:p-12">
+      <div className="flex-1 flex flex-col min-w-0 bg-background relative z-10 h-[100dvh]">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-7 md:px-9 md:py-9 lg:px-12 lg:py-10">
           <div className="mx-auto w-full max-w-[1600px]">
             {children}
           </div>
