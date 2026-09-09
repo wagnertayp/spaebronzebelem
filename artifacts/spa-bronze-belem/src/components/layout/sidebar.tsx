@@ -28,26 +28,21 @@ export function Sidebar({ className }: { className?: string }) {
                 href={item.href}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  "group relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2",
+                  "group relative flex min-h-11 items-center gap-3 rounded-xl border px-3.5 py-2.5 text-[13px] outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
                   isActive 
-                    ? "bg-primary text-white font-bold shadow-button"
-                    : "text-text-secondary font-medium hover:bg-primary-soft/70 hover:text-primary-dark hover:translate-x-0.5"
+                    ? "border-primary/15 bg-surface/95 text-primary-dark font-semibold shadow-[0_4px_16px_rgba(27,110,221,0.08)]"
+                    : "border-transparent text-text-secondary font-medium hover:border-primary/10 hover:bg-primary-soft/35 hover:text-text-primary"
                 )}
               >
-                {isActive && <span className="absolute -left-1 h-6 w-1 rounded-full bg-white/90" aria-hidden="true" />}
-                <span className={cn(
-                  "grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-all",
-                  isActive ? "bg-white/16 text-white" : "bg-primary-soft/55 text-text-muted group-hover:bg-surface group-hover:text-primary"
-                )}>
                 <Icon 
                   className={cn(
-                    "w-[17px] h-[17px] transition-colors", 
-                    isActive ? "text-white" : "text-current"
+                    "w-[18px] h-[18px] shrink-0 transition-colors", 
+                    isActive ? "text-primary" : "text-text-muted group-hover:text-primary"
                   )} 
                   strokeWidth={isActive ? 2.5 : 2} 
                 />
-                </span>
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {isActive && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" aria-hidden="true" />}
               </Link>
             );
           })}
