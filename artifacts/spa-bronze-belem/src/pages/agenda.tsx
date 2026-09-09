@@ -1,4 +1,4 @@
-import { useListAppointments, useCreateAppointment, useUpdateAppointment, useDeleteAppointment, getListAppointmentsQueryKey, useListServices } from '@workspace/api-client-react';
+import { useListAppointments, useCreateAppointment, useUpdateAppointment, useDeleteAppointment, getListAppointmentsQueryKey, useListServices, useListProfessionals } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -27,13 +27,6 @@ const TIME_SLOTS = [
   '17:00', '17:30', '18:00'
 ];
 
-const PROFESSIONALS = [
-  { id: '1', name: 'Paula', role: 'Esteticista' },
-  { id: '2', name: 'Rosana', role: 'Massoterapeuta' },
-  { id: '3', name: 'Wallace', role: 'Massoterapeuta' },
-  { id: '4', name: 'Spa', role: 'Recurso' },
-];
-
 type DialogState = 
   | { type: 'none' }
   | { type: 'create', time?: string, professional?: string }
@@ -54,6 +47,17 @@ export function Agenda() {
   const deleteMutation = useDeleteAppointment();
   
   const { data: services = [] } = useListServices();
+  const { data: professionalUsers = [] } = useListProfessionals();
+  const professionals = [
+    ...professionalUsers
+      .filter((professional) => professional.active)
+      .map((professional) => ({
+        id: String(professional.id),
+        name: professional.name,
+        role: professional.specialty || 'Profissional',
+      })),
+    { id: 'resource-spa', name: 'Spa', role: 'Recurso' },
+  ];
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -146,7 +150,7 @@ export function Agenda() {
             {/* Headers */}
             <div className="flex border-b border-border sticky top-0 bg-surface z-20">
               <div className="w-[80px] shrink-0 border-r border-border bg-surface-soft/30" />
-              {PROFESSIONALS.map(prof => (
+              {professionals.map(prof => (
                 <div key={prof.id} className="flex-1 px-4 py-3 border-r border-border bg-surface text-center">
                   <div className="text-[13px] font-semibold text-text-primary">{prof.name}</div>
                   <div className="text-[11px] text-text-muted font-medium mt-0.5">{prof.role}</div>
@@ -164,7 +168,7 @@ export function Agenda() {
                     <div className="w-[80px] shrink-0 border-r border-border p-2 text-right">
                       <span className="text-[12px] font-medium text-text-muted">{time}</span>
                     </div>
-                    {PROFESSIONALS.map(prof => {
+                    {professionals.map(prof => {
                       const apps = getAppointmentsForProfessionalAndSlot(prof.name, time);
                       
                       return (
@@ -415,7 +419,7 @@ export function Agenda() {
                     }
                   >
                     <option value="">Selecione...</option>
-                    {PROFESSIONALS.map(p => (
+                    {professionals.map(p => (
                       <option key={p.id} value={p.name}>{p.name}</option>
                     ))}
                   </select>

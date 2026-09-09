@@ -17,6 +17,7 @@ export function Relatorios() {
   const [period, setPeriod] = useState<Period>('all');
   const [customFrom, setCustomFrom] = useState<string>('');
   const [customTo, setCustomTo] = useState<string>('');
+  const [isFinanceRevealed, setIsFinanceRevealed] = useState<boolean>(false);
   
   const { data: financeData, isLoading: loadingFinance } = useGetFinanceSummary();
   const { data: inventoryData = [], isLoading: loadingInventory } = useListInventory();
@@ -100,6 +101,14 @@ export function Relatorios() {
     let filename = `relatorio_${activeReport}_${rangeSuffix}.csv`;
 
     if (activeReport === 'finance' && financeData) {
+      if (!isFinanceRevealed) {
+        toast({
+          title: 'Ação necessária',
+          description: 'Por favor, exiba os valores do período antes de exportar.',
+          variant: 'default'
+        });
+        return;
+      }
       headers = ['Métrica', 'Valor'];
       rows = [
         ['Entradas', financeData.inflow],
@@ -107,7 +116,7 @@ export function Relatorios() {
         ['Saldo Líquido', financeData.net],
         ['Comandas', financeData.openAccounts],
         ['Clientes com uma comanda', financeData.newClients],
-        ['Clientes Recorrentes', financeData.returningClients]
+        ['Clientes recorrentes', financeData.returningClients]
       ];
     } else if (activeReport === 'inventory' && filteredInventory.length > 0) {
       headers = ['Produto', 'Marca', 'Categoria', 'Estoque', 'Estoque Minimo', 'Status', 'Preço', 'Validade'];
@@ -290,10 +299,31 @@ export function Relatorios() {
 
         {activeReport === 'finance' && (
           <div className="space-y-4">
-            <div className="text-[13px] text-text-secondary mb-6">
-              Exibindo os valores gerais do caixa.
+            <div className="flex items-center justify-between mb-6">
+              <div className="text-[13px] text-text-secondary">
+                Exibindo os valores gerais do caixa.
+              </div>
+              {isFinanceRevealed && (
+                <Button variant="ghost" size="sm" onClick={() => setIsFinanceRevealed(false)} className="text-text-secondary h-8">
+                  Ocultar valores
+                </Button>
+              )}
             </div>
-            {loadingFinance ? (
+            
+            {!isFinanceRevealed ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4 text-center bg-surface-soft/50 rounded-xl border border-dashed border-border">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <BarChart3 className="w-5 h-5 text-primary" />
+                </div>
+                <h4 className="text-[15px] font-medium text-text-primary mb-2">Relatório Financeiro Oculto</h4>
+                <p className="text-[14px] text-text-secondary max-w-md mb-6">
+                  Os valores financeiros contemplam <strong>Todo o período</strong>. Exiba os dados apenas quando for seguro visualizá-los.
+                </p>
+                <Button onClick={() => setIsFinanceRevealed(true)} className="bg-primary hover:bg-primary-dark text-white rounded-lg px-6">
+                  Exibir todo o período
+                </Button>
+              </div>
+            ) : loadingFinance ? (
                <div className="h-40 bg-surface-soft animate-pulse rounded-xl" />
             ) : financeData ? (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
@@ -310,15 +340,15 @@ export function Relatorios() {
                   <div className="text-[24px] font-semibold tracking-tight text-text-primary">{formatCurrency(financeData.net)}</div>
                 </div>
                 <div className="p-5 bg-background rounded-xl border border-border shadow-sm">
-                  <div className="text-[13px] font-medium text-text-secondary mb-2">Comandas Abertas</div>
+                  <div className="text-[13px] font-medium text-text-secondary mb-2">Comandas</div>
                   <div className="text-[24px] font-semibold tracking-tight text-text-primary">{financeData.openAccounts}</div>
                 </div>
                 <div className="p-5 bg-background rounded-xl border border-border shadow-sm">
-                  <div className="text-[13px] font-medium text-text-secondary mb-2">Novos Clientes</div>
+                  <div className="text-[13px] font-medium text-text-secondary mb-2">Clientes com uma comanda</div>
                   <div className="text-[24px] font-semibold tracking-tight text-text-primary">{financeData.newClients}</div>
                 </div>
                 <div className="p-5 bg-background rounded-xl border border-border shadow-sm">
-                  <div className="text-[13px] font-medium text-text-secondary mb-2">Retenção de Clientes</div>
+                  <div className="text-[13px] font-medium text-text-secondary mb-2">Clientes recorrentes</div>
                   <div className="text-[24px] font-semibold tracking-tight text-text-primary">{financeData.returningClients}</div>
                 </div>
               </div>

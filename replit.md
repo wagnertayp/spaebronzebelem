@@ -47,6 +47,17 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 - Relatórios com registros datados devem permitir consulta e exportação por período sem inventar datas para dados que não as possuem.
 - A área “Agente IA” centraliza personalidade, regras, horários, políticas e testes do atendimento automático.
 - O Agente IA deve consultar a mesma tabela de serviços e preços usada nos orçamentos, sem inventar valores ou disponibilidade.
+- A dashboard é operacional e orientada por período: prioriza agenda, clientes atendidos, orçamentos e pendências comerciais; totais financeiros acumulados ficam no Financeiro.
+- Alertas de leads sem resposta e orçamentos sem retorno devem aparecer com destaque na dashboard.
+- “Usuários” representa os profissionais do spa; cada profissional possui percentual de comissão próprio.
+- Comissões são calculadas por período somente sobre atendimentos concluídos, usando o preço cadastrado do serviço; valores sem correspondência não podem ser estimados.
+- A Agenda deve usar a lista ativa de Usuários como fonte de profissionais, evitando listas duplicadas.
+- Nos Relatórios, valores financeiros gerais ficam ocultos até a seleção explícita de “Todo o período”.
+- Orçamentos devem reutilizar clientes, serviços, profissionais e produtos existentes; não manter catálogos paralelos.
+- O preço e a comissão usados em um orçamento são registros daquele momento e não devem mudar quando o cadastro original mudar.
+- Enviar, visualizar, aprovar, agendar e pagar são etapas distintas: aprovação nunca cria pagamento ou horário automaticamente.
+- Apenas um pagamento pode ser lançado por orçamento; o lançamento deve ficar vinculado ao orçamento no Financeiro.
+- Observações internas e dados de comissão nunca podem aparecer na proposta pública.
 
 ## Gotchas
 

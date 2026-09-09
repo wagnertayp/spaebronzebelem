@@ -239,23 +239,90 @@ export interface ServiceInput {
   accent: string;
 }
 
+export type QuoteItemType = typeof QuoteItemType[keyof typeof QuoteItemType];
+
+
+export const QuoteItemType = {
+  service: 'service',
+  package: 'package',
+  product: 'product',
+  gift_card: 'gift_card',
+} as const;
+
 export interface QuoteItem {
-  serviceId: number;
+  type: QuoteItemType;
+  refId?: number;
   name: string;
   /** @minimum 1 */
   quantity: number;
   /** @minimum 0 */
   unitPrice: number;
+  /** @minimum 0 */
+  discount?: number;
+  professionalId?: number;
+  professionalName?: string;
+  commissionPercent?: number;
+  estimatedCommission?: number;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  /** @minimum 0 */
+  sessions?: number;
 }
 
+export interface Package {
+  id: number;
+  name: string;
+  price: number;
+  sessions: number;
+  serviceId: number;
+}
+
+export type QuoteStatus = typeof QuoteStatus[keyof typeof QuoteStatus];
+
+
+export const QuoteStatus = {
+  draft: 'draft',
+  sent: 'sent',
+  viewed: 'viewed',
+  approved: 'approved',
+  rejected: 'rejected',
+  expired: 'expired',
+  cancelled: 'cancelled',
+} as const;
+
+export type DiscountMode = typeof DiscountMode[keyof typeof DiscountMode];
+
+
+export const DiscountMode = {
+  fixed: 'fixed',
+  percent: 'percent',
+} as const;
+
+export type QuoteInputPaymentMethodsItem = typeof QuoteInputPaymentMethodsItem[keyof typeof QuoteInputPaymentMethodsItem];
+
+
+export const QuoteInputPaymentMethodsItem = {
+  pix: 'pix',
+  credit: 'credit',
+  debit: 'debit',
+  cash: 'cash',
+  boleto: 'boleto',
+} as const;
+
 export interface QuoteInput {
+  clientId: number;
   /** @minLength 2 */
   clientName: string;
   phone: string;
   validUntil: string;
+  discountMode: DiscountMode;
   /** @minimum 0 */
-  discount: number;
-  notes: string;
+  discountValue: number;
+  customerNotes: string;
+  internalNotes: string;
+  paymentMethods: QuoteInputPaymentMethodsItem[];
+  /** @minimum 1 */
+  installments: number;
   /** @minItems 1 */
   items: QuoteItem[];
 }
@@ -264,9 +331,48 @@ export type Quote = QuoteInput & {
   id: number;
   number: string;
   createdAt: string;
+  status: QuoteStatus;
+  publicToken: string;
+  sentAt?: string;
+  viewedAt?: string;
+  approvedAt?: string;
+  paidAt?: string;
+  discount: number;
   subtotal: number;
   total: number;
 };
+
+export type PublicQuote = Quote;
+
+export interface QuoteSendResponse {
+  quote: Quote;
+  publicPath: string;
+  whatsappMessage: string;
+  whatsappUrl: string;
+}
+
+export interface QuoteAppointmentInput {
+  start: string;
+  end: string;
+  professionalId?: number;
+}
+
+export type QuotePaymentInputPaymentMethod = typeof QuotePaymentInputPaymentMethod[keyof typeof QuotePaymentInputPaymentMethod];
+
+
+export const QuotePaymentInputPaymentMethod = {
+  pix: 'pix',
+  credit: 'credit',
+  debit: 'debit',
+  cash: 'cash',
+  boleto: 'boleto',
+} as const;
+
+export interface QuotePaymentInput {
+  paymentMethod: QuotePaymentInputPaymentMethod;
+  /** @minimum 0.01 */
+  amount: number;
+}
 
 export interface FinanceSummary {
   inflow: number;
@@ -276,6 +382,73 @@ export interface FinanceSummary {
   newClients: number;
   returningClients: number;
 }
+
+export type FinancialMovementInputType = typeof FinancialMovementInputType[keyof typeof FinancialMovementInputType];
+
+
+export const FinancialMovementInputType = {
+  revenue: 'revenue',
+  expense: 'expense',
+  receivable: 'receivable',
+} as const;
+
+export type FinancialMovementInputStatus = typeof FinancialMovementInputStatus[keyof typeof FinancialMovementInputStatus];
+
+
+export const FinancialMovementInputStatus = {
+  paid: 'paid',
+  pending: 'pending',
+} as const;
+
+export type FinancialMovementInputPaymentMethod = typeof FinancialMovementInputPaymentMethod[keyof typeof FinancialMovementInputPaymentMethod];
+
+
+export const FinancialMovementInputPaymentMethod = {
+  pix: 'pix',
+  credit: 'credit',
+  debit: 'debit',
+  cash: 'cash',
+  boleto: 'boleto',
+} as const;
+
+export interface FinancialMovementInput {
+  type: FinancialMovementInputType;
+  date: string;
+  /** @minLength 2 */
+  description: string;
+  category: string;
+  /** @minimum 0.01 */
+  amount: number;
+  status: FinancialMovementInputStatus;
+  client: string;
+  service: string;
+  professional: string;
+  quoteId?: number;
+  paymentMethod?: FinancialMovementInputPaymentMethod;
+  source?: string;
+}
+
+export type FinancialMovement = FinancialMovementInput & {
+  id: number;
+};
+
+export interface ProfessionalInput {
+  /** @minLength 2 */
+  name: string;
+  specialty: string;
+  phone: string;
+  email: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  commissionRate: number;
+  active: boolean;
+}
+
+export type Professional = ProfessionalInput & {
+  id: number;
+};
 
 export type InventoryItemStatus = typeof InventoryItemStatus[keyof typeof InventoryItemStatus];
 
@@ -318,6 +491,17 @@ date?: string;
 
 export type ListClientsParams = {
 search?: string;
+};
+
+export type ListQuotesParams = {
+search?: string;
+status?: QuoteStatus;
+from?: string;
+to?: string;
+};
+
+export type ListFinancialMovementsParams = {
+month?: string;
 };
 
 export type ListInventoryParams = {

@@ -5,12 +5,24 @@
  * API do sistema operacional do Spa e Bronze Belém
  * OpenAPI spec version: 0.1.0
  */
+import type { QuoteItemType } from './quoteItemType';
 
 export interface QuoteItem {
-  serviceId: number;
+  type: QuoteItemType;
+  refId?: number;
   name: string;
   /** @minimum 1 */
   quantity: number;
   /** @minimum 0 */
   unitPrice: number;
+  /** @minimum 0 */
+  discount?: number;
+  professionalId?: number;
+  professionalName?: string;
+  commissionPercent?: number;
+  estimatedCommission?: number;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  /** @minimum 0 */
+  sessions?: number;
 }

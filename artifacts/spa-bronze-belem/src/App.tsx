@@ -15,8 +15,11 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Dashboard } from '@/pages/dashboard';
 import { Agenda } from '@/pages/agenda';
 import { Clientes } from '@/pages/clientes';
+import { Usuarios } from '@/pages/usuarios';
 import { WhatsApp } from '@/pages/whatsapp';
 import { Servicos } from '@/pages/servicos';
+import { OrcamentoDetalhe } from '@/pages/orcamento-detalhe';
+import { OrcamentoPublico } from '@/pages/orcamento-publico';
 import { Financeiro } from '@/pages/financeiro';
 import { Estoque } from '@/pages/estoque';
 import { Relatorios } from '@/pages/relatorios';
@@ -39,8 +42,13 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/agenda" component={Agenda} />
           <Route path="/clientes" component={Clientes} />
+          <Route path="/usuarios" component={Usuarios} />
           <Route path="/whatsapp" component={WhatsApp} />
+          
           <Route path="/servicos" component={Servicos} />
+          
+          <Route path="/orcamentos/:id" component={OrcamentoDetalhe} />
+          
           <Route path="/financeiro" component={Financeiro} />
           <Route path="/estoque" component={Estoque} />
           <Route path="/relatorios" component={Relatorios} />
@@ -62,7 +70,16 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <Router />
+          <Switch>
+            <Route path="/proposta/:token">
+              <RoutedErrorBoundary>
+                <OrcamentoPublico />
+              </RoutedErrorBoundary>
+            </Route>
+            <Route>
+              <Router />
+            </Route>
+          </Switch>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

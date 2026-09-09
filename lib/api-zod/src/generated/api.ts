@@ -438,34 +438,80 @@ export const DeleteServiceResponse = zod.void()
 
 
 /**
+ * @summary Lista pacotes disponíveis para orçamentos
+ */
+export const ListPackagesResponseItem = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "sessions": zod.number().int(),
+  "serviceId": zod.number().int()
+})
+export const ListPackagesResponse = zod.array(ListPackagesResponseItem)
+
+
+/**
  * @summary Lista orçamentos criados
  */
+export const ListQuotesQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "status": zod.enum(['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired', 'cancelled']).optional(),
+  "from": zod.coerce.string().optional(),
+  "to": zod.coerce.string().optional()
+})
+
 export const listQuotesResponseOneClientNameMin = 2;
 
-export const listQuotesResponseOneDiscountMin = 0;
+export const listQuotesResponseOneDiscountValueMin = 0;
+
 
 
 export const listQuotesResponseOneItemsItemUnitPriceMin = 0;
+
+export const listQuotesResponseOneItemsItemDiscountMin = 0;
+
+export const listQuotesResponseOneItemsItemSessionsMin = 0;
 
 
 
 
 export const ListQuotesResponseItem = zod.object({
+  "clientId": zod.number().int(),
   "clientName": zod.string().min(listQuotesResponseOneClientNameMin),
   "phone": zod.string(),
   "validUntil": zod.string(),
-  "discount": zod.number().min(listQuotesResponseOneDiscountMin),
-  "notes": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(listQuotesResponseOneDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
   "items": zod.array(zod.object({
-  "serviceId": zod.number().int(),
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
   "name": zod.string(),
   "quantity": zod.number().int().min(1),
-  "unitPrice": zod.number().min(listQuotesResponseOneItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(listQuotesResponseOneItemsItemUnitPriceMin),
+  "discount": zod.number().min(listQuotesResponseOneItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(listQuotesResponseOneItemsItemSessionsMin).optional()
 })).min(1)
 }).and(zod.object({
   "id": zod.number().int(),
   "number": zod.string(),
   "createdAt": zod.string(),
+  "status": zod.enum(['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired', 'cancelled']),
+  "publicToken": zod.string(),
+  "sentAt": zod.string().optional(),
+  "viewedAt": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "discount": zod.number(),
   "subtotal": zod.number(),
   "total": zod.number()
 }))
@@ -477,54 +523,99 @@ export const ListQuotesResponse = zod.array(ListQuotesResponseItem)
  */
 export const createQuoteBodyClientNameMin = 2;
 
-export const createQuoteBodyDiscountMin = 0;
+export const createQuoteBodyDiscountValueMin = 0;
+
 
 
 export const createQuoteBodyItemsItemUnitPriceMin = 0;
+
+export const createQuoteBodyItemsItemDiscountMin = 0;
+
+export const createQuoteBodyItemsItemSessionsMin = 0;
 
 
 
 
 export const CreateQuoteBody = zod.object({
+  "clientId": zod.number().int(),
   "clientName": zod.string().min(createQuoteBodyClientNameMin),
   "phone": zod.string(),
   "validUntil": zod.string(),
-  "discount": zod.number().min(createQuoteBodyDiscountMin),
-  "notes": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(createQuoteBodyDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
   "items": zod.array(zod.object({
-  "serviceId": zod.number().int(),
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
   "name": zod.string(),
   "quantity": zod.number().int().min(1),
-  "unitPrice": zod.number().min(createQuoteBodyItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(createQuoteBodyItemsItemUnitPriceMin),
+  "discount": zod.number().min(createQuoteBodyItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(createQuoteBodyItemsItemSessionsMin).optional()
 })).min(1)
 })
 
 export const createQuoteResponseOneClientNameMin = 2;
 
-export const createQuoteResponseOneDiscountMin = 0;
+export const createQuoteResponseOneDiscountValueMin = 0;
+
 
 
 export const createQuoteResponseOneItemsItemUnitPriceMin = 0;
+
+export const createQuoteResponseOneItemsItemDiscountMin = 0;
+
+export const createQuoteResponseOneItemsItemSessionsMin = 0;
 
 
 
 
 export const CreateQuoteResponse = zod.object({
+  "clientId": zod.number().int(),
   "clientName": zod.string().min(createQuoteResponseOneClientNameMin),
   "phone": zod.string(),
   "validUntil": zod.string(),
-  "discount": zod.number().min(createQuoteResponseOneDiscountMin),
-  "notes": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(createQuoteResponseOneDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
   "items": zod.array(zod.object({
-  "serviceId": zod.number().int(),
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
   "name": zod.string(),
   "quantity": zod.number().int().min(1),
-  "unitPrice": zod.number().min(createQuoteResponseOneItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(createQuoteResponseOneItemsItemUnitPriceMin),
+  "discount": zod.number().min(createQuoteResponseOneItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(createQuoteResponseOneItemsItemSessionsMin).optional()
 })).min(1)
 }).and(zod.object({
   "id": zod.number().int(),
   "number": zod.string(),
   "createdAt": zod.string(),
+  "status": zod.enum(['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired', 'cancelled']),
+  "publicToken": zod.string(),
+  "sentAt": zod.string().optional(),
+  "viewedAt": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "discount": zod.number(),
   "subtotal": zod.number(),
   "total": zod.number()
 }))
@@ -536,54 +627,99 @@ export const UpdateQuoteParams = zod.object({
 
 export const updateQuoteBodyClientNameMin = 2;
 
-export const updateQuoteBodyDiscountMin = 0;
+export const updateQuoteBodyDiscountValueMin = 0;
+
 
 
 export const updateQuoteBodyItemsItemUnitPriceMin = 0;
+
+export const updateQuoteBodyItemsItemDiscountMin = 0;
+
+export const updateQuoteBodyItemsItemSessionsMin = 0;
 
 
 
 
 export const UpdateQuoteBody = zod.object({
+  "clientId": zod.number().int(),
   "clientName": zod.string().min(updateQuoteBodyClientNameMin),
   "phone": zod.string(),
   "validUntil": zod.string(),
-  "discount": zod.number().min(updateQuoteBodyDiscountMin),
-  "notes": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(updateQuoteBodyDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
   "items": zod.array(zod.object({
-  "serviceId": zod.number().int(),
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
   "name": zod.string(),
   "quantity": zod.number().int().min(1),
-  "unitPrice": zod.number().min(updateQuoteBodyItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(updateQuoteBodyItemsItemUnitPriceMin),
+  "discount": zod.number().min(updateQuoteBodyItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(updateQuoteBodyItemsItemSessionsMin).optional()
 })).min(1)
 })
 
 export const updateQuoteResponseOneClientNameMin = 2;
 
-export const updateQuoteResponseOneDiscountMin = 0;
+export const updateQuoteResponseOneDiscountValueMin = 0;
+
 
 
 export const updateQuoteResponseOneItemsItemUnitPriceMin = 0;
+
+export const updateQuoteResponseOneItemsItemDiscountMin = 0;
+
+export const updateQuoteResponseOneItemsItemSessionsMin = 0;
 
 
 
 
 export const UpdateQuoteResponse = zod.object({
+  "clientId": zod.number().int(),
   "clientName": zod.string().min(updateQuoteResponseOneClientNameMin),
   "phone": zod.string(),
   "validUntil": zod.string(),
-  "discount": zod.number().min(updateQuoteResponseOneDiscountMin),
-  "notes": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(updateQuoteResponseOneDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
   "items": zod.array(zod.object({
-  "serviceId": zod.number().int(),
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
   "name": zod.string(),
   "quantity": zod.number().int().min(1),
-  "unitPrice": zod.number().min(updateQuoteResponseOneItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(updateQuoteResponseOneItemsItemUnitPriceMin),
+  "discount": zod.number().min(updateQuoteResponseOneItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(updateQuoteResponseOneItemsItemSessionsMin).optional()
 })).min(1)
 }).and(zod.object({
   "id": zod.number().int(),
   "number": zod.string(),
   "createdAt": zod.string(),
+  "status": zod.enum(['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired', 'cancelled']),
+  "publicToken": zod.string(),
+  "sentAt": zod.string().optional(),
+  "viewedAt": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "discount": zod.number(),
   "subtotal": zod.number(),
   "total": zod.number()
 }))
@@ -594,6 +730,376 @@ export const DeleteQuoteParams = zod.object({
 })
 
 export const DeleteQuoteResponse = zod.void()
+
+
+export const SendQuoteParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const sendQuoteResponseQuoteOneClientNameMin = 2;
+
+export const sendQuoteResponseQuoteOneDiscountValueMin = 0;
+
+
+
+export const sendQuoteResponseQuoteOneItemsItemUnitPriceMin = 0;
+
+export const sendQuoteResponseQuoteOneItemsItemDiscountMin = 0;
+
+export const sendQuoteResponseQuoteOneItemsItemSessionsMin = 0;
+
+
+
+
+export const SendQuoteResponse = zod.object({
+  "quote": zod.object({
+  "clientId": zod.number().int(),
+  "clientName": zod.string().min(sendQuoteResponseQuoteOneClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(sendQuoteResponseQuoteOneDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
+  "items": zod.array(zod.object({
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(sendQuoteResponseQuoteOneItemsItemUnitPriceMin),
+  "discount": zod.number().min(sendQuoteResponseQuoteOneItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(sendQuoteResponseQuoteOneItemsItemSessionsMin).optional()
+})).min(1)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "number": zod.string(),
+  "createdAt": zod.string(),
+  "status": zod.enum(['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired', 'cancelled']),
+  "publicToken": zod.string(),
+  "sentAt": zod.string().optional(),
+  "viewedAt": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "discount": zod.number(),
+  "subtotal": zod.number(),
+  "total": zod.number()
+})),
+  "publicPath": zod.string(),
+  "whatsappMessage": zod.string(),
+  "whatsappUrl": zod.string()
+})
+
+
+export const GetPublicQuoteParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const getPublicQuoteResponseOneOneClientNameMin = 2;
+
+export const getPublicQuoteResponseOneOneDiscountValueMin = 0;
+
+
+
+export const getPublicQuoteResponseOneOneItemsItemUnitPriceMin = 0;
+
+export const getPublicQuoteResponseOneOneItemsItemDiscountMin = 0;
+
+export const getPublicQuoteResponseOneOneItemsItemSessionsMin = 0;
+
+
+
+
+export const GetPublicQuoteResponse = zod.object({
+  "clientId": zod.number().int(),
+  "clientName": zod.string().min(getPublicQuoteResponseOneOneClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(getPublicQuoteResponseOneOneDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
+  "items": zod.array(zod.object({
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(getPublicQuoteResponseOneOneItemsItemUnitPriceMin),
+  "discount": zod.number().min(getPublicQuoteResponseOneOneItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(getPublicQuoteResponseOneOneItemsItemSessionsMin).optional()
+})).min(1)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "number": zod.string(),
+  "createdAt": zod.string(),
+  "status": zod.enum(['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired', 'cancelled']),
+  "publicToken": zod.string(),
+  "sentAt": zod.string().optional(),
+  "viewedAt": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "discount": zod.number(),
+  "subtotal": zod.number(),
+  "total": zod.number()
+}))
+
+
+export const ApprovePublicQuoteParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const approvePublicQuoteResponseOneClientNameMin = 2;
+
+export const approvePublicQuoteResponseOneDiscountValueMin = 0;
+
+
+
+export const approvePublicQuoteResponseOneItemsItemUnitPriceMin = 0;
+
+export const approvePublicQuoteResponseOneItemsItemDiscountMin = 0;
+
+export const approvePublicQuoteResponseOneItemsItemSessionsMin = 0;
+
+
+
+
+export const ApprovePublicQuoteResponse = zod.object({
+  "clientId": zod.number().int(),
+  "clientName": zod.string().min(approvePublicQuoteResponseOneClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(approvePublicQuoteResponseOneDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
+  "items": zod.array(zod.object({
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(approvePublicQuoteResponseOneItemsItemUnitPriceMin),
+  "discount": zod.number().min(approvePublicQuoteResponseOneItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(approvePublicQuoteResponseOneItemsItemSessionsMin).optional()
+})).min(1)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "number": zod.string(),
+  "createdAt": zod.string(),
+  "status": zod.enum(['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired', 'cancelled']),
+  "publicToken": zod.string(),
+  "sentAt": zod.string().optional(),
+  "viewedAt": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "discount": zod.number(),
+  "subtotal": zod.number(),
+  "total": zod.number()
+}))
+
+
+export const CancelQuoteParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const cancelQuoteResponseOneClientNameMin = 2;
+
+export const cancelQuoteResponseOneDiscountValueMin = 0;
+
+
+
+export const cancelQuoteResponseOneItemsItemUnitPriceMin = 0;
+
+export const cancelQuoteResponseOneItemsItemDiscountMin = 0;
+
+export const cancelQuoteResponseOneItemsItemSessionsMin = 0;
+
+
+
+
+export const CancelQuoteResponse = zod.object({
+  "clientId": zod.number().int(),
+  "clientName": zod.string().min(cancelQuoteResponseOneClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(cancelQuoteResponseOneDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
+  "items": zod.array(zod.object({
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(cancelQuoteResponseOneItemsItemUnitPriceMin),
+  "discount": zod.number().min(cancelQuoteResponseOneItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(cancelQuoteResponseOneItemsItemSessionsMin).optional()
+})).min(1)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "number": zod.string(),
+  "createdAt": zod.string(),
+  "status": zod.enum(['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired', 'cancelled']),
+  "publicToken": zod.string(),
+  "sentAt": zod.string().optional(),
+  "viewedAt": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "discount": zod.number(),
+  "subtotal": zod.number(),
+  "total": zod.number()
+}))
+
+
+export const DuplicateQuoteParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const duplicateQuoteResponseOneClientNameMin = 2;
+
+export const duplicateQuoteResponseOneDiscountValueMin = 0;
+
+
+
+export const duplicateQuoteResponseOneItemsItemUnitPriceMin = 0;
+
+export const duplicateQuoteResponseOneItemsItemDiscountMin = 0;
+
+export const duplicateQuoteResponseOneItemsItemSessionsMin = 0;
+
+
+
+
+export const DuplicateQuoteResponse = zod.object({
+  "clientId": zod.number().int(),
+  "clientName": zod.string().min(duplicateQuoteResponseOneClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discountMode": zod.enum(['fixed', 'percent']),
+  "discountValue": zod.number().min(duplicateQuoteResponseOneDiscountValueMin),
+  "customerNotes": zod.string(),
+  "internalNotes": zod.string(),
+  "paymentMethods": zod.array(zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto'])),
+  "installments": zod.number().int().min(1),
+  "items": zod.array(zod.object({
+  "type": zod.enum(['service', 'package', 'product', 'gift_card']),
+  "refId": zod.number().int().optional(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(duplicateQuoteResponseOneItemsItemUnitPriceMin),
+  "discount": zod.number().min(duplicateQuoteResponseOneItemsItemDiscountMin).optional(),
+  "professionalId": zod.number().int().optional(),
+  "professionalName": zod.string().optional(),
+  "commissionPercent": zod.number().optional(),
+  "estimatedCommission": zod.number().optional(),
+  "scheduledDate": zod.string().optional(),
+  "scheduledTime": zod.string().optional(),
+  "sessions": zod.number().int().min(duplicateQuoteResponseOneItemsItemSessionsMin).optional()
+})).min(1)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "number": zod.string(),
+  "createdAt": zod.string(),
+  "status": zod.enum(['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired', 'cancelled']),
+  "publicToken": zod.string(),
+  "sentAt": zod.string().optional(),
+  "viewedAt": zod.string().optional(),
+  "approvedAt": zod.string().optional(),
+  "paidAt": zod.string().optional(),
+  "discount": zod.number(),
+  "subtotal": zod.number(),
+  "total": zod.number()
+}))
+
+
+export const CreateQuoteAppointmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const CreateQuoteAppointmentBody = zod.object({
+  "start": zod.string(),
+  "end": zod.string(),
+  "professionalId": zod.number().int().optional()
+})
+
+export const CreateQuoteAppointmentResponse = zod.object({
+  "id": zod.number().int(),
+  "start": zod.string(),
+  "end": zod.string(),
+  "client": zod.string(),
+  "service": zod.string(),
+  "professional": zod.string(),
+  "room": zod.string(),
+  "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
+  "avatar": zod.string()
+})
+
+
+export const CreateQuotePaymentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const createQuotePaymentBodyAmountMin = 0.01;
+
+
+
+export const CreateQuotePaymentBody = zod.object({
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']),
+  "amount": zod.number().min(createQuotePaymentBodyAmountMin)
+})
+
+export const createQuotePaymentResponseOneDescriptionMin = 2;
+
+export const createQuotePaymentResponseOneAmountMin = 0.01;
+
+
+
+export const CreateQuotePaymentResponse = zod.object({
+  "type": zod.enum(['revenue', 'expense', 'receivable']),
+  "date": zod.string(),
+  "description": zod.string().min(createQuotePaymentResponseOneDescriptionMin),
+  "category": zod.string(),
+  "amount": zod.number().min(createQuotePaymentResponseOneAmountMin),
+  "status": zod.enum(['paid', 'pending']),
+  "client": zod.string(),
+  "service": zod.string(),
+  "professional": zod.string(),
+  "quoteId": zod.number().int().optional(),
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
+  "source": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number().int()
+}))
 
 
 /**
@@ -607,6 +1113,249 @@ export const GetFinanceSummaryResponse = zod.object({
   "newClients": zod.number().int(),
   "returningClients": zod.number().int()
 })
+
+
+/**
+ * @summary Lista movimentações financeiras
+ */
+export const ListFinancialMovementsQueryParams = zod.object({
+  "month": zod.coerce.string().optional()
+})
+
+export const listFinancialMovementsResponseOneDescriptionMin = 2;
+
+export const listFinancialMovementsResponseOneAmountMin = 0.01;
+
+
+
+export const ListFinancialMovementsResponseItem = zod.object({
+  "type": zod.enum(['revenue', 'expense', 'receivable']),
+  "date": zod.string(),
+  "description": zod.string().min(listFinancialMovementsResponseOneDescriptionMin),
+  "category": zod.string(),
+  "amount": zod.number().min(listFinancialMovementsResponseOneAmountMin),
+  "status": zod.enum(['paid', 'pending']),
+  "client": zod.string(),
+  "service": zod.string(),
+  "professional": zod.string(),
+  "quoteId": zod.number().int().optional(),
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
+  "source": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number().int()
+}))
+export const ListFinancialMovementsResponse = zod.array(ListFinancialMovementsResponseItem)
+
+
+/**
+ * @summary Cria uma movimentação financeira
+ */
+export const createFinancialMovementBodyDescriptionMin = 2;
+
+export const createFinancialMovementBodyAmountMin = 0.01;
+
+
+
+export const CreateFinancialMovementBody = zod.object({
+  "type": zod.enum(['revenue', 'expense', 'receivable']),
+  "date": zod.string(),
+  "description": zod.string().min(createFinancialMovementBodyDescriptionMin),
+  "category": zod.string(),
+  "amount": zod.number().min(createFinancialMovementBodyAmountMin),
+  "status": zod.enum(['paid', 'pending']),
+  "client": zod.string(),
+  "service": zod.string(),
+  "professional": zod.string(),
+  "quoteId": zod.number().int().optional(),
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
+  "source": zod.string().optional()
+})
+
+export const createFinancialMovementResponseOneDescriptionMin = 2;
+
+export const createFinancialMovementResponseOneAmountMin = 0.01;
+
+
+
+export const CreateFinancialMovementResponse = zod.object({
+  "type": zod.enum(['revenue', 'expense', 'receivable']),
+  "date": zod.string(),
+  "description": zod.string().min(createFinancialMovementResponseOneDescriptionMin),
+  "category": zod.string(),
+  "amount": zod.number().min(createFinancialMovementResponseOneAmountMin),
+  "status": zod.enum(['paid', 'pending']),
+  "client": zod.string(),
+  "service": zod.string(),
+  "professional": zod.string(),
+  "quoteId": zod.number().int().optional(),
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
+  "source": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number().int()
+}))
+
+
+export const UpdateFinancialMovementParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateFinancialMovementBodyDescriptionMin = 2;
+
+export const updateFinancialMovementBodyAmountMin = 0.01;
+
+
+
+export const UpdateFinancialMovementBody = zod.object({
+  "type": zod.enum(['revenue', 'expense', 'receivable']),
+  "date": zod.string(),
+  "description": zod.string().min(updateFinancialMovementBodyDescriptionMin),
+  "category": zod.string(),
+  "amount": zod.number().min(updateFinancialMovementBodyAmountMin),
+  "status": zod.enum(['paid', 'pending']),
+  "client": zod.string(),
+  "service": zod.string(),
+  "professional": zod.string(),
+  "quoteId": zod.number().int().optional(),
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
+  "source": zod.string().optional()
+})
+
+export const updateFinancialMovementResponseOneDescriptionMin = 2;
+
+export const updateFinancialMovementResponseOneAmountMin = 0.01;
+
+
+
+export const UpdateFinancialMovementResponse = zod.object({
+  "type": zod.enum(['revenue', 'expense', 'receivable']),
+  "date": zod.string(),
+  "description": zod.string().min(updateFinancialMovementResponseOneDescriptionMin),
+  "category": zod.string(),
+  "amount": zod.number().min(updateFinancialMovementResponseOneAmountMin),
+  "status": zod.enum(['paid', 'pending']),
+  "client": zod.string(),
+  "service": zod.string(),
+  "professional": zod.string(),
+  "quoteId": zod.number().int().optional(),
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
+  "source": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number().int()
+}))
+
+
+export const DeleteFinancialMovementParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteFinancialMovementResponse = zod.void()
+
+
+/**
+ * @summary Lista profissionais e suas comissões
+ */
+export const listProfessionalsResponseOneNameMin = 2;
+
+export const listProfessionalsResponseOneCommissionRateMin = 0;
+export const listProfessionalsResponseOneCommissionRateMax = 100;
+
+
+
+export const ListProfessionalsResponseItem = zod.object({
+  "name": zod.string().min(listProfessionalsResponseOneNameMin),
+  "specialty": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "commissionRate": zod.number().min(listProfessionalsResponseOneCommissionRateMin).max(listProfessionalsResponseOneCommissionRateMax),
+  "active": zod.boolean()
+}).and(zod.object({
+  "id": zod.number().int()
+}))
+export const ListProfessionalsResponse = zod.array(ListProfessionalsResponseItem)
+
+
+/**
+ * @summary Cadastra um profissional
+ */
+export const createProfessionalBodyNameMin = 2;
+
+export const createProfessionalBodyCommissionRateMin = 0;
+export const createProfessionalBodyCommissionRateMax = 100;
+
+
+
+export const CreateProfessionalBody = zod.object({
+  "name": zod.string().min(createProfessionalBodyNameMin),
+  "specialty": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "commissionRate": zod.number().min(createProfessionalBodyCommissionRateMin).max(createProfessionalBodyCommissionRateMax),
+  "active": zod.boolean()
+})
+
+export const createProfessionalResponseOneNameMin = 2;
+
+export const createProfessionalResponseOneCommissionRateMin = 0;
+export const createProfessionalResponseOneCommissionRateMax = 100;
+
+
+
+export const CreateProfessionalResponse = zod.object({
+  "name": zod.string().min(createProfessionalResponseOneNameMin),
+  "specialty": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "commissionRate": zod.number().min(createProfessionalResponseOneCommissionRateMin).max(createProfessionalResponseOneCommissionRateMax),
+  "active": zod.boolean()
+}).and(zod.object({
+  "id": zod.number().int()
+}))
+
+
+export const UpdateProfessionalParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateProfessionalBodyNameMin = 2;
+
+export const updateProfessionalBodyCommissionRateMin = 0;
+export const updateProfessionalBodyCommissionRateMax = 100;
+
+
+
+export const UpdateProfessionalBody = zod.object({
+  "name": zod.string().min(updateProfessionalBodyNameMin),
+  "specialty": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "commissionRate": zod.number().min(updateProfessionalBodyCommissionRateMin).max(updateProfessionalBodyCommissionRateMax),
+  "active": zod.boolean()
+})
+
+export const updateProfessionalResponseOneNameMin = 2;
+
+export const updateProfessionalResponseOneCommissionRateMin = 0;
+export const updateProfessionalResponseOneCommissionRateMax = 100;
+
+
+
+export const UpdateProfessionalResponse = zod.object({
+  "name": zod.string().min(updateProfessionalResponseOneNameMin),
+  "specialty": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "commissionRate": zod.number().min(updateProfessionalResponseOneCommissionRateMin).max(updateProfessionalResponseOneCommissionRateMax),
+  "active": zod.boolean()
+}).and(zod.object({
+  "id": zod.number().int()
+}))
+
+
+export const DeleteProfessionalParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteProfessionalResponse = zod.void()
 
 
 /**

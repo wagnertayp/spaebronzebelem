@@ -1,0 +1,1199 @@
+QUERO REESTRUTURAR E MELHORAR COMPLETAMENTE O MÓDULO DE ORÇAMENTOS DO MEU SOFTWARE DE SPA.
+
+O sistema já possui uma tela de "Novo Orçamento". NÃO quero criar um módulo paralelo ou refazer o projeto inteiro.
+
+Analise primeiro a implementação atual, os componentes existentes, banco de dados, clientes, serviços, profissionais, agenda e financeiro. Depois adapte o módulo existente.
+
+==================================================
+CONTEXTO DO PRODUTO
+==================================================
+
+Este é um software de gestão para SPA.
+
+O orçamento não deve ser apenas um formulário para informar cliente + serviços + preço.
+
+Ele deve funcionar como uma ferramenta comercial que conecta:
+
+CLIENTE
+↓
+ORÇAMENTO
+↓
+ENVIO DA PROPOSTA
+↓
+APROVAÇÃO
+↓
+AGENDAMENTO
+↓
+PAGAMENTO
+↓
+FINANCEIRO
+
+Também deve suportar:
+
+- Serviços
+- Pacotes
+- Produtos
+- Profissionais
+- Sessões
+- Descontos
+- Formas de pagamento
+- Observações
+- Validade
+- Aprovação pelo cliente
+- Link público
+- WhatsApp
+- Financeiro
+- Agenda
+
+==================================================
+1. NÃO ALTERAR O DESIGN SYSTEM
+==================================================
+
+Preserve a identidade visual atual.
+
+A interface atual utiliza:
+
+- Fundo claro
+- Cards brancos
+- Cantos arredondados
+- Tipografia moderna
+- Verde/cinza como cores principais
+- Ícones minimalistas
+- Bastante whitespace
+- Visual premium
+- Sidebar existente
+
+Não quero um design completamente diferente.
+
+A evolução deve parecer uma versão profissional e mais completa da interface atual.
+
+Não exagerar em cores.
+
+Não utilizar gradientes desnecessários.
+
+Não criar dashboards visualmente carregados.
+
+==================================================
+2. NOVA ESTRUTURA DA TELA "NOVO ORÇAMENTO"
+==================================================
+
+Manter o título:
+
+Novo Orçamento
+
+Subtítulo:
+
+"Monte uma proposta personalizada para seu cliente."
+
+No topo:
+
+← Voltar
+
+                            [Rascunho]
+
+                            [Salvar orçamento]
+
+==================================================
+3. BLOCO CLIENTE
+==================================================
+
+Substituir os campos atuais:
+
+Nome do Cliente
+WhatsApp / Telefone
+
+por um seletor inteligente de cliente.
+
+Criar:
+
+CLIENTE
+
+[ 🔍 Buscar cliente... ]
+
+Ao digitar, pesquisar clientes existentes.
+
+Resultado:
+
+Maria Silva
+(91) 90000-0000
+
+Ao selecionar:
+
+┌─────────────────────────────┐
+│ Maria Silva                 │
+│ WhatsApp: (91) 90000-0000  │
+│ Cliente desde 2024          │
+│ 12 atendimentos             │
+└─────────────────────────────┘
+
+Adicionar:
+
+[ + Cadastrar novo cliente ]
+
+IMPORTANTE:
+
+Não criar clientes duplicados.
+
+Se o cliente já existir, utilizar o cadastro existente.
+
+==================================================
+4. VALIDADE DO ORÇAMENTO
+==================================================
+
+Manter:
+
+Validade do orçamento
+
+[ dd/mm/aaaa ]
+
+Adicionar opção:
+
+"Definir validade automaticamente"
+
+Opções:
+
+- 3 dias
+- 5 dias
+- 7 dias
+- 15 dias
+- 30 dias
+
+==================================================
+5. ITENS DO ORÇAMENTO
+==================================================
+
+Transformar "Itens e Valores" em um verdadeiro configurador.
+
+Título:
+
+SERVIÇOS E ITENS
+
+Botão principal:
+
+[ + Adicionar item ]
+
+Ao clicar, mostrar opções:
+
++ Serviço
++ Pacote
++ Produto
++ Gift Card
+
+==================================================
+6. ADICIONAR SERVIÇO
+==================================================
+
+Ao escolher "Serviço", abrir modal.
+
+Título:
+
+Adicionar serviço
+
+Campo:
+
+[ 🔍 Buscar serviço... ]
+
+Separar serviços por categoria.
+
+Exemplo:
+
+MASSAGENS
+
+Massagem Relaxante
+R$ 180
+
+Massagem Terapêutica
+R$ 220
+
+ESTÉTICA
+
+Drenagem Linfática
+R$ 160
+
+Limpeza de Pele
+R$ 140
+
+DAY SPA
+
+Day Spa Premium
+R$ 450
+
+Ao selecionar um serviço, permitir configurar:
+
+Serviço
+Profissional
+Data
+Horário
+Quantidade
+Valor unitário
+Desconto
+
+Exemplo:
+
+Massagem Relaxante
+
+Profissional:
+[ Selecionar profissional ]
+
+Data:
+[ 12/09/2026 ]
+
+Horário:
+[ 14:00 ]
+
+Quantidade:
+[-] 1 [+]
+
+Valor:
+R$ 180,00
+
+Desconto:
+R$ 0,00
+
+Total:
+R$ 180,00
+
+[Adicionar serviço]
+
+==================================================
+7. PROFISSIONAL
+==================================================
+
+O profissional selecionado deve vir dos profissionais existentes no sistema.
+
+Não criar profissionais duplicados.
+
+Se houver regras de comissão cadastradas para o profissional, manter a relação para posterior cálculo financeiro.
+
+Exemplo:
+
+Ana
+Comissão padrão: 30%
+
+Ao adicionar:
+
+R$ 180
+
+Comissão estimada:
+R$ 54
+
+Essa informação pode aparecer de forma discreta e não precisa ficar destacada para o cliente.
+
+==================================================
+8. PACOTES
+==================================================
+
+Permitir adicionar pacotes existentes.
+
+Exemplo:
+
+PACOTE RELAX
+
+4 sessões de Massagem Relaxante
+
+Preço normal:
+R$ 800
+
+Preço do pacote:
+R$ 720
+
+Economia:
+R$ 80
+
+Ao adicionar pacote ao orçamento:
+
+- Registrar o pacote no orçamento
+- Informar quantidade de sessões
+- Valor
+- Desconto
+- Sessões incluídas
+
+Quando o orçamento for aprovado, preparar integração para gerar os créditos/sessões do cliente.
+
+NÃO gerar sessões antes da aprovação.
+
+==================================================
+9. PRODUTOS
+==================================================
+
+Permitir adicionar produtos cadastrados no estoque.
+
+Exemplo:
+
+Óleo corporal
+R$ 89
+
+Creme facial
+R$ 120
+
+Kit SPA
+R$ 250
+
+O produto deve utilizar o cadastro existente.
+
+Não criar outro catálogo de produtos.
+
+Mostrar:
+
+Produto
+Quantidade
+Preço unitário
+Desconto
+Total
+
+==================================================
+10. LISTA DE ITENS
+==================================================
+
+Depois de adicionados, os itens devem aparecer em cards ou linhas limpas.
+
+Exemplo:
+
+┌──────────────────────────────────────────────┐
+│ Massagem Relaxante                           │
+│ Ana • 12/09 • 14:00                         │
+│                                              │
+│ 1 sessão × R$ 180                            │
+│                                              │
+│                                  R$ 180,00   │
+│                                  ⋮           │
+└──────────────────────────────────────────────┘
+
+Permitir:
+
+Editar
+Duplicar
+Excluir
+
+==================================================
+11. RESUMO DO ORÇAMENTO
+==================================================
+
+Criar um resumo visual mais forte.
+
+RESUMO
+
+Subtotal
+R$ 630,00
+
+Desconto
+-R$ 30,00
+
+TOTAL
+R$ 600,00
+
+Depois:
+
+FORMA DE PAGAMENTO
+
+[ PIX ]
+[ Crédito ]
+[ Débito ]
+[ Dinheiro ]
+[ Boleto ]
+
+Permitir selecionar uma ou mais formas quando necessário.
+
+==================================================
+12. PARCELAMENTO
+==================================================
+
+Se escolher cartão:
+
+Mostrar:
+
+Condição de pagamento
+
+[ À vista ▼ ]
+
+Opções:
+
+À vista
+2x
+3x
+4x
+5x
+6x
+10x
+12x
+
+Exemplo:
+
+3x de R$ 200,00
+
+Se houver taxas cadastradas, preparar estrutura para cálculo futuro.
+
+==================================================
+13. DESCONTO
+==================================================
+
+Permitir desconto em:
+
+- Valor fixo
+- Percentual
+
+Exemplo:
+
+Desconto
+[ R$ ] [ % ]
+
+Ao alterar, recalcular automaticamente:
+
+Subtotal
+Desconto
+Total
+
+Não permitir desconto superior ao subtotal.
+
+==================================================
+14. OBSERVAÇÕES
+==================================================
+
+Manter campo:
+
+Observações
+
+Placeholder:
+
+"Adicione condições especiais, informações sobre o atendimento ou observações para o cliente..."
+
+Separar conceitualmente:
+
+Observações internas
+
+e
+
+Observações para o cliente
+
+IMPORTANTE:
+
+Observações internas NÃO podem aparecer na proposta pública enviada ao cliente.
+
+==================================================
+15. STATUS DO ORÇAMENTO
+==================================================
+
+Criar sistema de status.
+
+Status possíveis:
+
+RASCUNHO
+ENVIADO
+VISUALIZADO
+APROVADO
+RECUSADO
+EXPIRADO
+CANCELADO
+
+Cada orçamento deve possuir status.
+
+Fluxo:
+
+RASCUNHO
+↓
+ENVIADO
+↓
+VISUALIZADO
+↓
+APROVADO
+
+Ou:
+
+ENVIADO
+↓
+RECUSADO
+
+Ou:
+
+ENVIADO
+↓
+EXPIRADO
+
+==================================================
+16. SALVAR ORÇAMENTO
+==================================================
+
+Ao clicar:
+
+Salvar orçamento
+
+Validar:
+
+- Cliente
+- Pelo menos um item
+- Valor total
+- Validade
+
+Após salvar:
+
+Mostrar confirmação:
+
+"Orçamento salvo com sucesso."
+
+E direcionar para a página de detalhes do orçamento.
+
+==================================================
+17. PÁGINA DE DETALHES DO ORÇAMENTO
+==================================================
+
+Criar/aperfeiçoar a página de detalhes.
+
+Exibir:
+
+ORÇAMENTO #00281
+
+Cliente:
+Maria Silva
+
+Status:
+Rascunho
+
+Validade:
+15/09/2026
+
+Itens:
+
+Massagem Relaxante
+1 sessão
+R$ 180
+
+Day Spa Premium
+1 pacote
+R$ 450
+
+Subtotal:
+R$ 630
+
+Desconto:
+R$ 30
+
+TOTAL:
+R$ 600
+
+==================================================
+18. AÇÕES DO ORÇAMENTO
+==================================================
+
+Na página de detalhes:
+
+[ Editar ]
+
+[ Enviar WhatsApp ]
+
+[ Copiar link ]
+
+[ Gerar PDF ]
+
+[ Duplicar ]
+
+[ Cancelar ]
+
+Se aprovado:
+
+[ Agendar atendimento ]
+
+[ Registrar pagamento ]
+
+==================================================
+19. ENVIO POR WHATSAPP
+==================================================
+
+Criar ação:
+
+Enviar WhatsApp
+
+Mensagem sugerida:
+
+"Olá, {nome}! 💆‍♀️
+
+Preparamos seu orçamento personalizado no SPA.
+
+Valor total: {valor}
+
+Confira todos os detalhes da sua proposta:
+
+{link}
+
+Qualquer dúvida, estamos à disposição."
+
+O sistema deve permitir copiar/abrir o WhatsApp com a mensagem preparada.
+
+Não enviar automaticamente sem ação explícita do usuário.
+
+==================================================
+20. LINK PÚBLICO
+==================================================
+
+Criar uma página pública para o cliente visualizar o orçamento.
+
+A página não deve mostrar a sidebar administrativa.
+
+Visual:
+
+SPA & Bronze
+
+Seu orçamento personalizado
+
+Cliente:
+Maria Silva
+
+--------------------------------
+
+Massagem Relaxante
+1 sessão
+R$ 180
+
+Day Spa Premium
+1 pacote
+R$ 450
+
+--------------------------------
+
+Subtotal
+R$ 630
+
+Desconto
+-R$ 30
+
+TOTAL
+
+R$ 600
+
+--------------------------------
+
+Forma de pagamento:
+PIX / Cartão
+
+Validade:
+15/09/2026
+
+[ APROVAR ORÇAMENTO ]
+
+[ FALAR NO WHATSAPP ]
+
+==================================================
+21. APROVAÇÃO PELO CLIENTE
+==================================================
+
+Quando o cliente clicar:
+
+APROVAR ORÇAMENTO
+
+mostrar confirmação:
+
+"Você deseja aprovar este orçamento?"
+
+[ Confirmar aprovação ]
+
+Após confirmar:
+
+Status → APROVADO
+
+Registrar:
+
+Data da aprovação
+Hora da aprovação
+
+Depois mostrar:
+
+"Orçamento aprovado com sucesso!"
+
+E opções:
+
+[ Agendar atendimento ]
+
+[ Falar com o SPA ]
+
+==================================================
+22. INTEGRAÇÃO COM AGENDA
+==================================================
+
+Quando o orçamento for aprovado:
+
+NÃO criar automaticamente horários sem confirmação.
+
+Disponibilizar:
+
+[ Agendar atendimento ]
+
+Ao clicar:
+
+abrir fluxo da Agenda.
+
+Pré-preencher:
+
+Cliente
+Serviço
+Profissional
+Data
+Horário
+
+Quando possível, utilizar as informações já configuradas no orçamento.
+
+Exemplo:
+
+Maria Silva
+Massagem Relaxante
+Ana
+12/09
+14:00
+
+Se o horário não estiver mais disponível:
+
+mostrar:
+
+"Este horário não está mais disponível."
+
+E permitir selecionar outro.
+
+==================================================
+23. INTEGRAÇÃO COM FINANCEIRO
+==================================================
+
+Quando o orçamento for APROVADO:
+
+Não considerar automaticamente como "pago".
+
+Aprovação ≠ pagamento.
+
+Criar possibilidade:
+
+[ Registrar pagamento ]
+
+Ao registrar pagamento:
+
+Criar entrada financeira relacionada ao orçamento.
+
+Exemplo:
+
+Entrada
+R$ 600
+
+Origem:
+Orçamento #00281
+
+Cliente:
+Maria Silva
+
+Forma:
+PIX
+
+Status:
+Pago
+
+==================================================
+24. INTEGRAÇÃO COM PACOTES
+==================================================
+
+Se o orçamento possuir um pacote:
+
+Somente após aprovação:
+
+Criar o pacote/créditos para o cliente.
+
+Exemplo:
+
+Pacote Relax
+4 sessões
+
+Cliente:
+Maria Silva
+
+Sessões disponíveis:
+4
+
+Utilizadas:
+0
+
+Restantes:
+4
+
+Isso deve estar relacionado ao cliente.
+
+==================================================
+25. LISTAGEM DE ORÇAMENTOS
+==================================================
+
+A página principal de Orçamentos deve ser melhorada.
+
+Topo:
+
+ORÇAMENTOS
+
+"Gerencie propostas, acompanhe aprovações e converta orçamentos em vendas."
+
+Botão:
+
+[ + Novo orçamento ]
+
+Cards:
+
+Rascunhos
+42
+
+Enviados
+18
+
+Aprovados
+12
+
+Valor aprovado
+R$ 18.400
+
+Depois:
+
+Buscar:
+
+[ 🔍 Buscar cliente ou orçamento ]
+
+Filtros:
+
+Todos
+Rascunhos
+Enviados
+Visualizados
+Aprovados
+Recusados
+Expirados
+
+==================================================
+26. TABELA DE ORÇAMENTOS
+==================================================
+
+Colunas:
+
+Orçamento
+Cliente
+Data
+Validade
+Valor
+Status
+Ações
+
+Exemplo:
+
+#00281
+Maria Silva
+09/09/2026
+15/09/2026
+R$ 600
+APROVADO
+
+#00280
+Ana Paula
+09/09/2026
+14/09/2026
+R$ 450
+ENVIADO
+
+#00279
+Carla Souza
+09/09/2026
+12/09/2026
+R$ 820
+RASCUNHO
+
+==================================================
+27. MÉTRICAS COMERCIAIS
+==================================================
+
+Adicionar na listagem:
+
+Taxa de conversão
+
+Exemplo:
+
+42 orçamentos
+18 aprovados
+
+Taxa de conversão:
+42,8%
+
+Também mostrar:
+
+Valor total enviado
+Valor total aprovado
+Ticket médio
+Quantidade de orçamentos
+
+Essas métricas devem respeitar o período selecionado.
+
+==================================================
+28. REGRAS DE NEGÓCIO
+==================================================
+
+IMPORTANTE:
+
+Não duplicar:
+
+Clientes
+Serviços
+Profissionais
+Produtos
+Pacotes
+
+Sempre utilizar os registros existentes.
+
+Orçamento aprovado não significa pagamento.
+
+Orçamento enviado não significa aprovação.
+
+Orçamento recusado não deve gerar financeiro.
+
+Orçamento expirado não deve ser aprovado sem renovação/reabertura.
+
+Itens do orçamento devem manter histórico do preço utilizado no momento da criação.
+
+Se o preço do serviço mudar depois, o orçamento antigo não deve mudar automaticamente.
+
+==================================================
+29. BANCO DE DADOS
+==================================================
+
+Antes de criar novas tabelas:
+
+Analise o banco atual.
+
+Verifique se já existem:
+
+clients
+services
+professionals
+appointments
+payments
+products
+packages
+financial_transactions
+quotes/budgets
+
+Reutilize estruturas existentes.
+
+Caso seja necessário criar ou alterar:
+
+quotes
+quote_items
+quote_status
+quote_approvals
+
+faça isso de forma consistente com a arquitetura existente.
+
+Criar relacionamentos com:
+
+client
+service
+professional
+product
+package
+appointment
+financial transaction
+
+Não criar estruturas duplicadas.
+
+==================================================
+30. SEGURANÇA
+==================================================
+
+A página pública do orçamento deve:
+
+- Não expor dados administrativos
+- Não expor observações internas
+- Não expor dados financeiros internos
+- Não permitir alteração pelo cliente
+- Utilizar identificador/token seguro
+- Permitir apenas visualização e aprovação
+
+Validar autorização no backend.
+
+Não confiar somente em proteção no frontend.
+
+==================================================
+31. UX
+==================================================
+
+A criação de orçamento deve ser rápida.
+
+O usuário deve conseguir:
+
+1. Selecionar cliente
+2. Adicionar serviço
+3. Selecionar profissional
+4. Ajustar quantidade/preço
+5. Adicionar desconto
+6. Escolher pagamento
+7. Salvar
+8. Enviar para cliente
+
+com o mínimo possível de cliques.
+
+Não transformar tudo em modal.
+
+Utilizar modal somente quando fizer sentido.
+
+Manter informações importantes visíveis.
+
+==================================================
+32. RESPONSIVIDADE
+==================================================
+
+Desktop:
+
+Layout de duas colunas:
+
+ESQUERDA:
+Cliente
+Validade
+Observações
+
+DIREITA:
+Itens
+Resumo
+Pagamento
+
+Mobile:
+
+Empilhar:
+
+Cliente
+Itens
+Resumo
+Pagamento
+Observações
+
+Botões principais devem ficar acessíveis.
+
+==================================================
+33. ESTADOS
+==================================================
+
+Implementar:
+
+Loading
+Empty state
+Error state
+Success state
+
+Exemplo de empty state:
+
+"Nenhum serviço adicionado."
+
+"Adicione um serviço, pacote ou produto para começar."
+
+==================================================
+34. PERFORMANCE
+==================================================
+
+Evitar consultas desnecessárias.
+
+Buscar clientes, serviços, profissionais e produtos de forma eficiente.
+
+Não carregar todos os registros do banco de uma vez se não for necessário.
+
+Utilizar busca/autocomplete.
+
+==================================================
+35. IMPORTANTE SOBRE O CÓDIGO EXISTENTE
+==================================================
+
+ANTES DE IMPLEMENTAR:
+
+Analise:
+
+- Estrutura do projeto
+- Framework
+- Rotas
+- Componentes
+- Banco de dados
+- APIs
+- Hooks
+- Contextos
+- Autenticação
+- Permissões
+- Modelos existentes
+
+Depois implemente aproveitando o que já existe.
+
+Não substitua funcionalidades existentes sem necessidade.
+
+Não quebrar:
+
+- Dashboard
+- Agenda
+- Clientes
+- Usuários
+- Agente IA
+- Financeiro
+- Estoque
+- Relatórios
+
+==================================================
+36. RESULTADO ESPERADO
+==================================================
+
+Quero que o módulo deixe de ser apenas:
+
+"Preencher formulário → salvar orçamento"
+
+e passe a funcionar como:
+
+CLIENTE
+↓
+MONTAGEM DO ORÇAMENTO
+↓
+SERVIÇOS / PACOTES / PRODUTOS
+↓
+CONDIÇÃO COMERCIAL
+↓
+SALVAR
+↓
+ENVIAR WHATSAPP
+↓
+CLIENTE VISUALIZA
+↓
+CLIENTE APROVA
+↓
+AGENDAR
+↓
+REGISTRAR PAGAMENTO
+↓
+FINANCEIRO
+↓
+COMISSÃO DO PROFISSIONAL
+
+O resultado precisa parecer um módulo profissional de gestão comercial para SPA.
+
+IMPORTANTE:
+
+Não implemente apenas o frontend.
+
+Faça as integrações necessárias com o banco e backend existentes.
+
+Não use dados falsos se houver dados reais disponíveis.
+
+Antes de finalizar, teste:
+
+- Criar orçamento
+- Selecionar cliente
+- Adicionar serviço
+- Adicionar pacote
+- Adicionar produto
+- Aplicar desconto
+- Salvar
+- Editar
+- Enviar
+- Abrir link público
+- Aprovar
+- Agendar
+- Registrar pagamento
+- Verificar lançamento no financeiro
+- Verificar comissão
+- Verificar responsividade
+
+No final, informe:
+
+1. Arquivos alterados
+2. Componentes criados
+3. Alterações no banco
+4. APIs criadas/alteradas
+5. Integrações realizadas
+6. Testes realizados
+7. Possíveis pontos que ainda precisam de configuração

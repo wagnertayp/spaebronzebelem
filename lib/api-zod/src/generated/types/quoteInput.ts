@@ -5,16 +5,24 @@
  * API do sistema operacional do Spa e Bronze Belém
  * OpenAPI spec version: 0.1.0
  */
+import type { DiscountMode } from './discountMode';
+import type { QuoteInputPaymentMethodsItem } from './quoteInputPaymentMethodsItem';
 import type { QuoteItem } from './quoteItem';
 
 export interface QuoteInput {
+  clientId: number;
   /** @minLength 2 */
   clientName: string;
   phone: string;
   validUntil: string;
+  discountMode: DiscountMode;
   /** @minimum 0 */
-  discount: number;
-  notes: string;
+  discountValue: number;
+  customerNotes: string;
+  internalNotes: string;
+  paymentMethods: QuoteInputPaymentMethodsItem[];
+  /** @minimum 1 */
+  installments: number;
   /** @minItems 1 */
   items: QuoteItem[];
 }

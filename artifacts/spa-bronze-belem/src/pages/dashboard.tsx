@@ -1,18 +1,54 @@
-import { useState } from 'react';
-import { useGetDashboard, useListAppointments } from '@workspace/api-client-react';
-import { PageHeader } from '@/components/layout/page-header';
+import { useState, useMemo } from 'react';
+import { 
+  useListAppointments, 
+  useListQuotes, 
+  useListLeads,
+  useListClients
+} from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, TrendingUp, TrendingDown, Minus, Clock, MapPin, User, ChevronRight, ChevronLeft, Calendar as CalendarIcon } from 'lucide-react';
+import { 
+  Plus, Clock, MapPin, User, ChevronRight, ChevronLeft, 
+  Calendar as CalendarIcon, Minus, TrendingUp, TrendingDown,
+  ArrowRight
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, addDays, subDays, isToday, parseISO } from 'date-fns';
+import { 
+  format, addDays, subDays, isToday, parseISO, 
+  startOfDay, endOfDay, isWithinInterval, differenceInDays
+} from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useLocation } from 'wouter';
+
+function parseSafeDate(dateStr: string | undefined): Date | null {
+  if (!dateStr) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(dateStr)) {
+    const [d, m, y] = dateStr.split(' ')[0].split('/');
+    const date = new Date(+y, +m - 1, +d);
+    if (!isNaN(date.getTime())) return date;
+  }
+  const date = new Date(dateStr);
+  if (!isNaN(date.getTime())) return date;
+  return null;
+}
+
+function getTrend(current: number, previous: number) {
+  if (previous === 0) {
+    if (current > 0) return { trend: 'up', text: 'Novo no período' };
+    return { trend: 'neutral', text: 'Sem alteração' };
+  }
+  
+  const diff = current - previous;
+  if (diff === 0) return { trend: 'neutral', text: 'Sem alteração' };
+  
+  const percent = Math.round((Math.abs(diff) / previous) * 100);
+  const trend = diff > 0 ? 'up' : 'down';
+  return { trend, text: `${percent}% vs. período anterior` };
+}
 
 function MetricTrend({ trend, change }: { trend: string; change: string }) {
   if (trend === 'up') {
     return (
-      <span className="flex items-center gap-1 text-[11px] font-medium text-success bg-success/10 px-2 py-0.5 rounded-[6px]">
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success bg-success/10 px-2 py-0.5 rounded-[6px]">
         <TrendingUp className="w-3 h-3" />
         {change}
       </span>
@@ -20,256 +56,493 @@ function MetricTrend({ trend, change }: { trend: string; change: string }) {
   }
   if (trend === 'down') {
     return (
-      <span className="flex items-center gap-1 text-[11px] font-medium text-error bg-error/10 px-2 py-0.5 rounded-[6px]">
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-error bg-error/10 px-2 py-0.5 rounded-[6px]">
         <TrendingDown className="w-3 h-3" />
         {change}
       </span>
     );
   }
   return (
-    <span className="flex items-center gap-1 text-[11px] font-medium text-text-muted bg-surface-soft px-2 py-0.5 rounded-[6px]">
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-text-muted bg-black/5 px-2 py-0.5 rounded-[6px]">
       <Minus className="w-3 h-3" />
       {change}
     </span>
   );
 }
 
-const parseTime = (timeStr: string) => {
-  if (timeStr.includes('T')) return new Date(timeStr);
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  const d = new Date();
-  d.setHours(hours || 0, minutes || 0, 0, 0);
-  return d;
+const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+function MetricCard({ 
+  title, current, prev, isCurrency, bg = "bg-[#FDFBF7]", highlight = false, invalid = false
+}: { 
+  title: string; current: number; prev: number; isCurrency?: boolean; bg?: string; highlight?: boolean; invalid?: boolean
+}) {
+  const trend = invalid ? { trend: 'neutral', text: 'Período inválido' } : getTrend(current, prev);
+  const displayValue = isCurrency ? formatCurrency(current) : current;
+  
+  return (
+    <div className={cn("p-5 rounded-[12px] border flex flex-col gap-3", bg, highlight ? "border-accent/30" : "border-accent/10")}>
+      <span className={cn("text-[13px] font-medium", highlight ? "text-dark" : "text-text-secondary")}>
+        {title}
+      </span>
+      <div className="flex items-end justify-between mt-1">
+        <span className={cn("text-[28px] font-semibold tracking-[-0.03em] leading-none", highlight ? "text-primary-dark" : "text-dark", invalid && "text-text-muted")}>
+          {invalid ? '-' : displayValue}
+        </span>
+      </div>
+      <div>
+        <MetricTrend trend={trend.trend} change={trend.text} />
+      </div>
+    </div>
+  );
+}
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
 };
 
 export function Dashboard() {
   const [_, setLocation] = useLocation();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const dateStr = format(selectedDate, 'yyyy-MM-dd');
   
-  const { data: dashboard, isLoading: isDashboardLoading } = useGetDashboard();
-  const { data: appointments = [], isLoading: isAppointmentsLoading } = useListAppointments({ date: dateStr });
+  const now = useMemo(() => new Date(), []);
+  
+  const [period, setPeriod] = useState<'today' | '7d' | '30d' | 'custom'>('today');
+  const [customRange, setCustomRange] = useState<{from: Date, to: Date} | null>(null);
+  
+  const [agendaDate, setAgendaDate] = useState<Date>(new Date());
 
-  if (isDashboardLoading || !dashboard) {
+  const { data: allAppointments = [], isLoading: isAppointmentsLoading } = useListAppointments();
+  const { data: allQuotes = [], isLoading: isQuotesLoading } = useListQuotes();
+  const { data: allLeads = [], isLoading: isLeadsLoading } = useListLeads();
+  const { data: allClients = [], isLoading: isClientsLoading } = useListClients();
+
+  const isLoading = isAppointmentsLoading || isQuotesLoading || isLeadsLoading || isClientsLoading;
+
+  const { from, to, prevFrom, prevTo, isValid } = useMemo(() => {
+    let f: Date, t: Date;
+    let isValid = true;
+    if (period === 'today') {
+      f = startOfDay(now);
+      t = endOfDay(now);
+    } else if (period === '7d') {
+      f = startOfDay(subDays(now, 6));
+      t = endOfDay(now);
+    } else if (period === '30d') {
+      f = startOfDay(subDays(now, 29));
+      t = endOfDay(now);
+    } else if (period === 'custom' && customRange) {
+      f = startOfDay(customRange.from);
+      t = endOfDay(customRange.to);
+      if (customRange.from > customRange.to) {
+        isValid = false;
+      }
+    } else {
+      f = startOfDay(now);
+      t = endOfDay(now);
+    }
+    
+    if (!isValid) {
+      return { from: now, to: now, prevFrom: now, prevTo: now, isValid: false };
+    }
+    
+    const length = differenceInDays(t, f) + 1;
+    const pF = startOfDay(subDays(f, length));
+    const pT = endOfDay(subDays(f, 1));
+    
+    return { from: f, to: t, prevFrom: pF, prevTo: pT, isValid };
+  }, [period, customRange, now]);
+
+  const metrics = useMemo(() => {
+    if (!isValid) {
+      return {
+        agendamentos: { current: 0, prev: 0 },
+        clientes: { current: 0, prev: 0 },
+        orcamentos: { current: 0, prev: 0 },
+        valorOrcamentos: { current: 0, prev: 0 },
+      };
+    }
+
+    let apptsCurrent = 0;
+    let apptsPrev = 0;
+    
+    allAppointments.forEach(a => {
+      let d: Date;
+      if (!a.start.includes('T')) {
+        const [h, m] = a.start.split(':').map(Number);
+        d = new Date(now);
+        d.setHours(h || 0, m || 0, 0, 0);
+      } else {
+        d = new Date(a.start);
+      }
+      
+      if (isWithinInterval(d, { start: from, end: to })) {
+        apptsCurrent++;
+      } else if (isWithinInterval(d, { start: prevFrom, end: prevTo })) {
+        apptsPrev++;
+      }
+    });
+
+    let clientsCurrent = 0;
+    let clientsPrev = 0;
+    
+    allClients.forEach(c => {
+      const d = parseSafeDate(c.lastVisit);
+      if (!d) return;
+      if (isWithinInterval(d, { start: from, end: to })) {
+        clientsCurrent++;
+      } else if (isWithinInterval(d, { start: prevFrom, end: prevTo })) {
+        clientsPrev++;
+      }
+    });
+
+    let quotesCurrent = 0;
+    let quotesPrev = 0;
+    let quotesValCurrent = 0;
+    let quotesValPrev = 0;
+    
+    allQuotes.forEach(q => {
+      const d = new Date(q.createdAt);
+      if (isWithinInterval(d, { start: from, end: to })) {
+        quotesCurrent++;
+        quotesValCurrent += q.total;
+      } else if (isWithinInterval(d, { start: prevFrom, end: prevTo })) {
+        quotesPrev++;
+        quotesValPrev += q.total;
+      }
+    });
+    
+    return {
+      agendamentos: { current: apptsCurrent, prev: apptsPrev },
+      clientes: { current: clientsCurrent, prev: clientsPrev },
+      orcamentos: { current: quotesCurrent, prev: quotesPrev },
+      valorOrcamentos: { current: quotesValCurrent, prev: quotesValPrev },
+    };
+  }, [allAppointments, allQuotes, allClients, from, to, prevFrom, prevTo, isValid, now]);
+
+  const leadsNew = allLeads.filter(l => l.stage === 'new' || l.stage === 'contacting');
+  const leadsQuote = allLeads.filter(l => l.stage === 'quote');
+  const urgentLeads = allLeads
+    .filter(l => l.stage !== 'converted' && l.stage !== 'lost')
+    .slice(0, 3);
+
+  const inProgressAppts = allAppointments.filter(a => a.status === 'in_progress');
+
+  const agendaAppts = allAppointments.filter(a => {
+    let d: Date;
+    if (!a.start.includes('T')) {
+      d = new Date(now);
+    } else {
+      d = new Date(a.start);
+    }
+    return d.getFullYear() === agendaDate.getFullYear() && 
+           d.getMonth() === agendaDate.getMonth() && 
+           d.getDate() === agendaDate.getDate();
+  }).sort((a, b) => {
+    const timeA = !a.start.includes('T') ? (() => { const d = new Date(now); const [h,m] = a.start.split(':'); d.setHours(+h, +m); return d.getTime(); })() : new Date(a.start).getTime();
+    const timeB = !b.start.includes('T') ? (() => { const d = new Date(now); const [h,m] = b.start.split(':'); d.setHours(+h, +m); return d.getTime(); })() : new Date(b.start).getTime();
+    return timeA - timeB;
+  });
+
+  if (isLoading) {
     return (
-      <div className="animate-pulse space-y-8 max-w-[1200px] mx-auto pb-12">
-        <div className="h-12 w-1/3 bg-surface-soft rounded-lg" />
+      <div className="animate-pulse space-y-8 max-w-[1200px] mx-auto pb-12 px-4 sm:px-6 mt-8">
+        <div className="h-16 w-1/3 bg-black/5 rounded-[12px]" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-32 bg-surface-soft rounded-[18px]" />
+            <div key={i} className="h-[120px] bg-black/5 rounded-[12px]" />
           ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-5 h-[300px] bg-black/5 rounded-[12px]" />
+          <div className="lg:col-span-7 h-[300px] bg-black/5 rounded-[12px]" />
         </div>
       </div>
     );
   }
 
-  const displayAppointments = [...appointments]
-    .sort((a, b) => parseTime(a.start).getTime() - parseTime(b.start).getTime());
-
   return (
-    <div className="space-y-8 max-w-[1200px] mx-auto pb-12">
-      <PageHeader 
-        title={dashboard.greeting}
-        description={dashboard.subtitle}
-        action={
-          <Button className="gap-2" onClick={() => setLocation('/agenda?novo=1')}>
-            <Plus className="w-4 h-4" />
-            Novo agendamento
-          </Button>
-        }
-      />
+    <div className="space-y-10 max-w-[1200px] mx-auto pb-16 px-4 sm:px-6 relative">
+      <div className="absolute top-0 right-0 w-full max-w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-accent/15 via-primary/5 to-transparent -z-10 pointer-events-none opacity-60 rounded-bl-[100%]" />
+      
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-10 pb-6 border-b border-accent/20">
+        <div>
+          <h1 className="text-[32px] md:text-[38px] font-medium tracking-tight text-dark">
+            {getGreeting()}, Wagner.
+          </h1>
+          <p className="text-text-secondary mt-1.5 text-[15px]">
+            Aqui está o resumo das suas operações de bem-estar.
+          </p>
+        </div>
+        
+        <Button 
+          className="rounded-[12px] bg-dark text-white hover:bg-dark-soft shadow-none h-11 px-5"
+          onClick={() => setLocation('/agenda?novo=1')}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Novo agendamento
+        </Button>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {dashboard.metrics.map((metric, i) => (
-          <Card key={i}>
-            <CardContent className="p-5 flex flex-col gap-3">
-              <span className="text-[13px] font-semibold text-text-secondary">
-                {metric.label}
-              </span>
-              <div className="flex items-end justify-between">
-                <span className="text-[26px] font-semibold tracking-[-0.035em] text-text-primary leading-none">
-                  {metric.value}
-                </span>
-              </div>
-              <div>
-                <MetricTrend trend={metric.trend} change={metric.change} />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Visão geral</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {dashboard.revenue && dashboard.revenue.length > 0 && (
-                <div className="mb-6">
-                  <div className="text-[13px] text-text-secondary mb-1">{dashboard.revenue[0].label || 'Total'}</div>
-                  <div className="text-[32px] font-semibold tracking-[-0.04em] text-text-primary">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboard.revenue[0].value)}
-                  </div>
-                </div>
+      <div>
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          {(['today', '7d', '30d', 'custom'] as const).map(p => (
+            <button 
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "px-4 py-2 rounded-[12px] text-[13px] font-medium transition-colors border", 
+                period === p 
+                  ? 'bg-dark text-white border-dark' 
+                  : 'bg-white text-text-secondary border-accent/20 hover:border-accent/40'
               )}
-              
-              {dashboard.serviceMix && dashboard.serviceMix.length > 0 && (
-                <div className="space-y-4 pt-4 border-t border-border">
-                  <div className="text-[13px] font-medium text-text-primary">Mix de Serviços</div>
-                  <div className="flex flex-col gap-3">
-                    {dashboard.serviceMix.map((item, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                        <div className="flex-1 flex items-center justify-between">
-                          <span className="text-[13px] font-medium text-text-primary">{item.service}</span>
-                          <span className="text-[13px] text-text-secondary">{item.value}%</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            >
+              {p === 'today' && 'Hoje'}
+              {p === '7d' && '7 dias'}
+              {p === '30d' && '30 dias'}
+              {p === 'custom' && 'Personalizado'}
+            </button>
+          ))}
           
-          {dashboard.currentAppointment && (
-            <Card className="bg-dark text-text-primary border-none overflow-hidden relative group">
-              <div className="absolute top-0 left-0 w-1 h-full bg-accent" />
-              <CardHeader className="pb-2 relative z-10">
-                <CardTitle className="text-primary-soft text-[11px] uppercase tracking-wider">Atendimento Atual</CardTitle>
-              </CardHeader>
-              <CardContent className="relative z-10">
-                <div className="flex flex-col gap-5 mt-2">
-                  <div>
-                    <div className="text-[18px] font-semibold text-white mb-1">
-                      {dashboard.currentAppointment.client}
-                    </div>
-                    <div className="text-[14px] text-primary-soft">
-                      {dashboard.currentAppointment.service}
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-accent" />
-                      <span className="text-[12px] text-primary-soft">{dashboard.currentAppointment.professional}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-accent" />
-                      <span className="text-[12px] text-primary-soft">{dashboard.currentAppointment.room}</span>
-                    </div>
-                    <div className="flex items-center gap-2 col-span-2">
-                      <Clock className="w-4 h-4 text-accent" />
-                      <span className="text-[12px] text-primary-soft">
-                        {dashboard.currentAppointment.start.includes('T') ? format(new Date(dashboard.currentAppointment.start), 'HH:mm') : dashboard.currentAppointment.start} 
-                        {' — '} 
-                        {dashboard.currentAppointment.end.includes('T') ? format(new Date(dashboard.currentAppointment.end), 'HH:mm') : dashboard.currentAppointment.end}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {period === 'custom' && (
+            <div className="flex flex-col gap-1 ml-2">
+              <div className="flex items-center gap-2 bg-white rounded-[12px] p-1 border border-accent/20">
+                <input 
+                  type="date"
+                  className="bg-transparent border-none text-[13px] text-dark outline-none px-2 h-8"
+                  value={customRange?.from ? format(customRange.from, 'yyyy-MM-dd') : ''}
+                  onChange={e => {
+                    const d = parseISO(e.target.value);
+                    if (!isNaN(d.getTime())) setCustomRange(prev => ({ from: d, to: prev?.to || d }));
+                  }}
+                />
+                <span className="text-text-muted text-[13px]">-</span>
+                <input 
+                  type="date"
+                  className="bg-transparent border-none text-[13px] text-dark outline-none px-2 h-8"
+                  value={customRange?.to ? format(customRange.to, 'yyyy-MM-dd') : ''}
+                  onChange={e => {
+                    const d = parseISO(e.target.value);
+                    if (!isNaN(d.getTime())) setCustomRange(prev => ({ from: prev?.from || d, to: d }));
+                  }}
+                />
+              </div>
+              {customRange?.from && customRange?.to && customRange.from > customRange.to && (
+                <span className="text-error text-[12px] ml-1 font-medium">A data inicial deve ser anterior à data final.</span>
+              )}
+            </div>
           )}
         </div>
 
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="h-full flex flex-col">
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 gap-4 border-b border-border mb-4">
-              <CardTitle className="capitalize text-[18px]">
-                Agenda de {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
-              </CardTitle>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="icon" onClick={() => setSelectedDate(subDays(selectedDate, 1))}>
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setSelectedDate(new Date())} 
-                  className={cn(isToday(selectedDate) && "bg-primary/10 text-primary border-primary/20")}
-                >
-                  Hoje
-                </Button>
-                <div className="relative">
-                  <input 
-                    type="date" 
-                    className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
-                    value={format(selectedDate, 'yyyy-MM-dd')}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const parsed = parseISO(e.target.value);
-                        if (!isNaN(parsed.getTime())) setSelectedDate(parsed);
-                      }
-                    }}
-                  />
-                  <Button variant="outline" size="icon" className="pointer-events-none">
-                    <CalendarIcon className="w-4 h-4" />
-                  </Button>
-                </div>
-                <Button variant="outline" size="icon" onClick={() => setSelectedDate(addDays(selectedDate, 1))}>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard title="Agendamentos" current={metrics.agendamentos.current} prev={metrics.agendamentos.prev} bg="bg-[#FDFBF7]" invalid={!isValid} />
+          <MetricCard title="Clientes atendidos" current={metrics.clientes.current} prev={metrics.clientes.prev} bg="bg-[#FDFBF7]" invalid={!isValid} />
+          <MetricCard title="Orçamentos criados" current={metrics.orcamentos.current} prev={metrics.orcamentos.prev} bg="bg-[#FDFBF7]" invalid={!isValid} />
+          <MetricCard title="Valor em orçamentos" current={metrics.valorOrcamentos.current} prev={metrics.valorOrcamentos.prev} isCurrency bg="bg-primary/10" highlight invalid={!isValid} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-5 space-y-5">
+          <h2 className="text-[17px] font-semibold text-dark flex items-center gap-2.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-warning" />
+            Atenção Comercial
+          </h2>
+          <div className="bg-[#FAF8F5] rounded-[12px] border border-accent/10 p-5 space-y-4 shadow-sm shadow-accent/5">
+            <div 
+              className="flex items-center justify-between p-3.5 rounded-[10px] bg-white border border-accent/10 cursor-pointer hover:border-accent/30 transition-colors group"
+              onClick={() => setLocation('/whatsapp')}
+            >
+              <div>
+                <div className="text-[14px] font-medium text-dark mb-0.5">Leads aguardando resposta</div>
+                <div className="text-[12.5px] text-text-secondary">{leadsNew.length} contatos pendentes</div>
               </div>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-hidden flex flex-col">
-              <div className="flex-1 overflow-y-auto pr-2 flex flex-col gap-4">
-                {isAppointmentsLoading ? (
-                  <div className="text-center text-sm text-text-muted py-8">Carregando agenda...</div>
-                ) : displayAppointments.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center text-center py-12 px-4">
-                    <div className="w-12 h-12 rounded-full bg-surface-soft flex items-center justify-center mb-3">
-                      <Clock className="w-5 h-5 text-text-muted" />
-                    </div>
-                    <div className="text-[14px] font-medium text-text-primary mb-1">Nenhum agendamento</div>
-                    <div className="text-[13px] text-text-secondary">A agenda está livre para este dia.</div>
-                  </div>
+              <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-white transition-colors">
+                <ArrowRight className="w-4 h-4" />
+              </div>
+            </div>
+            
+            <div 
+              className="flex items-center justify-between p-3.5 rounded-[10px] bg-white border border-accent/10 cursor-pointer hover:border-accent/30 transition-colors group"
+              onClick={() => setLocation('/servicos')}
+            >
+              <div>
+                <div className="text-[14px] font-medium text-dark mb-0.5">Orçamentos aguardando retorno</div>
+                <div className="text-[12.5px] text-text-secondary">{leadsQuote.length} propostas enviadas</div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-white transition-colors">
+                <ArrowRight className="w-4 h-4" />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-3.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Leads Urgentes</span>
+                <button className="text-[12px] text-accent font-medium hover:text-accent/80 transition-colors" onClick={() => setLocation('/whatsapp')}>Ver todos</button>
+              </div>
+              <div className="space-y-2.5">
+                {urgentLeads.length === 0 ? (
+                  <div className="text-[13px] text-text-muted text-center py-4">Nenhum lead urgente</div>
                 ) : (
-                  displayAppointments.map((app) => {
-                    const startLabel = app.start.includes('T') ? format(new Date(app.start), 'HH:mm') : app.start;
-                    return (
-                      <div key={app.id} 
-                           className="flex items-start gap-4 cursor-pointer group hover:bg-surface-soft/50 p-2 -mx-2 rounded-xl transition-colors"
-                           onClick={() => setLocation('/agenda')}>
-                        <div className="w-12 text-right shrink-0 pt-2">
-                          <span className="text-[13px] font-semibold text-text-primary">
-                            {startLabel}
-                          </span>
+                  urgentLeads.map(lead => (
+                    <div key={lead.id} className="flex items-center justify-between text-[13px] p-2 -mx-2 rounded-[8px] hover:bg-black/5 transition-colors cursor-pointer" onClick={() => setLocation('/whatsapp')}>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {lead.initials}
                         </div>
-                        <div className="flex-1 bg-surface-soft rounded-[12px] p-4 border border-border relative overflow-hidden group-hover:border-primary/30 transition-colors">
-                          {app.status === 'in_progress' && <div className="absolute top-0 left-0 w-1 h-full bg-warning" />}
-                          {app.status === 'confirmed' && <div className="absolute top-0 left-0 w-1 h-full bg-success" />}
-                          {app.status === 'completed' && <div className="absolute top-0 left-0 w-1 h-full bg-text-muted" />}
-                          
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <div className="text-[14px] font-semibold text-text-primary">{app.client}</div>
-                            {app.status === 'completed' && <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted">Concluído</span>}
-                            {app.status === 'cancelled' && <span className="text-[10px] uppercase font-bold tracking-wider text-error">Cancelado</span>}
-                          </div>
-                          <div className="text-[13px] text-text-secondary mb-3">{app.service}</div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-[11px] font-medium text-text-muted bg-surface px-2.5 py-1 rounded-[6px] border border-border flex items-center gap-1.5">
-                              <MapPin className="w-3 h-3" /> {app.room}
-                            </span>
-                            <span className="text-[11px] font-medium text-text-muted bg-surface px-2.5 py-1 rounded-[6px] border border-border flex items-center gap-1.5">
-                              <User className="w-3 h-3" /> {app.professional}
-                            </span>
-                          </div>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-dark leading-tight">{lead.name}</span>
+                          <span className="text-[11px] text-text-muted">{lead.service}</span>
                         </div>
                       </div>
-                    );
-                  })
+                      <span className="text-warning font-medium text-[12px] bg-warning/10 px-2 py-0.5 rounded-[4px]">{lead.time}</span>
+                    </div>
+                  ))
                 )}
               </div>
-              <div className="mt-4 pt-4 border-t border-border">
-                <Button variant="ghost" className="w-full text-primary" onClick={() => setLocation('/agenda')}>
-                  Ir para a Agenda completa <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-7 space-y-5">
+          <h2 className="text-[17px] font-semibold text-dark flex items-center gap-2.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-success" />
+            Equipe em Atendimento
+          </h2>
+          <div className="bg-[#596653] rounded-[12px] p-6 text-white h-[calc(100%-48px)] min-h-[300px] shadow-sm shadow-dark/10">
+            {inProgressAppts.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
+                <Clock className="w-8 h-8 mb-3" />
+                <p className="text-[15px] font-medium">Nenhum atendimento no momento</p>
+                <p className="text-[13px] mt-1 text-white/70">As salas estão livres.</p>
               </div>
-            </CardContent>
-          </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-full content-start">
+                {inProgressAppts.map(appt => (
+                  <div key={appt.id} className="bg-white/10 rounded-[10px] p-4 border border-white/5 hover:bg-white/15 transition-colors">
+                    <div className="flex justify-between items-start mb-1.5">
+                      <div className="text-[14px] font-semibold tracking-wide">{appt.client}</div>
+                      <span className="text-[9px] font-bold uppercase tracking-wider bg-warning/20 text-warning px-1.5 py-0.5 rounded-[4px]">Agora</span>
+                    </div>
+                    <div className="text-[12px] text-white/70 mb-4">{appt.service}</div>
+                    <div className="flex flex-col gap-2 text-[12px] text-white/80">
+                      <div className="flex items-center gap-2">
+                        <User className="w-3.5 h-3.5 opacity-60" /> {appt.professional}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-3.5 h-3.5 opacity-60" /> {appt.room}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 opacity-60" /> 
+                        {appt.start.includes('T') ? format(new Date(appt.start), 'HH:mm') : appt.start} 
+                        {' — '} 
+                        {appt.end.includes('T') ? format(new Date(appt.end), 'HH:mm') : appt.end}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4 border-t border-accent/20 pt-10">
+          <h2 className="text-[20px] font-semibold text-dark capitalize">
+            Agenda de {format(agendaDate, "dd 'de' MMMM", { locale: ptBR })}
+          </h2>
+          <div className="flex flex-wrap items-center gap-1.5 bg-surface p-1 rounded-[12px] border border-accent/10 shadow-sm shadow-accent/5">
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-[8px] hover:bg-black/5" onClick={() => setAgendaDate(subDays(agendaDate, 1))}>
+              <ChevronLeft className="w-4 h-4 text-text-secondary" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={cn("h-8 rounded-[8px] text-[13px] hover:bg-black/5", isToday(agendaDate) && "bg-primary/10 text-primary font-medium hover:bg-primary/20")}
+              onClick={() => setAgendaDate(now)}
+            >
+              Hoje
+            </Button>
+            <div className="relative">
+              <input 
+                type="date" 
+                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+                value={format(agendaDate, 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const parsed = parseISO(e.target.value);
+                    if (!isNaN(parsed.getTime())) setAgendaDate(parsed);
+                  }
+                }}
+              />
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-[8px] pointer-events-none text-text-secondary">
+                <CalendarIcon className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-[8px] hover:bg-black/5" onClick={() => setAgendaDate(addDays(agendaDate, 1))}>
+              <ChevronRight className="w-4 h-4 text-text-secondary" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="bg-[#FDFBF7] rounded-[16px] border border-accent/10 overflow-hidden shadow-sm shadow-accent/5">
+          {agendaAppts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center py-16 px-4">
+              <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-3">
+                <Clock className="w-5 h-5 text-accent" />
+              </div>
+              <div className="text-[15px] font-medium text-dark mb-1">Nenhum agendamento</div>
+              <div className="text-[14px] text-text-secondary">A agenda está livre para este dia.</div>
+            </div>
+          ) : (
+            <div className="divide-y divide-accent/10">
+              {agendaAppts.map((app) => {
+                const startLabel = app.start.includes('T') ? format(new Date(app.start), 'HH:mm') : app.start;
+                const endLabel = app.end.includes('T') ? format(new Date(app.end), 'HH:mm') : app.end;
+                return (
+                  <div key={app.id} 
+                       className="flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer hover:bg-black/5 p-4 sm:p-5 transition-colors group"
+                       onClick={() => setLocation('/agenda')}>
+                    <div className="w-20 shrink-0">
+                      <span className="text-[14px] font-semibold text-dark">
+                        {startLabel}
+                      </span>
+                      <div className="text-[11px] text-text-muted mt-0.5">{endLabel}</div>
+                    </div>
+                    
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:items-center">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="text-[15px] font-semibold text-dark">{app.client}</div>
+                          {app.status === 'in_progress' && <span className="text-[10px] uppercase font-bold tracking-wider text-warning bg-warning/10 px-1.5 py-0.5 rounded-[4px]">Em andamento</span>}
+                          {app.status === 'completed' && <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted bg-black/5 px-1.5 py-0.5 rounded-[4px]">Concluído</span>}
+                          {app.status === 'cancelled' && <span className="text-[10px] uppercase font-bold tracking-wider text-error bg-error/10 px-1.5 py-0.5 rounded-[4px]">Cancelado</span>}
+                        </div>
+                        <div className="text-[13px] text-text-secondary">{app.service}</div>
+                      </div>
+                      
+                      <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">
+                        <User className="w-4 h-4 text-accent/60" /> {app.professional}
+                      </div>
+                      
+                      <div className="flex items-center gap-1.5 text-[13px] text-text-secondary sm:justify-end">
+                        <MapPin className="w-4 h-4 text-accent/60" /> {app.room}
+                      </div>
+                    </div>
+                    
+                    <div className="hidden sm:block shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-accent/20 text-accent shadow-sm">
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -17,6 +17,8 @@ tags:
   - name: finance
   - name: inventory
   - name: ai-agent
+  - name: professionals
+  - name: financial-movements
 paths:
   /ai-agent/config:
     get:
@@ -310,11 +312,27 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         "204": { description: Deleted service }
+  /packages:
+    get:
+      operationId: listPackages
+      tags: [quotes]
+      summary: Lista pacotes disponíveis para orçamentos
+      responses:
+        "200":
+          description: Packages
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Package" } }
   /quotes:
     get:
       operationId: listQuotes
       tags: [quotes]
       summary: Lista orçamentos criados
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/QuoteStatus" } }
+        - { name: from, in: query, required: false, schema: { type: string } }
+        - { name: to, in: query, required: false, schema: { type: string } }
       responses:
         "200":
           description: Quotes
@@ -365,6 +383,65 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         "204": { description: Deleted quote }
+  /quotes/{id}/send:
+    post:
+      operationId: sendQuote
+      tags: [quotes]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200":
+          description: Quote sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuoteSendResponse" }
+  /public/quotes/{token}:
+    get:
+      operationId: getPublicQuote
+      tags: [quotes]
+      parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: Public quote
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicQuote" }
+  /public/quotes/{token}/approve:
+    post:
+      operationId: approvePublicQuote
+      tags: [quotes]
+      parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: Approved quote
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quote" }
+  /quotes/{id}/cancel:
+    post:
+      operationId: cancelQuote
+      tags: [quotes]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: Cancelled quote, content: { application/json: { schema: { $ref: "#/components/schemas/Quote" } } } } }
+  /quotes/{id}/duplicate:
+    post:
+      operationId: duplicateQuote
+      tags: [quotes]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "201": { description: Duplicated quote, content: { application/json: { schema: { $ref: "#/components/schemas/Quote" } } } } }
+  /quotes/{id}/appointment:
+    post:
+      operationId: createQuoteAppointment
+      tags: [quotes]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/QuoteAppointmentInput" } } } }
+      responses: { "201": { description: Appointment, content: { application/json: { schema: { $ref: "#/components/schemas/Appointment" } } } } }
+  /quotes/{id}/payment:
+    post:
+      operationId: createQuotePayment
+      tags: [quotes]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/QuotePaymentInput" } } } }
+      responses: { "201": { description: Payment, content: { application/json: { schema: { $ref: "#/components/schemas/FinancialMovement" } } } } }
   /finance/summary:
     get:
       operationId: getFinanceSummary
@@ -377,6 +454,112 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FinanceSummary"
+  /finance/movements:
+    get:
+      operationId: listFinancialMovements
+      tags: [financial-movements]
+      summary: Lista movimentações financeiras
+      parameters:
+        - { name: month, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Financial movements
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FinancialMovement" }
+    post:
+      operationId: createFinancialMovement
+      tags: [financial-movements]
+      summary: Cria uma movimentação financeira
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FinancialMovementInput" }
+      responses:
+        "201":
+          description: Created movement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FinancialMovement" }
+  /finance/movements/{id}:
+    patch:
+      operationId: updateFinancialMovement
+      tags: [financial-movements]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FinancialMovementInput" }
+      responses:
+        "200":
+          description: Updated movement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FinancialMovement" }
+    delete:
+      operationId: deleteFinancialMovement
+      tags: [financial-movements]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted movement }
+  /professionals:
+    get:
+      operationId: listProfessionals
+      tags: [professionals]
+      summary: Lista profissionais e suas comissões
+      responses:
+        "200":
+          description: Professionals
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Professional" }
+    post:
+      operationId: createProfessional
+      tags: [professionals]
+      summary: Cadastra um profissional
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalInput" }
+      responses:
+        "201":
+          description: Created professional
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Professional" }
+  /professionals/{id}:
+    patch:
+      operationId: updateProfessional
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalInput" }
+      responses:
+        "200":
+          description: Updated professional
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Professional" }
+    delete:
+      operationId: deleteProfessional
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted professional }
   /inventory:
     get:
       operationId: listInventory
@@ -617,25 +800,54 @@ components:
     QuoteItem:
       type: object
       properties:
-        serviceId: { type: integer }
+        type: { type: string, enum: [service, package, product, gift_card] }
+        refId: { type: integer }
         name: { type: string }
         quantity: { type: integer, minimum: 1 }
         unitPrice: { type: number, minimum: 0 }
-      required: [serviceId, name, quantity, unitPrice]
+        discount: { type: number, minimum: 0 }
+        professionalId: { type: integer }
+        professionalName: { type: string }
+        commissionPercent: { type: number }
+        estimatedCommission: { type: number }
+        scheduledDate: { type: string }
+        scheduledTime: { type: string }
+        sessions: { type: integer, minimum: 0 }
+      required: [type, name, quantity, unitPrice]
+    Package:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        price: { type: number }
+        sessions: { type: integer }
+        serviceId: { type: integer }
+      required: [id, name, price, sessions, serviceId]
+    QuoteStatus:
+      type: string
+      enum: [draft, sent, viewed, approved, rejected, expired, cancelled]
+    DiscountMode:
+      type: string
+      enum: [fixed, percent]
     QuoteInput:
       type: object
       properties:
+        clientId: { type: integer }
         clientName: { type: string, minLength: 2 }
         phone: { type: string }
         validUntil: { type: string }
-        discount: { type: number, minimum: 0 }
-        notes: { type: string }
+        discountMode: { $ref: "#/components/schemas/DiscountMode" }
+        discountValue: { type: number, minimum: 0 }
+        customerNotes: { type: string }
+        internalNotes: { type: string }
+        paymentMethods: { type: array, items: { type: string, enum: [pix, credit, debit, cash, boleto] } }
+        installments: { type: integer, minimum: 1 }
         items:
           type: array
           minItems: 1
           items:
             $ref: "#/components/schemas/QuoteItem"
-      required: [clientName, phone, validUntil, discount, notes, items]
+      required: [clientId, clientName, phone, validUntil, discountMode, discountValue, customerNotes, internalNotes, paymentMethods, installments, items]
     Quote:
       allOf:
         - $ref: "#/components/schemas/QuoteInput"
@@ -644,9 +856,40 @@ components:
             id: { type: integer }
             number: { type: string }
             createdAt: { type: string }
+            status: { $ref: "#/components/schemas/QuoteStatus" }
+            publicToken: { type: string }
+            sentAt: { type: string }
+            viewedAt: { type: string }
+            approvedAt: { type: string }
+            paidAt: { type: string }
+            discount: { type: number }
             subtotal: { type: number }
             total: { type: number }
-          required: [id, number, createdAt, subtotal, total]
+          required: [id, number, createdAt, status, publicToken, discount, subtotal, total]
+    PublicQuote:
+      allOf:
+        - $ref: "#/components/schemas/Quote"
+    QuoteSendResponse:
+      type: object
+      properties:
+        quote: { $ref: "#/components/schemas/Quote" }
+        publicPath: { type: string }
+        whatsappMessage: { type: string }
+        whatsappUrl: { type: string }
+      required: [quote, publicPath, whatsappMessage, whatsappUrl]
+    QuoteAppointmentInput:
+      type: object
+      properties:
+        start: { type: string }
+        end: { type: string }
+        professionalId: { type: integer }
+      required: [start, end]
+    QuotePaymentInput:
+      type: object
+      properties:
+        paymentMethod: { type: string, enum: [pix, credit, debit, cash, boleto] }
+        amount: { type: number, minimum: 0.01 }
+      required: [paymentMethod, amount]
     FinanceSummary:
       type: object
       properties:
@@ -657,6 +900,46 @@ components:
         newClients: { type: integer }
         returningClients: { type: integer }
       required: [inflow, outflow, net, openAccounts, newClients, returningClients]
+    FinancialMovementInput:
+      type: object
+      properties:
+        type: { type: string, enum: [revenue, expense, receivable] }
+        date: { type: string }
+        description: { type: string, minLength: 2 }
+        category: { type: string }
+        amount: { type: number, minimum: 0.01 }
+        status: { type: string, enum: [paid, pending] }
+        client: { type: string }
+        service: { type: string }
+        professional: { type: string }
+        quoteId: { type: integer }
+        paymentMethod: { type: string, enum: [pix, credit, debit, cash, boleto] }
+        source: { type: string }
+      required: [type, date, description, category, amount, status, client, service, professional]
+    FinancialMovement:
+      allOf:
+        - $ref: "#/components/schemas/FinancialMovementInput"
+        - type: object
+          properties:
+            id: { type: integer }
+          required: [id]
+    ProfessionalInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 2 }
+        specialty: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        commissionRate: { type: number, minimum: 0, maximum: 100 }
+        active: { type: boolean }
+      required: [name, specialty, phone, email, commissionRate, active]
+    Professional:
+      allOf:
+        - $ref: "#/components/schemas/ProfessionalInput"
+        - type: object
+          properties:
+            id: { type: integer }
+          required: [id]
     InventoryItem:
       type: object
       properties:

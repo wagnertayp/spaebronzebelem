@@ -6,11 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { QuoteInput } from './quoteInput';
+import type { QuoteStatus } from './quoteStatus';
 
 export type Quote = QuoteInput & {
   id: number;
   number: string;
   createdAt: string;
+  status: QuoteStatus;
+  publicToken: string;
+  sentAt?: string;
+  viewedAt?: string;
+  approvedAt?: string;
+  paidAt?: string;
+  discount: number;
   subtotal: number;
   total: number;
 };
