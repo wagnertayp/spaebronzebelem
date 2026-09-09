@@ -82,38 +82,46 @@ function MetricCard({
   
   return (
     <div className={cn(
-      "p-6 md:p-8 rounded-lg border flex flex-col gap-6 transition-all hover:-translate-y-1 bg-surface relative overflow-hidden group shadow-card",
-      highlight ? "border-primary/30 ring-1 ring-primary/10" : "border-border hover:shadow-md",
+      "min-h-[260px] rounded-[22px] border bg-surface px-5 pb-5 pt-8 relative overflow-hidden group transition-all duration-300",
+      "shadow-[0_14px_35px_-22px_rgba(15,23,42,0.38)] hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_22px_45px_-24px_rgba(27,110,221,0.3)]",
+      highlight ? "border-primary/25" : "border-border",
     )}>
-      {highlight && <div className="absolute top-0 left-0 w-full h-1 bg-primary" />}
-      {!highlight && <div className="absolute top-0 left-0 w-full h-1 bg-primary/20 group-hover:bg-primary transition-colors" />}
+      <div className={cn(
+        "absolute left-1/2 top-0 h-1.5 w-[42%] -translate-x-1/2 rounded-b-full transition-all duration-300",
+        highlight ? "bg-primary" : "bg-primary/35 group-hover:w-[52%] group-hover:bg-primary"
+      )} />
       
-      <div className="flex items-center justify-between">
-        <span className="text-[13px] font-semibold text-text-secondary flex items-center gap-2.5">
-          <Icon className={cn("w-[18px] h-[18px]", highlight ? "text-primary" : "text-text-muted group-hover:text-primary")} strokeWidth={1.8} />
-          {title}
-        </span>
+      <div className="absolute right-4 top-4">
         <MetricTrend trend={trend.trend} change={trend.text} />
       </div>
 
-      <div>
-        <span className={cn("text-[36px] font-extrabold tracking-tight leading-none", invalid ? "text-text-muted" : "text-dark")}>
+      <div className="flex flex-col items-center text-center">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-[13px] border border-primary/15 bg-primary-soft/60 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
+          <Icon className="h-5 w-5" strokeWidth={1.8} />
+        </div>
+        <span className="min-h-10 max-w-[150px] text-[13px] font-semibold leading-5 text-text-secondary">
+          {title}
+        </span>
+        <span className={cn("mt-1 text-[38px] font-bold tracking-[-0.04em] leading-none", invalid ? "text-text-muted" : "text-dark")}>
           {invalid ? '-' : displayValue}
         </span>
       </div>
 
       {(subLabel1 || subLabel2) && !invalid && (
-        <div className="flex items-center gap-6 pt-6 border-t border-border mt-auto">
+        <div className={cn(
+          "mt-6 grid min-h-[62px] items-center rounded-2xl border border-border/80 bg-surface-soft/55",
+          subLabel2 ? "grid-cols-2" : "grid-cols-1"
+        )}>
           {subLabel1 && (
-            <div className="flex flex-col">
-              <span className="text-[11px] font-medium text-text-muted mb-1">{subLabel1}</span>
-              <span className="text-[14px] font-bold text-text-primary">{subValue1}</span>
+            <div className="flex flex-col items-center justify-center px-3 py-2.5">
+              <span className="mb-1 text-[11px] font-medium text-text-muted">{subLabel1}</span>
+              <span className="text-[14px] font-semibold text-text-primary">{subValue1}</span>
             </div>
           )}
           {subLabel2 && (
-            <div className="flex flex-col border-l border-border pl-6">
-              <span className="text-[11px] font-medium text-text-muted mb-1">{subLabel2}</span>
-              <span className="text-[14px] font-bold text-text-primary">{subValue2}</span>
+            <div className="flex flex-col items-center justify-center border-l border-border px-3 py-2.5">
+              <span className="mb-1 text-[11px] font-medium text-text-muted">{subLabel2}</span>
+              <span className="text-[14px] font-semibold text-text-primary">{subValue2}</span>
             </div>
           )}
         </div>
