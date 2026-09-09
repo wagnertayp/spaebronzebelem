@@ -1,0 +1,1055 @@
+Você é um Senior Product Designer + Senior Frontend Engineer especializado em SaaS premium, wellness, hospitality e interfaces de alto padrão.
+
+Quero criar a interface completa de um sistema SaaS para gerenciamento de um SPA.
+
+A referência visual fornecida anteriormente deve ser usada como BASE ESTRUTURAL da interface.
+
+IMPORTANTE:
+
+Não quero copiar literalmente a identidade visual financeira da referência.
+
+Quero reproduzir:
+- a mesma sensação de sofisticação;
+- a mesma densidade de informação;
+- a mesma organização;
+- a mesma hierarquia visual;
+- o mesmo nível de refinamento;
+- a mesma linguagem de cards;
+- o mesmo tratamento de navegação;
+- o mesmo conceito de dashboard premium;
+
+MAS adaptando tudo para o universo de SPA, wellness, beleza, relaxamento e experiência premium.
+
+O resultado deve parecer um software desenvolvido especificamente para um SPA de alto padrão.
+
+==================================================
+1. DIREÇÃO CRIATIVA
+==================================================
+
+Conceito:
+
+LUXURY WELLNESS SaaS
+
+A interface deve transmitir:
+
+- tranquilidade;
+- sofisticação;
+- exclusividade;
+- organização;
+- confiança;
+- bem-estar;
+- tecnologia;
+- experiência premium.
+
+Não quero aparência de:
+- clínica médica;
+- hospital;
+- academia;
+- sistema administrativo genérico;
+- ERP;
+- dashboard corporativo tradicional.
+
+Quero que o produto pareça o sistema interno de um SPA boutique de luxo.
+
+A interface deve combinar:
+
+Luxury hospitality
++
+Modern SaaS
++
+Wellness
++
+Minimalism
++
+Editorial design
+
+A inspiração estrutural é um dashboard SaaS moderno e extremamente refinado, mas a linguagem visual deve ser própria de um SPA.
+
+==================================================
+2. TIPOGRAFIA
+==================================================
+
+Usar MONTSERRAT como fonte principal em toda a aplicação.
+
+Não utilizar Inter como fonte principal.
+
+Configuração:
+
+font-family:
+"Montserrat",
+-apple-system,
+BlinkMacSystemFont,
+"Segoe UI",
+sans-serif;
+
+Hierarquia:
+
+DISPLAY / PAGE TITLE
+- 28–32px
+- font-weight: 600
+- letter-spacing: -0.04em
+- line-height: 1.1
+
+SECTION TITLE
+- 16–18px
+- font-weight: 600
+- letter-spacing: -0.02em
+
+CARD TITLE
+- 12–14px
+- font-weight: 600
+
+BODY
+- 12–13px
+- font-weight: 400–500
+
+SMALL LABEL
+- 9–11px
+- font-weight: 500
+- letter-spacing: 0.01em
+
+NUMBERS / METRICS
+- 20–26px
+- font-weight: 600
+- letter-spacing: -0.035em
+
+Não usar fontes pesadas excessivamente.
+
+A tipografia precisa parecer elegante e premium.
+
+==================================================
+3. PALETA
+==================================================
+
+NÃO utilizar o roxo da referência original.
+
+Criar uma paleta inspirada em wellness, natureza e luxury hospitality.
+
+PRIMARY BACKGROUND
+
+#F5F3EE
+
+SUPERFÍCIE
+
+#FFFFFF
+
+SUPERFÍCIE SECUNDÁRIA
+
+#FAF9F6
+
+PRIMARY SAGE
+
+#7D8B78
+
+PRIMARY DARK
+
+#596653
+
+PRIMARY SOFT
+
+#DCE2D7
+
+DARK SURFACE
+
+#242923
+
+DARK SURFACE SECONDARY
+
+#30372F
+
+TEXT PRIMARY
+
+#272A27
+
+TEXT SECONDARY
+
+#747871
+
+TEXT MUTED
+
+#A0A49E
+
+ACCENT CHAMPAGNE
+
+#C8A982
+
+BORDER
+
+rgba(39,42,39,0.06)
+
+SUCCESS
+
+#6E9A78
+
+WARNING
+
+#C49B5B
+
+ERROR
+
+#B96E68
+
+IMPORTANTE:
+
+As cores devem ser discretas.
+
+Nada de verde neon.
+
+Nada de dourado exagerado.
+
+Nada de saturação excessiva.
+
+O produto deve parecer caro, sofisticado e tranquilo.
+
+==================================================
+4. ESTRUTURA GERAL
+==================================================
+
+A aplicação deve utilizar um grande container principal flutuante.
+
+Background externo:
+
+#F5F3EE
+
+O aplicativo deve ficar visualmente elevado sobre esse background.
+
+Desktop:
+
+margin: 16px
+
+border-radius: 22px
+
+background: #FFFFFF
+
+box-shadow:
+
+0 20px 60px rgba(40,45,38,0.08)
+
+O layout deve respirar.
+
+Não ocupar a tela inteira visualmente de maneira agressiva.
+
+==================================================
+5. NAVEGAÇÃO
+==================================================
+
+Manter a ideia da referência:
+
+uma navegação horizontal compacta no topo.
+
+Não criar uma sidebar tradicional gigante.
+
+Estrutura:
+
+LOGO
+
+Dashboard
+Agenda
+Clientes
+Serviços
+Profissionais
+Financeiro
+Relatórios
+
+e ações:
+
+Notificações
+Configurações
+Perfil
+
+A navegação deve ser compacta, refinada e discreta.
+
+Altura aproximada:
+
+38–42px
+
+Border radius:
+
+14px
+
+O estado ativo deve utilizar SAGE.
+
+Exemplo:
+
+background:
+linear-gradient(
+135deg,
+#7D8B78,
+#596653
+);
+
+color:
+
+#FFFFFF
+
+Os itens inativos devem possuir baixa intensidade visual.
+
+==================================================
+6. HEADER
+==================================================
+
+Criar um header extremamente limpo.
+
+Exemplo:
+
+Bom dia, Wagner
+
+Acompanhe a operação do seu SPA em um só lugar.
+
+À direita:
+
+[ + Novo agendamento ]
+
+O título deve ter bastante presença.
+
+Descrição pequena e discreta.
+
+O botão principal deve ser elegante.
+
+Não utilizar botões gigantes.
+
+==================================================
+7. BOTÃO PRINCIPAL
+==================================================
+
+Primary CTA:
+
+"+ Novo agendamento"
+
+Altura:
+
+34–38px
+
+Padding:
+
+0 14–18px
+
+Border radius:
+
+11–13px
+
+Usar:
+
+linear-gradient(
+135deg,
+#7D8B78,
+#596653
+)
+
+Adicionar sombra extremamente suave:
+
+0 6px 16px rgba(89,102,83,0.20)
+
+Hover:
+
+transform: translateY(-1px)
+
+Active:
+
+transform: scale(0.98)
+
+Transições:
+
+180–220ms ease
+
+==================================================
+8. DASHBOARD PRINCIPAL
+==================================================
+
+Criar um dashboard semelhante estruturalmente à referência.
+
+Primeira seção:
+
+KPI CARDS
+
+4 cards.
+
+CARD 1:
+
+Faturamento
+
+R$ 28.450
+
++12,4% este mês
+
+CARD 2:
+
+Agendamentos
+
+186
+
++8,2% este mês
+
+CARD 3:
+
+Clientes ativos
+
+428
+
++15 novos clientes
+
+CARD 4:
+
+Taxa de ocupação
+
+87%
+
++4,5% esta semana
+
+Os dados são apenas exemplos.
+
+Criar estrutura preparada para dados reais.
+
+==================================================
+9. KPI CARDS
+==================================================
+
+Cada card deve:
+
+background: #FFFFFF
+
+border-radius: 16–18px
+
+padding: 16px
+
+border:
+
+1px solid rgba(39,42,39,0.05)
+
+shadow:
+
+0 6px 20px rgba(40,45,38,0.035)
+
+Os números são o elemento visual dominante.
+
+Os labels devem ser pequenos.
+
+Os indicadores de crescimento devem utilizar pequenas setas e textos.
+
+Não utilizar gráficos enormes.
+
+==================================================
+10. GRÁFICOS
+==================================================
+
+Criar gráficos extremamente minimalistas.
+
+Não parecer uma ferramenta de BI.
+
+Evitar:
+
+- grids pesadas;
+- eixos exagerados;
+- legendas gigantes;
+- cores excessivas;
+- linhas grossas.
+
+Utilizar:
+
+SAGE
++
+CHAMPAGNE
++
+tons neutros.
+
+Line chart:
+
+stroke-width: 1.5–2px
+
+Pontos pequenos.
+
+Bar chart:
+
+border-radius: 3px 3px 0 0
+
+Usar variações de opacity do sage.
+
+==================================================
+11. AGENDA
+==================================================
+
+A agenda é uma das áreas mais importantes.
+
+Criar um grande painel:
+
+"Agenda de hoje"
+
+Mostrar:
+
+09:00
+Massagem Relaxante
+Ana Martins
+Sala 02
+
+10:30
+Drenagem Linfática
+Mariana Costa
+Sala 01
+
+11:30
+Ritual Facial
+Juliana Alves
+Sala 03
+
+14:00
+Massagem Terapêutica
+Carlos Almeida
+Sala 02
+
+Cada atendimento deve ser representado como um componente elegante.
+
+Usar pequenos indicadores de status.
+
+Não transformar em uma tabela tradicional.
+
+==================================================
+12. GRANDE PAINEL ESCURO
+==================================================
+
+Reproduzir a ideia visual do grande painel navy presente na referência.
+
+Porém usar:
+
+#242923
+
+como base.
+
+Border-radius:
+
+20–22px
+
+Esse painel deve funcionar como área de destaque.
+
+Dentro dele:
+
+Agenda
++
+Clientes
++
+Atendimento atual
+
+O contraste com o restante da aplicação deve criar profundidade.
+
+==================================================
+13. TABS
+==================================================
+
+Utilizar tabs compactas.
+
+Exemplo:
+
+Todos
+Confirmados
+Em atendimento
+Concluídos
+Cancelados
+
+Container:
+
+background: rgba(255,255,255,0.08)
+
+border-radius: 12px
+
+Active:
+
+background:
+
+#7D8B78
+
+color:
+
+white
+
+As tabs devem parecer pills premium.
+
+==================================================
+14. CLIENTES
+==================================================
+
+Criar uma área:
+
+"Clientes recentes"
+
+Cada cliente:
+
+Avatar
+Nome
+Último atendimento
+Serviço
+Status
+
+Exemplo:
+
+Ana Martins
+Massagem Relaxante
+Hoje, 09:00
+
+Mariana Costa
+Drenagem Linfática
+Ontem, 16:30
+
+Utilizar avatares pequenos:
+
+24–30px
+
+border-radius: 50%
+
+==================================================
+15. SERVIÇOS
+==================================================
+
+Criar cards para os principais serviços.
+
+Exemplo:
+
+Massagem Relaxante
+
+60 min
+R$ 180
+
+Drenagem Linfática
+
+50 min
+R$ 160
+
+Ritual Facial
+
+75 min
+R$ 240
+
+Os cards podem possuir pequenas imagens de contexto.
+
+As imagens devem ser:
+
+- sofisticadas;
+- naturais;
+- iluminação suave;
+- estética editorial;
+- sem aparência de banco de imagens barato.
+
+==================================================
+16. IMAGENS
+==================================================
+
+Fotografia deve ser usada com moderação.
+
+Quando houver imagens:
+
+border-radius:
+
+12–16px
+
+Nunca utilizar imagens ocupando todo o dashboard.
+
+A interface continua sendo um SaaS.
+
+As imagens servem para adicionar sensação de lifestyle e premium experience.
+
+==================================================
+17. CARD DE ATENDIMENTO ATUAL
+==================================================
+
+Criar um card especial:
+
+ATENDIMENTO ATUAL
+
+Cliente:
+
+Ana Martins
+
+Procedimento:
+
+Massagem Relaxante
+
+Profissional:
+
+Marina
+
+Sala:
+
+02
+
+Horário:
+
+09:00 — 10:00
+
+Status:
+
+Em atendimento
+
+Criar uma pequena timeline visual.
+
+==================================================
+18. STATUS
+==================================================
+
+Status devem ser discretos.
+
+Não criar badges extremamente coloridos.
+
+Exemplo:
+
+CONFIRMADO
+
+background:
+
+#E7EEE4
+
+color:
+
+#596653
+
+EM ATENDIMENTO
+
+background:
+
+rgba(200,169,130,.16)
+
+color:
+
+#8A6B3F
+
+CANCELADO
+
+background:
+
+#F4E5E3
+
+color:
+
+#9B5B56
+
+==================================================
+19. COMPONENTES
+==================================================
+
+Todos os componentes devem seguir um sistema consistente.
+
+Criar:
+
+Button
+IconButton
+Card
+MetricCard
+Avatar
+Badge
+Tabs
+Dropdown
+Input
+SearchInput
+DatePicker
+Calendar
+AppointmentCard
+ClientCard
+ServiceCard
+ProfessionalCard
+Modal
+Drawer
+Toast
+Tooltip
+Table
+Chart
+EmptyState
+Skeleton
+
+Nenhum componente deve parecer vindo de uma biblioteca diferente.
+
+==================================================
+20. BORDER RADIUS
+==================================================
+
+Criar tokens:
+
+--radius-xs: 6px
+--radius-sm: 8px
+--radius-md: 10px
+--radius-lg: 14px
+--radius-xl: 18px
+--radius-2xl: 22px
+--radius-pill: 999px
+
+Usar consistentemente.
+
+==================================================
+21. SOMBRAS
+==================================================
+
+As sombras devem ser extremamente sutis.
+
+Não utilizar sombras pretas fortes.
+
+CARD:
+
+0 6px 20px rgba(40,45,38,0.035)
+
+CONTAINER:
+
+0 20px 60px rgba(40,45,38,0.08)
+
+MODAL:
+
+0 25px 70px rgba(35,38,33,0.15)
+
+==================================================
+22. ÍCONES
+==================================================
+
+Utilizar Lucide Icons.
+
+Stroke fino.
+
+1.5–1.75px.
+
+Nunca utilizar ícones 3D.
+
+Nunca utilizar emojis como ícones da interface.
+
+Tamanhos:
+
+12px
+14px
+16px
+18px
+20px
+
+==================================================
+23. ESPAÇAMENTO
+==================================================
+
+Utilizar escala:
+
+4
+6
+8
+10
+12
+16
+20
+24
+32
+40
+48
+
+Evitar valores aleatórios.
+
+==================================================
+24. MICROINTERAÇÕES
+==================================================
+
+A aplicação deve possuir microinterações sofisticadas.
+
+Hover:
+
+translateY(-1px)
+
+Active:
+
+scale(.98)
+
+Cards:
+
+transition:
+
+180ms ease
+
+Botões:
+
+transition:
+
+180ms ease
+
+Dropdowns:
+
+fade + translateY(-4px → 0)
+
+Modais:
+
+fade + scale(0.98 → 1)
+
+As animações devem ser leves.
+
+Nada exagerado.
+
+==================================================
+25. RESPONSIVIDADE
+==================================================
+
+Desktop:
+
+4 KPI cards por linha.
+
+Tablet:
+
+2 cards por linha.
+
+Mobile:
+
+1 card por linha.
+
+A grande área de conteúdo deve virar:
+
+desktop:
+
+30% / 70%
+
+mobile:
+
+100% / 100%
+
+A navegação deve se adaptar.
+
+Nunca deixar elementos ultrapassarem a viewport.
+
+==================================================
+26. UX
+==================================================
+
+A experiência precisa ser extremamente intuitiva.
+
+O usuário deve entender rapidamente:
+
+- quantos atendimentos existem hoje;
+- quem está sendo atendido;
+- quais clientes chegaram;
+- faturamento;
+- ocupação;
+- próximos horários;
+- serviços mais utilizados;
+- profissionais disponíveis.
+
+Não criar complexidade visual desnecessária.
+
+==================================================
+27. DESIGN SYSTEM
+==================================================
+
+Criar todas as cores, spacing, typography, radius, shadows e transitions como tokens.
+
+Não espalhar valores hardcoded sem necessidade.
+
+Exemplo:
+
+:root {
+  --background: #F5F3EE;
+  --surface: #FFFFFF;
+  --surface-soft: #FAF9F6;
+
+  --primary: #7D8B78;
+  --primary-dark: #596653;
+  --primary-soft: #DCE2D7;
+
+  --dark: #242923;
+  --dark-soft: #30372F;
+
+  --text: #272A27;
+  --text-secondary: #747871;
+  --text-muted: #A0A49E;
+
+  --accent: #C8A982;
+
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 22px;
+
+  --transition: 180ms ease;
+}
+
+==================================================
+28. PRINCÍPIO MAIS IMPORTANTE
+==================================================
+
+Não criar um dashboard genérico.
+
+A interface precisa ter ART DIRECTION.
+
+Cada elemento precisa parecer parte do mesmo produto.
+
+A sensação final deve ser:
+
+"Esse é um software premium criado especificamente para spas de alto padrão."
+
+Não:
+
+"Esse é um template administrativo que recebeu uma cor verde."
+
+==================================================
+29. REFERÊNCIA VISUAL
+==================================================
+
+Utilize a imagem de referência fornecida como referência estrutural.
+
+Reproduza a lógica de:
+
+- distribuição dos elementos;
+- proporção dos cards;
+- navegação compacta;
+- KPI cards;
+- filtros;
+- grande painel inferior;
+- tabs;
+- cards internos;
+- hierarquia;
+- espaçamento;
+- densidade;
+- arredondamento;
+- profundidade;
+- composição.
+
+Porém:
+
+SUBSTITUIR completamente a linguagem financeira pela linguagem de SPA.
+
+==================================================
+30. RESULTADO FINAL
+==================================================
+
+O produto deve parecer uma combinação de:
+
+Luxury SPA
++
+Apple-like minimalism
++
+Modern SaaS
++
+Boutique Hotel
++
+Wellness Technology
+
+Deve ser:
+
+elegante
+minimalista
+premium
+calmo
+moderno
+intuitivo
+sofisticado
+responsivo
+
+Não deve ser:
+
+genérico
+hospitalar
+corporativo
+colorido demais
+carregado
+infantil
+fitness
+administrativo
+
+Antes de finalizar, revise TODA a interface procurando inconsistências de:
+
+- espaçamento;
+- tipografia;
+- border-radius;
+- cores;
+- sombras;
+- alinhamento;
+- tamanho de ícones;
+- estados ativos;
+- responsividade.
+
+Corrija qualquer componente que pareça pertencer a outro design system.
+
+O resultado final precisa parecer um produto SaaS real, pronto para ser apresentado a um SPA premium.

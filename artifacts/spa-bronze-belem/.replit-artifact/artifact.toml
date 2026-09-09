@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Spa e Bronze Belém"
+description = "Sistema premium de operação para o Spa e Bronze Belém, com dashboard, agenda multiprofissional, gestão de clientes e funil comercial de WhatsApp."
+version = "1.0.0"
+id = "artifacts/spa-bronze-belem"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19425
+
+[services.development]
+run = "pnpm --filter @workspace/spa-bronze-belem run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/spa-bronze-belem", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/spa-bronze-belem/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19425"
+BASE_PATH = "/"

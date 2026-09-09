@@ -1,0 +1,160 @@
+# Prompt de Construção de Sistema — Spa e Bronze Belém (F. DA SILVA XAVIER SERVIÇOS)
+
+> Este documento consolida (1) o formulário de descoberta respondido pela cliente e (2) o print do sistema atual (Avec) usado como referência funcional/visual. Use-o como prompt único para especificar, projetar ou instruir uma IA de desenvolvimento a construir o sistema sob demanda.
+
+---
+
+## 1. Contexto do negócio
+
+- **Empresa:** F. DA SILVA XAVIER SERVIÇOS — nome fantasia "Spa e Bronze Belém".
+- **O que faz:** Spa, estética facial e corporal, e bronzeamento (bronzeamento em máquina e bronzeamento a sol / "banho de lua").
+- **Unidades:** 1 unidade única (não é rede).
+- **Perfil de cliente:** diverso — não há segmentação clara de persona ainda.
+- **Serviços e variações oferecidos:**
+  - Bronzeamento em máquina
+  - Bronzeamento a sol
+  - Banho de lua
+  - Massagens
+  - Depilação
+  - Estética avançada facial
+  - Estética avançada corporal
+
+## 2. Sistema atual e o que será migrado
+
+A empresa hoje usa o **Avec** (avec.beauty) como sistema de agenda/gestão. Os dados atuais serão exportados/migrados do Avec para o novo sistema.
+
+**O que o print do Avec mostra e que deve servir de referência de UX (não copiar a marca, copiar a lógica funcional):**
+
+- **Agenda em visão de colunas por profissional** (ex.: Paula, Rosana, Wallace, Spa), com uma coluna extra para recursos compartilhados (ex.: "Spa" como um "profissional" que na verdade representa uma sala/cabine/equipamento).
+- **Linha do tempo em intervalos de 10 minutos** (07:30, 07:40, 07:50...), permitindo agendamentos com granularidade fina.
+- **Blocos de horário ocupado destacados em cor sólida** (ex.: rosa/vinho) cobrindo o intervalo do atendimento — dá para ver de longe quem está ocupado e por quanto tempo.
+- **Navegação por calendário mensal lateral** para pular entre datas.
+- **Filtro de profissionais** na lateral esquerda, com busca por nome e agrupamento por cargo/função (ex.: "Esteticista", "Gerente"), com checkboxes para mostrar/ocultar.
+- **Ações rápidas no topo da agenda:**
+  - "Hoje" (atalho para voltar à data atual)
+  - "Bloquear Horário" (bloqueio manual de intervalo, ex.: folga, almoço, manutenção)
+  - "Serviços" (lista/catálogo de serviços)
+  - "Comandas Abertas" (contador de comandas/atendimentos em andamento que ainda não foram fechados/pagos — no print aparecem 2 abertas)
+  - Busca de agendamento por texto
+  - Controle de quantas colunas exibir simultaneamente (3, 5, 8, 10, 12 profissionais por vez)
+  - Alternância de visualização (lista / tela cheia / modo "olho", provavelmente ocultar valores)
+- **Menu principal do sistema (barra superior):** Agenda, Financeiro, Estoque, uma aba de IA ("AvecIA"), Clientes, Marketing, Relatórios, Configurações, Clube de assinaturas, AvecPay (meio de pagamento integrado).
+
+> Conclusão de UX: o sistema novo precisa, no mínimo, reproduzir a **Agenda multiprofissional em grade de horários**, o **bloqueio de horário**, a **comanda/conta em aberto por atendimento**, e módulos de **Financeiro, Estoque e Clientes** — isso é o "chão" que a cliente já usa no dia a dia e não pode perder ao trocar de sistema.
+
+## 3. Como a venda acontece hoje (fluxo atual)
+
+1. **Primeiro contato:** majoritariamente pelo **WhatsApp**.
+2. **Fechamento:** a venda é fechada **no balcão da recepção, presencialmente**.
+3. **Problema central:** não existe controle/funil de vendas dentro do WhatsApp — leads que chegam por lá e não comparecem fisicamente **se perdem**, sem conversão nem follow-up.
+4. **Origem dos leads:** tráfego pago + alcance orgânico via Instagram.
+5. **Distribuição de leads:** hoje só existe distribuição "física" — quando o cliente chega no spa, é distribuído para o profissional disponível. Não há distribuição/triagem de leads que chegam digitalmente.
+6. **Orçamento:** criado **manualmente**.
+
+## 4. Dores e perdas identificadas (críticas — priorizar aqui)
+
+| Categoria | Dor relatada |
+|---|---|
+| Tempo perdido | Responder clientes manualmente no WhatsApp |
+| Dinheiro perdido | Leads de tráfego pago e WhatsApp **não convertidos** por falta de operação de atendimento/funil |
+| Tarefa manual odiada | Responder WhatsApp manualmente |
+| Se pudesse resolver só 3 coisas | 1) Vender pelo WhatsApp · 2) Converter pelo WhatsApp · 3) Fazer campanhas pelo WhatsApp |
+| Prioridade nº1 do primeiro lançamento | **Vender pelo WhatsApp** — this é o requisito mais importante segundo a própria cliente |
+
+> **Leitura estratégica:** apesar de o Avec já cobrir bem agenda/financeiro/estoque, a dor real da cliente **não é operacional interna, é comercial**: ela perde dinheiro porque o WhatsApp — canal nº1 de entrada de leads — não tem automação, funil, nem conversão. O sistema sob demanda deve tratar **WhatsApp como módulo central**, não como recurso secundário.
+
+## 5. Dados que precisam ficar registrados por cliente
+
+- Cadastro unificado do cliente, consolidando os diferentes serviços que ele consome (a cliente foi explícita: "como temos vários serviços teremos que ter essa unificação bem consistente" — ou seja, **um único perfil de cliente por CPF/telefone, não perfis fragmentados por serviço**).
+- Histórico de agendamentos/atendimentos.
+- Data do último atendimento (para acionar régua de reativação — ver seção 7).
+- Data de aniversário.
+- Canal de origem do cliente (tráfego pago / orgânico Instagram / indicação, etc.).
+
+## 6. Estoque
+
+- Hoje **não existe controle de estoque formal**, mas o Avec já tem produtos cadastrados (serão migrados).
+- Itens a controlar: **produtos de spa, de banho e de bronze** (insumos consumidos no atendimento, não só produtos de revenda).
+
+## 7. Financeiro
+
+Processos que o sistema precisa controlar:
+- Relatório financeiro geral.
+- Entradas e saídas de caixa.
+- Relatório de **clientes novos vs. clientes antigos** (recorrência).
+- Despesas por categoria.
+
+## 8. Notificações e automações que devem existir
+
+**Gatilhos de notificação / régua de relacionamento:**
+- Cliente **há 6 meses sem comparecer** ao spa → disparo de reativação.
+- Cliente **aniversariante** → disparo de parabéns (oferta/lembrete).
+- Cliente **há mais de 30 dias sem vir** → disparo intermediário de reengajamento (regra menos agressiva que a de 6 meses).
+
+**Mensagens automáticas ao cliente:** as mesmas três réguas acima devem ser enviadas automaticamente (idealmente via WhatsApp, já que é o canal dominante).
+
+> Nota para quem for construir: a cliente citou a mesma pergunta duas vezes no formulário ("clientes com 6 meses sem vir... aniversários... 30 dias sem vir") tanto para "eventos que disparam notificação" quanto para "mensagens automáticas" — ou seja, são a mesma régua, ela só quer confirmar que o disparo gera, de fato, o envio automático da mensagem, e não apenas um alerta interno.
+
+## 9. Migração de dados — já em posse da equipe
+
+A migração **não é mais uma incógnita**: os dados já foram extraídos do Avec e estão disponíveis, cobrindo pelo menos:
+
+- **Clientes** (cadastro, histórico de atendimentos, contatos).
+- **Financeiro** (movimentações de caixa, entradas/saídas, despesas).
+- *(demais bases — estoque, serviços, agendamentos futuros — a confirmar se também foram exportadas; ver pergunta na Seção 12).*
+
+**Isso vira uma etapa explícita e antecipada do projeto — Fase 0, antes mesmo do MVP:**
+
+1. **Inventariar os arquivos recebidos:** formato de cada um (CSV, XLSX, JSON, export nativo do Avec), volume de linhas, e quais campos cada um contém.
+2. **Mapear campo a campo** contra o modelo de dados do novo sistema (ex.: o cadastro "unificado" de cliente da Seção 5 — validar se a base de clientes do Avec já vem consolidada por cliente ou fragmentada por serviço/atendimento, que é exatamente o problema que a cliente quer resolver).
+3. **Tratar duplicidades e inconsistências** (clientes cadastrados mais de uma vez, telefones em formatos diferentes, nomes de serviços divergentes entre exportações).
+4. **Reconstruir os indicadores que dependem de histórico**, já na carga inicial:
+   - Data do último atendimento por cliente (necessária para a régua de 6 meses/30 dias da Seção 8 funcionar desde o dia 1, sem esperar novo histórico se acumular).
+   - Classificação cliente novo x antigo (relatório da Seção 7).
+5. **Script de importação repetível** (não só um "import único manual") — como a cliente ainda está operando no Avec durante o desenvolvimento, é provável que seja necessária **mais de uma carga** (uma de teste, uma final antes do go-live) para não perder o que for cadastrado nesse meio-tempo.
+6. **Validação pós-migração:** conferência amostral com a cliente (bater números de caixa, contagem de clientes, checar se aniversários/histórico vieram certos) antes de considerar a migração concluída.
+
+## 10. Escopo do primeiro lançamento (MVP) — priorização explícita da cliente
+
+A cliente marcou **"todas são prioridades"** para o roadmap geral, mas quando forçada a eleger o mais importante do primeiro lançamento, respondeu de forma direta:
+
+> **"Vender pelo WhatsApp e o mais importante."**
+
+Portanto, o MVP deve equilibrar dois blocos que não podem faltar:
+
+### Bloco A — Operação (paridade com o Avec, já validada pelo uso diário)
+1. Agenda multiprofissional em grade de horários (colunas por profissional/recurso, granularidade de 10 min, bloqueio de horário).
+2. Comandas/contas abertas por atendimento (abrir, adicionar serviços/produtos, fechar/pagar).
+3. Cadastro unificado de clientes (um cliente, múltiplos serviços, histórico único).
+4. Cadastro de serviços com variações (bronzeamento máquina, bronzeamento sol, banho de lua, massagens, depilação, estética facial avançada, estética corporal avançada).
+5. Controle básico de estoque (produtos de spa/banho/bronze).
+6. Financeiro: caixa (entradas/saídas), despesas por categoria, relatório de clientes novos x antigos.
+
+### Bloco B — Comercial / WhatsApp (dor nº1, diferencial pedido pela cliente)
+1. Recepção e triagem de leads que chegam via WhatsApp (tráfego pago + orgânico).
+2. Funil/status de conversação (novo lead → em atendimento → orçamento enviado → agendado → convertido / perdido).
+3. Criação de orçamento a partir da conversa (hoje é manual — automatizar geração e envio).
+4. Disparo automático de campanhas via WhatsApp.
+5. Réguas automáticas de mensagem: aniversário, 30 dias sem vir, 6 meses sem vir.
+6. Registro de toda a origem/histórico do lead ligado ao cadastro do cliente (Bloco A, item 3).
+
+## 11. Fora do escopo inicial (futuro, não é prioridade agora)
+
+A cliente não listou itens explicitamente como "não prioritários agora" além de reforçar que tudo é prioridade — então **nenhuma funcionalidade deve ser descartada do roadmap**, apenas sequenciada: tudo que não estiver no Bloco A/B acima (ex.: clube de assinaturas nos moldes do Avec, gateway de pagamento próprio nos moldes do AvecPay, módulo de IA tipo "AvecIA") entra como **Fase 2**.
+
+## 12. Perguntas em aberto para validar com a cliente antes de especificar telas
+
+1. O WhatsApp será integrado via API oficial (Meta Business) ou número comum com automação por bot? Isso muda custo e SLA de aprovação.
+2. Quem vai operar o funil de WhatsApp — a própria recepção, ou um agente/bot fará o primeiro atendimento?
+3. Existe algum limite de caracteres/formatos que o orçamento automático deve seguir (texto simples, PDF, tabela de preços)?
+4. Dos dados já recebidos (clientes e financeiro), **também veio a base de estoque, serviços/preços e agendamentos futuros**, ou só o histórico de clientes e caixa? Isso define se a Fase 0 cobre tudo ou se falta pedir mais uma exportação.
+5. Quais são os valores/preços de cada serviço e suas variações (o formulário lista os serviços, mas não os preços — conferir se isso está na exportação financeira recebida).
+6. O "Spa" como coluna na agenda representa uma sala/cabine (recurso físico) — confirmar se deve ser tratado como recurso agendável separado do profissional, ou como serviço.
+
+---
+
+## Como usar este prompt
+
+Cole este documento inteiro no início da conversa com a IA/equipe que vai desenvolver o sistema, seguido de uma instrução do tipo:
+
+> "Construa a especificação técnica (ou o sistema, ou o protótipo) com base neste levantamento. Priorize o Bloco A + Bloco B do MVP na Seção 9. Faça perguntas apenas sobre os itens da Seção 11 antes de assumir respostas."
