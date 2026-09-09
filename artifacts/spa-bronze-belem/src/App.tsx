@@ -20,6 +20,7 @@ import { Servicos } from '@/pages/servicos';
 import { Financeiro } from '@/pages/financeiro';
 import { Estoque } from '@/pages/estoque';
 import { Relatorios } from '@/pages/relatorios';
+import { Configuracoes } from '@/pages/configuracoes';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +44,7 @@ function Router() {
           <Route path="/financeiro" component={Financeiro} />
           <Route path="/estoque" component={Estoque} />
           <Route path="/relatorios" component={Relatorios} />
+          <Route path="/configuracoes" component={Configuracoes} />
           <Route component={NotFound} />
         </Switch>
       </RoutedErrorBoundary>

@@ -6,14 +6,25 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './aiAgentConfig';
+export * from './aiAgentConfigTone';
+export * from './aiAgentTestInput';
+export * from './aiAgentTestResponse';
 export * from './appointment';
 export * from './appointmentInput';
 export * from './appointmentStatus';
+export * from './appointmentUpdate';
+export * from './appointmentUpdateStatus';
 export * from './client';
+export * from './clientInput';
+export * from './clientInputStatus';
 export * from './clientStatus';
 export * from './dashboard';
 export * from './financeSummary';
 export * from './healthStatus';
+export * from './inventoryItem';
+export * from './inventoryItemInput';
+export * from './inventoryItemStatus';
 export * from './lead';
 export * from './leadInput';
 export * from './leadStage';
@@ -21,8 +32,13 @@ export * from './leadUpdate';
 export * from './leadUpdateStage';
 export * from './listAppointmentsParams';
 export * from './listClientsParams';
+export * from './listInventoryParams';
 export * from './metric';
 export * from './metricTrend';
+export * from './quote';
+export * from './quoteInput';
+export * from './quoteItem';
 export * from './revenuePoint';
 export * from './service';
+export * from './serviceInput';
 export * from './serviceMix';

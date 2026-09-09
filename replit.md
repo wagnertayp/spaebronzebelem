@@ -1,6 +1,6 @@
-# [Project name]
+# Spa e Bronze Belém
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Sistema operacional do Spa e Bronze Belém para agenda, clientes, vendas, estoque e financeiro.
 
 ## Run & Operate
 
@@ -22,11 +22,15 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/spa-bronze-belem` — aplicação React/Vite.
+- `artifacts/api-server/src/routes/spa.ts` — API e dados operacionais.
+- `lib/api-spec/openapi.yaml` — contrato da API.
+- `scripts/import-spa-backup.py` — normalização repetível dos backups XLSX.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- A planilha chamada `Financeiro_SpaeBronze` contém produtos e estoque, não movimentações financeiras.
+- Clientes e faturamento do Avec são cruzados por celular normalizado e, como alternativa, por nome normalizado.
 
 ## Product
 
@@ -34,7 +38,15 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- No desktop, usar menu lateral esquerdo.
+- O aplicativo deve ocupar toda a tela, sem moldura flutuante externa.
+- Usar o logotipo transparente e limpo, sem cápsula, fundo ou container visual.
+- A aba anteriormente chamada Serviços deve funcionar como Orçamentos, com criação e exportação de propostas personalizadas em JPEG.
+- Nenhum controle visível pode ser apenas decorativo: botões, filtros, menus e ações devem executar fluxos reais com validação e feedback.
+- Na interface, apresentar os dados como operação normal do negócio; não usar rótulos técnicos como “importado”, “backup” ou “histórico”.
+- Relatórios com registros datados devem permitir consulta e exportação por período sem inventar datas para dados que não as possuem.
+- A área “Agente IA” centraliza personalidade, regras, horários, políticas e testes do atendimento automático.
+- O Agente IA deve consultar a mesma tabela de serviços e preços usada nos orçamentos, sem inventar valores ou disponibilidade.
 
 ## Gotchas
 

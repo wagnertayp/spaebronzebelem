@@ -2,20 +2,58 @@ import { Router, type IRouter } from "express";
 import {
   CreateAppointmentBody,
   CreateAppointmentResponse,
+  CreateClientBody,
+  CreateClientResponse,
+  CreateInventoryItemBody,
+  CreateInventoryItemResponse,
   CreateLeadBody,
   CreateLeadResponse,
+  CreateQuoteBody,
+  CreateQuoteResponse,
+  CreateServiceBody,
+  CreateServiceResponse,
+  DeleteAppointmentParams,
+  DeleteClientParams,
+  DeleteInventoryItemParams,
+  DeleteQuoteParams,
+  DeleteServiceParams,
   GetDashboardResponse,
   GetFinanceSummaryResponse,
+  GetAiAgentConfigResponse,
   ListAppointmentsQueryParams,
   ListAppointmentsResponse,
   ListClientsQueryParams,
   ListClientsResponse,
+  ListInventoryQueryParams,
+  ListInventoryResponse,
   ListLeadsResponse,
+  ListQuotesResponse,
   ListServicesResponse,
   UpdateLeadBody,
   UpdateLeadParams,
   UpdateLeadResponse,
+  UpdateAppointmentBody,
+  UpdateAppointmentParams,
+  UpdateAppointmentResponse,
+  UpdateClientBody,
+  UpdateClientParams,
+  UpdateClientResponse,
+  UpdateInventoryItemBody,
+  UpdateInventoryItemParams,
+  UpdateInventoryItemResponse,
+  UpdateQuoteBody,
+  UpdateQuoteParams,
+  UpdateQuoteResponse,
+  UpdateServiceBody,
+  UpdateServiceParams,
+  UpdateServiceResponse,
+  UpdateAiAgentConfigBody,
+  UpdateAiAgentConfigResponse,
+  TestAiAgentBody,
+  TestAiAgentResponse,
 } from "@workspace/api-zod";
+import { openai } from "@workspace/integrations-openai-ai-server";
+import backup from "../data/spa-backup.json";
 
 const router: IRouter = Router();
 
@@ -57,8 +95,6 @@ type Lead = {
   time: string;
   value: string;
 };
-
-const today = new Date().toISOString().slice(0, 10);
 
 const appointments: Appointment[] = [
   {
@@ -118,53 +154,18 @@ const appointments: Appointment[] = [
   },
 ];
 
-const clients = [
-  {
-    id: 1,
-    name: "Ana Martins",
-    initials: "AM",
-    lastVisit: "Hoje, 09:00",
-    service: "Massagem Relaxante",
-    status: "active" as const,
-    source: "Instagram",
-  },
-  {
-    id: 2,
-    name: "Mariana Costa",
-    initials: "MC",
-    lastVisit: "Ontem, 16:30",
-    service: "Drenagem Linfática",
-    status: "active" as const,
-    source: "Indicação",
-  },
-  {
-    id: 3,
-    name: "Juliana Alves",
-    initials: "JA",
-    lastVisit: "06 set, 11:30",
-    service: "Ritual Facial",
-    status: "new" as const,
-    source: "Tráfego pago",
-  },
-  {
-    id: 4,
-    name: "Carla Souza",
-    initials: "CS",
-    lastVisit: "03 ago, 14:00",
-    service: "Banho de lua",
-    status: "at_risk" as const,
-    source: "WhatsApp",
-  },
-  {
-    id: 5,
-    name: "Renata Ribeiro",
-    initials: "RR",
-    lastVisit: "12 mar, 10:00",
-    service: "Estética corporal",
-    status: "at_risk" as const,
-    source: "Orgânico",
-  },
-];
+const clients = backup.clients.map((client) => ({
+  id: client.id,
+  name: client.name,
+  initials: client.initials,
+  lastVisit: client.lastVisit,
+  service: client.service,
+  status: client.status as "active" | "at_risk" | "new",
+  source: client.source,
+  phone: "",
+  email: "",
+  notes: "",
+}));
 
 const leads: Lead[] = [
   {
@@ -229,6 +230,27 @@ const leads: Lead[] = [
   },
 ];
 
+type Quote = {
+  id: number;
+  number: string;
+  createdAt: string;
+  clientName: string;
+  phone: string;
+  validUntil: string;
+  discount: number;
+  notes: string;
+  items: Array<{
+    serviceId: number;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+  subtotal: number;
+  total: number;
+};
+
+const quotes: Quote[] = [];
+
 const services = [
   {
     id: 1,
@@ -280,6 +302,35 @@ const services = [
   },
 ];
 
+let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
+  active: false,
+  name: "Luna",
+  tone: "acolhedor",
+  greeting: "Olá! Sou a assistente virtual do Spa e Bronze Belém. Como posso ajudar?",
+  objective: "Atender clientes, apresentar serviços e preços e orientar sobre agendamentos.",
+  instructions: "Responda de forma clara, curta e cordial. Faça uma pergunta por vez.",
+  businessHours: "Segunda a sábado, das 8h às 19h.",
+  address: "Belém - PA",
+  paymentMethods: "Pix, cartão de crédito, cartão de débito e dinheiro.",
+  bookingRules: "Confirme serviço, data, horário e nome da cliente antes de encaminhar o agendamento.",
+  policies: "Não prometa horários sem confirmação. Não ofereça diagnóstico médico.",
+  humanHandoff: "Encaminhe para uma atendente quando houver reclamação, dúvida clínica, negociação especial ou solicitação fora das informações disponíveis.",
+};
+
+const inventory = backup.inventory.map((item) => ({ ...item }));
+
+const getInitials = (name: string) =>
+  name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
+
+const getInventoryStatus = (stock: number, minimumStock: number, nextExpiration: string) => {
+  const [day, month, year] = nextExpiration.split("/").map(Number);
+  const expiration = year && month && day ? new Date(year, month - 1, day) : null;
+  if (expiration && expiration < new Date()) return "expired" as const;
+  if (stock < 0) return "negative" as const;
+  if (stock <= minimumStock) return "low" as const;
+  return "ok" as const;
+};
+
 router.get("/dashboard", (_req, res) => {
   const data = GetDashboardResponse.parse({
     greeting: "Bom dia, Wagner",
@@ -287,45 +338,32 @@ router.get("/dashboard", (_req, res) => {
     dateLabel: "Quarta-feira, 09 de setembro",
     metrics: [
       {
-        label: "Faturamento",
-        value: "R$ 28.450",
-        change: "+12,4% este mês",
-        trend: "up",
+        label: "Faturamento total",
+        value: backup.meta.totalRevenue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+        change: "Valor registrado",
+        trend: "neutral",
       },
       {
-        label: "Agendamentos",
-        value: "186",
-        change: "+8,2% este mês",
-        trend: "up",
+        label: "Comandas",
+        value: backup.meta.totalOrders.toLocaleString("pt-BR"),
+        change: "Atendimentos realizados",
+        trend: "neutral",
       },
       {
-        label: "Clientes ativos",
-        value: "428",
-        change: "+15 novos clientes",
-        trend: "up",
+        label: "Clientes",
+        value: backup.meta.clients.toLocaleString("pt-BR"),
+        change: "Cadastros disponíveis",
+        trend: "neutral",
       },
       {
-        label: "Taxa de ocupação",
-        value: "87%",
-        change: "+4,5% esta semana",
-        trend: "up",
+        label: "Produtos",
+        value: backup.meta.inventoryItems.toLocaleString("pt-BR"),
+        change: "Itens cadastrados",
+        trend: "neutral",
       },
     ],
-    revenue: [
-      { label: "Seg", value: 3200 },
-      { label: "Ter", value: 4100 },
-      { label: "Qua", value: 3750 },
-      { label: "Qui", value: 5200 },
-      { label: "Sex", value: 4850 },
-      { label: "Sáb", value: 6100 },
-      { label: "Dom", value: 1250 },
-    ],
-    serviceMix: [
-      { service: "Bronze", value: 34, color: "#C88952" },
-      { service: "Massagens", value: 28, color: "#7D8B78" },
-      { service: "Estética facial", value: 22, color: "#C8A982" },
-      { service: "Corporal", value: 16, color: "#596653" },
-    ],
+    revenue: [{ label: "Total", value: backup.meta.totalRevenue }],
+    serviceMix: [],
     currentAppointment: appointments.find(
       (appointment) => appointment.status === "in_progress",
     ),
@@ -334,8 +372,15 @@ router.get("/dashboard", (_req, res) => {
 });
 
 router.get("/appointments", (req, res) => {
-  ListAppointmentsQueryParams.parse(req.query);
-  res.json(ListAppointmentsResponse.parse(appointments));
+  const { date } = ListAppointmentsQueryParams.parse(req.query);
+  const today = new Date().toLocaleDateString("sv-SE");
+  const filtered = date
+    ? appointments.filter((appointment) => {
+        if (/^\d{2}:\d{2}/.test(appointment.start)) return date === today;
+        return appointment.start.slice(0, 10) === date;
+      })
+    : appointments;
+  res.json(ListAppointmentsResponse.parse(filtered));
 });
 
 router.post("/appointments", (req, res) => {
@@ -354,6 +399,23 @@ router.post("/appointments", (req, res) => {
   res.status(201).json(CreateAppointmentResponse.parse(appointment));
 });
 
+router.patch("/appointments/:id", (req, res) => {
+  const { id } = UpdateAppointmentParams.parse(req.params);
+  const input = UpdateAppointmentBody.parse(req.body);
+  const appointment = appointments.find((item) => item.id === id);
+  if (!appointment) return void res.status(404).json({ error: "Agendamento não encontrado" });
+  Object.assign(appointment, input, input.client ? { avatar: getInitials(input.client) } : {});
+  res.json(UpdateAppointmentResponse.parse(appointment));
+});
+
+router.delete("/appointments/:id", (req, res) => {
+  const { id } = DeleteAppointmentParams.parse(req.params);
+  const index = appointments.findIndex((item) => item.id === id);
+  if (index < 0) return void res.status(404).json({ error: "Agendamento não encontrado" });
+  appointments.splice(index, 1);
+  res.status(204).end();
+});
+
 router.get("/clients", (req, res) => {
   const { search } = ListClientsQueryParams.parse(req.query);
   const normalized = search?.trim().toLocaleLowerCase("pt-BR");
@@ -364,7 +426,32 @@ router.get("/clients", (req, res) => {
           .includes(normalized),
       )
     : clients;
-  res.json(ListClientsResponse.parse(filtered));
+  res.json(ListClientsResponse.parse(filtered.slice(0, 100)));
+});
+
+router.post("/clients", (req, res) => {
+  const input = CreateClientBody.parse(req.body);
+  const id = clients.length ? Math.max(...clients.map((item) => item.id)) + 1 : 1;
+  const client = { id, initials: getInitials(input.name), lastVisit: "", ...input };
+  clients.unshift(client);
+  res.status(201).json(CreateClientResponse.parse(client));
+});
+
+router.patch("/clients/:id", (req, res) => {
+  const { id } = UpdateClientParams.parse(req.params);
+  const input = UpdateClientBody.parse(req.body);
+  const client = clients.find((item) => item.id === id);
+  if (!client) return void res.status(404).json({ error: "Cliente não encontrado" });
+  Object.assign(client, input, { initials: getInitials(input.name) });
+  res.json(UpdateClientResponse.parse(client));
+});
+
+router.delete("/clients/:id", (req, res) => {
+  const { id } = DeleteClientParams.parse(req.params);
+  const index = clients.findIndex((item) => item.id === id);
+  if (index < 0) return void res.status(404).json({ error: "Cliente não encontrado" });
+  clients.splice(index, 1);
+  res.status(204).end();
 });
 
 router.get("/leads", (_req, res) => {
@@ -407,17 +494,182 @@ router.get("/services", (_req, res) => {
   res.json(ListServicesResponse.parse(services));
 });
 
+router.get("/ai-agent/config", (_req, res) => {
+  res.json(GetAiAgentConfigResponse.parse(aiAgentConfig));
+});
+
+router.put("/ai-agent/config", (req, res) => {
+  aiAgentConfig = UpdateAiAgentConfigBody.parse(req.body);
+  res.json(UpdateAiAgentConfigResponse.parse(aiAgentConfig));
+});
+
+router.post("/ai-agent/test", async (req, res, next) => {
+  try {
+    const { message } = TestAiAgentBody.parse(req.body);
+    const serviceTable = services
+      .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
+      .join("\n");
+    const response = await openai.chat.completions.create({
+      model: "gpt-5.6-luna",
+      max_completion_tokens: 1200,
+      messages: [
+        {
+          role: "system",
+          content: `Você é ${aiAgentConfig.name}, agente de atendimento do Spa e Bronze Belém.
+Tom: ${aiAgentConfig.tone}.
+Objetivo: ${aiAgentConfig.objective}
+Saudação: ${aiAgentConfig.greeting}
+Instruções: ${aiAgentConfig.instructions}
+Horários: ${aiAgentConfig.businessHours}
+Endereço: ${aiAgentConfig.address}
+Formas de pagamento: ${aiAgentConfig.paymentMethods}
+Regras de agendamento: ${aiAgentConfig.bookingRules}
+Políticas: ${aiAgentConfig.policies}
+Quando chamar uma pessoa: ${aiAgentConfig.humanHandoff}
+
+TABELA ATUAL DE SERVIÇOS E PREÇOS:
+${serviceTable}
+
+Regras obrigatórias:
+- Responda em português do Brasil.
+- Use somente os serviços, preços, durações e informações fornecidas acima.
+- Nunca invente preço, promoção, disponibilidade ou política.
+- Quando faltar informação, diga que vai encaminhar para uma atendente.
+- Seja objetiva e acolhedora, sem textos longos.
+- Responda em texto simples, sem Markdown, asteriscos ou títulos.`,
+        },
+        { role: "user", content: message },
+      ],
+    });
+    const reply = response.choices[0]?.message?.content?.replace(/\*\*/g, "").trim()
+      || "Não consegui responder agora. Vou encaminhar para uma atendente.";
+    res.json(TestAiAgentResponse.parse({ reply }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/services", (req, res) => {
+  const input = CreateServiceBody.parse(req.body);
+  const id = services.length ? Math.max(...services.map((item) => item.id)) + 1 : 1;
+  const service = { id, ...input };
+  services.push(service);
+  res.status(201).json(CreateServiceResponse.parse(service));
+});
+
+router.patch("/services/:id", (req, res) => {
+  const { id } = UpdateServiceParams.parse(req.params);
+  const input = UpdateServiceBody.parse(req.body);
+  const service = services.find((item) => item.id === id);
+  if (!service) return void res.status(404).json({ error: "Serviço não encontrado" });
+  Object.assign(service, input);
+  res.json(UpdateServiceResponse.parse(service));
+});
+
+router.delete("/services/:id", (req, res) => {
+  const { id } = DeleteServiceParams.parse(req.params);
+  const index = services.findIndex((item) => item.id === id);
+  if (index < 0) return void res.status(404).json({ error: "Serviço não encontrado" });
+  services.splice(index, 1);
+  res.status(204).end();
+});
+
+router.get("/quotes", (_req, res) => {
+  res.json(ListQuotesResponse.parse(quotes));
+});
+
+router.post("/quotes", (req, res) => {
+  const input = CreateQuoteBody.parse(req.body);
+  const subtotal = input.items.reduce(
+    (sum, item) => sum + item.quantity * item.unitPrice,
+    0,
+  );
+  const discount = Math.min(input.discount, subtotal);
+  const id = quotes.length > 0 ? Math.max(...quotes.map((quote) => quote.id)) + 1 : 1;
+  const quote: Quote = {
+    ...input,
+    id,
+    number: `ORC-${String(id).padStart(4, "0")}`,
+    createdAt: new Date().toISOString(),
+    discount,
+    subtotal,
+    total: Math.max(0, subtotal - discount),
+  };
+  quotes.unshift(quote);
+  res.status(201).json(CreateQuoteResponse.parse(quote));
+});
+
+router.patch("/quotes/:id", (req, res) => {
+  const { id } = UpdateQuoteParams.parse(req.params);
+  const input = UpdateQuoteBody.parse(req.body);
+  const quote = quotes.find((item) => item.id === id);
+  if (!quote) return void res.status(404).json({ error: "Orçamento não encontrado" });
+  const subtotal = input.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  Object.assign(quote, input, {
+    discount: Math.min(input.discount, subtotal),
+    subtotal,
+    total: Math.max(0, subtotal - input.discount),
+  });
+  res.json(UpdateQuoteResponse.parse(quote));
+});
+
+router.delete("/quotes/:id", (req, res) => {
+  const { id } = DeleteQuoteParams.parse(req.params);
+  const index = quotes.findIndex((item) => item.id === id);
+  if (index < 0) return void res.status(404).json({ error: "Orçamento não encontrado" });
+  quotes.splice(index, 1);
+  res.status(204).end();
+});
+
 router.get("/finance/summary", (_req, res) => {
   res.json(
     GetFinanceSummaryResponse.parse({
-      inflow: 28450,
-      outflow: 9320,
-      net: 19130,
-      openAccounts: 2,
-      newClients: 64,
-      returningClients: 122,
+      inflow: backup.meta.totalRevenue,
+      outflow: 0,
+      net: backup.meta.totalRevenue,
+      openAccounts: backup.meta.totalOrders,
+      newClients: backup.clients.filter((client) => client.orders === 1).length,
+      returningClients: backup.clients.filter((client) => client.orders > 1).length,
     }),
   );
+});
+
+router.get("/inventory", (req, res) => {
+  const { search } = ListInventoryQueryParams.parse(req.query);
+  const normalized = search?.trim().toLocaleLowerCase("pt-BR");
+  const filtered = normalized
+    ? inventory.filter((item) =>
+        `${item.name} ${item.brand} ${item.category}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(normalized),
+      )
+    : inventory;
+  res.json(ListInventoryResponse.parse(filtered));
+});
+
+router.post("/inventory", (req, res) => {
+  const input = CreateInventoryItemBody.parse(req.body);
+  const id = inventory.length ? Math.max(...inventory.map((item) => item.id)) + 1 : 1;
+  const item = { id, ...input, status: getInventoryStatus(input.stock, input.minimumStock, input.nextExpiration) };
+  inventory.unshift(item);
+  res.status(201).json(CreateInventoryItemResponse.parse(item));
+});
+
+router.patch("/inventory/:id", (req, res) => {
+  const { id } = UpdateInventoryItemParams.parse(req.params);
+  const input = UpdateInventoryItemBody.parse(req.body);
+  const item = inventory.find((entry) => entry.id === id);
+  if (!item) return void res.status(404).json({ error: "Produto não encontrado" });
+  Object.assign(item, input, { status: getInventoryStatus(input.stock, input.minimumStock, input.nextExpiration) });
+  res.json(UpdateInventoryItemResponse.parse(item));
+});
+
+router.delete("/inventory/:id", (req, res) => {
+  const { id } = DeleteInventoryItemParams.parse(req.params);
+  const index = inventory.findIndex((item) => item.id === id);
+  if (index < 0) return void res.status(404).json({ error: "Produto não encontrado" });
+  inventory.splice(index, 1);
+  res.status(204).end();
 });
 
 export default router;

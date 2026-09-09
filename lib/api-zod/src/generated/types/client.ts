@@ -15,4 +15,7 @@ export interface Client {
   service: string;
   status: ClientStatus;
   source: string;
+  phone: string;
+  email: string;
+  notes: string;
 }

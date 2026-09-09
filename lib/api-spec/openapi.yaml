@@ -13,8 +13,53 @@ tags:
   - name: clients
   - name: leads
   - name: services
+  - name: quotes
   - name: finance
+  - name: inventory
+  - name: ai-agent
 paths:
+  /ai-agent/config:
+    get:
+      operationId: getAiAgentConfig
+      tags: [ai-agent]
+      summary: Retorna a configuração do agente de atendimento
+      responses:
+        "200":
+          description: AI agent configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiAgentConfig" }
+    put:
+      operationId: updateAiAgentConfig
+      tags: [ai-agent]
+      summary: Salva a configuração do agente de atendimento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiAgentConfig" }
+      responses:
+        "200":
+          description: Updated AI agent configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiAgentConfig" }
+  /ai-agent/test:
+    post:
+      operationId: testAiAgent
+      tags: [ai-agent]
+      summary: Testa uma mensagem com a configuração atual do agente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiAgentTestInput" }
+      responses:
+        "200":
+          description: Generated reply
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiAgentTestResponse" }
   /healthz:
     get:
       operationId: healthCheck
@@ -76,6 +121,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Appointment"
+  /appointments/{id}:
+    patch:
+      operationId: updateAppointment
+      tags: [appointments]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppointmentUpdate" }
+      responses:
+        "200":
+          description: Updated appointment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+    delete:
+      operationId: deleteAppointment
+      tags: [appointments]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted appointment }
   /clients:
     get:
       operationId: listClients
@@ -96,6 +165,44 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Client"
+    post:
+      operationId: createClient
+      tags: [clients]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClientInput" }
+      responses:
+        "201":
+          description: Created client
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Client" }
+  /clients/{id}:
+    patch:
+      operationId: updateClient
+      tags: [clients]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClientInput" }
+      responses:
+        "200":
+          description: Updated client
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Client" }
+    delete:
+      operationId: deleteClient
+      tags: [clients]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted client }
   /leads:
     get:
       operationId: listLeads
@@ -165,6 +272,99 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Service"
+    post:
+      operationId: createService
+      tags: [services]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceInput" }
+      responses:
+        "201":
+          description: Created service
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Service" }
+  /services/{id}:
+    patch:
+      operationId: updateService
+      tags: [services]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceInput" }
+      responses:
+        "200":
+          description: Updated service
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Service" }
+    delete:
+      operationId: deleteService
+      tags: [services]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted service }
+  /quotes:
+    get:
+      operationId: listQuotes
+      tags: [quotes]
+      summary: Lista orçamentos criados
+      responses:
+        "200":
+          description: Quotes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Quote"
+    post:
+      operationId: createQuote
+      tags: [quotes]
+      summary: Salva um orçamento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteInput"
+      responses:
+        "201":
+          description: Created quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+  /quotes/{id}:
+    patch:
+      operationId: updateQuote
+      tags: [quotes]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuoteInput" }
+      responses:
+        "200":
+          description: Updated quote
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quote" }
+    delete:
+      operationId: deleteQuote
+      tags: [quotes]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted quote }
   /finance/summary:
     get:
       operationId: getFinanceSummary
@@ -177,8 +377,92 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FinanceSummary"
+  /inventory:
+    get:
+      operationId: listInventory
+      tags: [inventory]
+      summary: Lista produtos e posição de estoque importados do backup
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Inventory items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryItem"
+    post:
+      operationId: createInventoryItem
+      tags: [inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InventoryItemInput" }
+      responses:
+        "201":
+          description: Created inventory item
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryItem" }
+  /inventory/{id}:
+    patch:
+      operationId: updateInventoryItem
+      tags: [inventory]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InventoryItemInput" }
+      responses:
+        "200":
+          description: Updated inventory item
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryItem" }
+    delete:
+      operationId: deleteInventoryItem
+      tags: [inventory]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted inventory item }
 components:
   schemas:
+    AiAgentConfig:
+      type: object
+      properties:
+        active: { type: boolean }
+        name: { type: string, minLength: 2 }
+        tone: { type: string, enum: [acolhedor, profissional, objetivo] }
+        greeting: { type: string }
+        objective: { type: string }
+        instructions: { type: string }
+        businessHours: { type: string }
+        address: { type: string }
+        paymentMethods: { type: string }
+        bookingRules: { type: string }
+        policies: { type: string }
+        humanHandoff: { type: string }
+      required: [active, name, tone, greeting, objective, instructions, businessHours, address, paymentMethods, bookingRules, policies, humanHandoff]
+    AiAgentTestInput:
+      type: object
+      properties:
+        message: { type: string, minLength: 1 }
+      required: [message]
+    AiAgentTestResponse:
+      type: object
+      properties:
+        reply: { type: string }
+      required: [reply]
     HealthStatus:
       type: object
       properties:
@@ -249,6 +533,16 @@ components:
         professional: { type: string }
         room: { type: string }
       required: [start, end, client, service, professional, room]
+    AppointmentUpdate:
+      type: object
+      properties:
+        start: { type: string }
+        end: { type: string }
+        client: { type: string }
+        service: { type: string }
+        professional: { type: string }
+        room: { type: string }
+        status: { type: string, enum: [confirmed, in_progress, completed, cancelled] }
     Client:
       type: object
       properties:
@@ -259,7 +553,21 @@ components:
         service: { type: string }
         status: { type: string, enum: [active, at_risk, new] }
         source: { type: string }
-      required: [id, name, initials, lastVisit, service, status, source]
+        phone: { type: string }
+        email: { type: string }
+        notes: { type: string }
+      required: [id, name, initials, lastVisit, service, status, source, phone, email, notes]
+    ClientInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 2 }
+        phone: { type: string }
+        email: { type: string }
+        notes: { type: string }
+        service: { type: string }
+        status: { type: string, enum: [active, at_risk, new] }
+        source: { type: string }
+      required: [name, phone, email, notes, service, status, source]
     Lead:
       type: object
       properties:
@@ -297,6 +605,48 @@ components:
         price: { type: string }
         accent: { type: string }
       required: [id, name, category, duration, price, accent]
+    ServiceInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 2 }
+        category: { type: string }
+        duration: { type: string }
+        price: { type: string }
+        accent: { type: string }
+      required: [name, category, duration, price, accent]
+    QuoteItem:
+      type: object
+      properties:
+        serviceId: { type: integer }
+        name: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        unitPrice: { type: number, minimum: 0 }
+      required: [serviceId, name, quantity, unitPrice]
+    QuoteInput:
+      type: object
+      properties:
+        clientName: { type: string, minLength: 2 }
+        phone: { type: string }
+        validUntil: { type: string }
+        discount: { type: number, minimum: 0 }
+        notes: { type: string }
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/QuoteItem"
+      required: [clientName, phone, validUntil, discount, notes, items]
+    Quote:
+      allOf:
+        - $ref: "#/components/schemas/QuoteInput"
+        - type: object
+          properties:
+            id: { type: integer }
+            number: { type: string }
+            createdAt: { type: string }
+            subtotal: { type: number }
+            total: { type: number }
+          required: [id, number, createdAt, subtotal, total]
     FinanceSummary:
       type: object
       properties:
@@ -307,3 +657,27 @@ components:
         newClients: { type: integer }
         returningClients: { type: integer }
       required: [inflow, outflow, net, openAccounts, newClients, returningClients]
+    InventoryItem:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        brand: { type: string }
+        category: { type: string }
+        price: { type: number }
+        minimumStock: { type: integer }
+        stock: { type: integer }
+        nextExpiration: { type: string }
+        status: { type: string, enum: [ok, low, negative, expired] }
+      required: [id, name, brand, category, price, minimumStock, stock, nextExpiration, status]
+    InventoryItemInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 2 }
+        brand: { type: string }
+        category: { type: string }
+        price: { type: number, minimum: 0 }
+        minimumStock: { type: integer, minimum: 0 }
+        stock: { type: integer }
+        nextExpiration: { type: string }
+      required: [name, brand, category, price, minimumStock, stock, nextExpiration]

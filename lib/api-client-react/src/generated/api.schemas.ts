@@ -5,6 +5,40 @@
  * API do sistema operacional do Spa e Bronze Belém
  * OpenAPI spec version: 0.1.0
  */
+export type AiAgentConfigTone = typeof AiAgentConfigTone[keyof typeof AiAgentConfigTone];
+
+
+export const AiAgentConfigTone = {
+  acolhedor: 'acolhedor',
+  profissional: 'profissional',
+  objetivo: 'objetivo',
+} as const;
+
+export interface AiAgentConfig {
+  active: boolean;
+  /** @minLength 2 */
+  name: string;
+  tone: AiAgentConfigTone;
+  greeting: string;
+  objective: string;
+  instructions: string;
+  businessHours: string;
+  address: string;
+  paymentMethods: string;
+  bookingRules: string;
+  policies: string;
+  humanHandoff: string;
+}
+
+export interface AiAgentTestInput {
+  /** @minLength 1 */
+  message: string;
+}
+
+export interface AiAgentTestResponse {
+  reply: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -77,6 +111,26 @@ export interface AppointmentInput {
   room: string;
 }
 
+export type AppointmentUpdateStatus = typeof AppointmentUpdateStatus[keyof typeof AppointmentUpdateStatus];
+
+
+export const AppointmentUpdateStatus = {
+  confirmed: 'confirmed',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface AppointmentUpdate {
+  start?: string;
+  end?: string;
+  client?: string;
+  service?: string;
+  professional?: string;
+  room?: string;
+  status?: AppointmentUpdateStatus;
+}
+
 export type ClientStatus = typeof ClientStatus[keyof typeof ClientStatus];
 
 
@@ -93,6 +147,29 @@ export interface Client {
   lastVisit: string;
   service: string;
   status: ClientStatus;
+  source: string;
+  phone: string;
+  email: string;
+  notes: string;
+}
+
+export type ClientInputStatus = typeof ClientInputStatus[keyof typeof ClientInputStatus];
+
+
+export const ClientInputStatus = {
+  active: 'active',
+  at_risk: 'at_risk',
+  new: 'new',
+} as const;
+
+export interface ClientInput {
+  /** @minLength 2 */
+  name: string;
+  phone: string;
+  email: string;
+  notes: string;
+  service: string;
+  status: ClientInputStatus;
   source: string;
 }
 
@@ -153,6 +230,44 @@ export interface Service {
   accent: string;
 }
 
+export interface ServiceInput {
+  /** @minLength 2 */
+  name: string;
+  category: string;
+  duration: string;
+  price: string;
+  accent: string;
+}
+
+export interface QuoteItem {
+  serviceId: number;
+  name: string;
+  /** @minimum 1 */
+  quantity: number;
+  /** @minimum 0 */
+  unitPrice: number;
+}
+
+export interface QuoteInput {
+  /** @minLength 2 */
+  clientName: string;
+  phone: string;
+  validUntil: string;
+  /** @minimum 0 */
+  discount: number;
+  notes: string;
+  /** @minItems 1 */
+  items: QuoteItem[];
+}
+
+export type Quote = QuoteInput & {
+  id: number;
+  number: string;
+  createdAt: string;
+  subtotal: number;
+  total: number;
+};
+
 export interface FinanceSummary {
   inflow: number;
   outflow: number;
@@ -162,11 +277,50 @@ export interface FinanceSummary {
   returningClients: number;
 }
 
+export type InventoryItemStatus = typeof InventoryItemStatus[keyof typeof InventoryItemStatus];
+
+
+export const InventoryItemStatus = {
+  ok: 'ok',
+  low: 'low',
+  negative: 'negative',
+  expired: 'expired',
+} as const;
+
+export interface InventoryItem {
+  id: number;
+  name: string;
+  brand: string;
+  category: string;
+  price: number;
+  minimumStock: number;
+  stock: number;
+  nextExpiration: string;
+  status: InventoryItemStatus;
+}
+
+export interface InventoryItemInput {
+  /** @minLength 2 */
+  name: string;
+  brand: string;
+  category: string;
+  /** @minimum 0 */
+  price: number;
+  /** @minimum 0 */
+  minimumStock: number;
+  stock: number;
+  nextExpiration: string;
+}
+
 export type ListAppointmentsParams = {
 date?: string;
 };
 
 export type ListClientsParams = {
+search?: string;
+};
+
+export type ListInventoryParams = {
 search?: string;
 };
 

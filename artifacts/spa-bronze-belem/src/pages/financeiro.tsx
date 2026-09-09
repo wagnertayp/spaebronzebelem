@@ -2,7 +2,7 @@ import { useGetFinanceSummary } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Download, TrendingUp, TrendingDown, Wallet, Users, Receipt, UserPlus } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 
 export function Financeiro() {
   const { data: summary, isLoading } = useGetFinanceSummary();
@@ -11,13 +11,44 @@ export function Financeiro() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
+  const handleExportCSV = () => {
+    if (!summary) return;
+    
+    // Create CSV content with BOM for UTF-8 Excel support
+    const bom = '\uFEFF';
+    const headers = ['Métrica', 'Valor', 'Data da Exportação'];
+    const rows = [
+      ['Entradas', summary.inflow, new Date().toLocaleDateString('pt-BR')],
+      ['Saídas', summary.outflow, new Date().toLocaleDateString('pt-BR')],
+      ['Saldo Líquido', summary.net, new Date().toLocaleDateString('pt-BR')],
+      ['Comandas Abertas', summary.openAccounts, new Date().toLocaleDateString('pt-BR')],
+      ['Novos Clientes', summary.newClients, new Date().toLocaleDateString('pt-BR')],
+      ['Clientes Recorrentes', summary.returningClients, new Date().toLocaleDateString('pt-BR')]
+    ];
+    
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.join(';'))
+    ].join('\n');
+
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `financeiro_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-8 max-w-[1200px] mx-auto">
       <PageHeader 
         title="Financeiro"
         description="Acompanhamento de caixa e recorrência de clientes."
         action={
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleExportCSV} disabled={!summary}>
             <Download className="w-4 h-4" />
             Exportar
           </Button>
@@ -91,7 +122,7 @@ export function Financeiro() {
                   </div>
                 </div>
                 <span className="text-[13px] font-medium text-text-secondary block mb-1">
-                  Comandas Abertas
+                  Comandas
                 </span>
                 <div className="text-[24px] font-semibold tracking-[-0.03em] text-text-primary">
                   {summary.openAccounts}
@@ -107,7 +138,7 @@ export function Financeiro() {
                   </div>
                 </div>
                 <span className="text-[13px] font-medium text-text-secondary block mb-1">
-                  Novos Clientes (Mês)
+                  Clientes com uma comanda
                 </span>
                 <div className="text-[24px] font-semibold tracking-[-0.03em] text-text-primary">
                   {summary.newClients}
@@ -123,7 +154,7 @@ export function Financeiro() {
                   </div>
                 </div>
                 <span className="text-[13px] font-medium text-text-secondary block mb-1">
-                  Clientes Recorrentes (Mês)
+                  Clientes recorrentes
                 </span>
                 <div className="text-[24px] font-semibold tracking-[-0.03em] text-text-primary">
                   {summary.returningClients}

@@ -9,6 +9,86 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Retorna a configuração do agente de atendimento
+ */
+export const getAiAgentConfigResponseNameMin = 2;
+
+
+
+export const GetAiAgentConfigResponse = zod.object({
+  "active": zod.boolean(),
+  "name": zod.string().min(getAiAgentConfigResponseNameMin),
+  "tone": zod.enum(['acolhedor', 'profissional', 'objetivo']),
+  "greeting": zod.string(),
+  "objective": zod.string(),
+  "instructions": zod.string(),
+  "businessHours": zod.string(),
+  "address": zod.string(),
+  "paymentMethods": zod.string(),
+  "bookingRules": zod.string(),
+  "policies": zod.string(),
+  "humanHandoff": zod.string()
+})
+
+
+/**
+ * @summary Salva a configuração do agente de atendimento
+ */
+export const updateAiAgentConfigBodyNameMin = 2;
+
+
+
+export const UpdateAiAgentConfigBody = zod.object({
+  "active": zod.boolean(),
+  "name": zod.string().min(updateAiAgentConfigBodyNameMin),
+  "tone": zod.enum(['acolhedor', 'profissional', 'objetivo']),
+  "greeting": zod.string(),
+  "objective": zod.string(),
+  "instructions": zod.string(),
+  "businessHours": zod.string(),
+  "address": zod.string(),
+  "paymentMethods": zod.string(),
+  "bookingRules": zod.string(),
+  "policies": zod.string(),
+  "humanHandoff": zod.string()
+})
+
+export const updateAiAgentConfigResponseNameMin = 2;
+
+
+
+export const UpdateAiAgentConfigResponse = zod.object({
+  "active": zod.boolean(),
+  "name": zod.string().min(updateAiAgentConfigResponseNameMin),
+  "tone": zod.enum(['acolhedor', 'profissional', 'objetivo']),
+  "greeting": zod.string(),
+  "objective": zod.string(),
+  "instructions": zod.string(),
+  "businessHours": zod.string(),
+  "address": zod.string(),
+  "paymentMethods": zod.string(),
+  "bookingRules": zod.string(),
+  "policies": zod.string(),
+  "humanHandoff": zod.string()
+})
+
+
+/**
+ * @summary Testa uma mensagem com a configuração atual do agente
+ */
+
+
+
+export const TestAiAgentBody = zod.object({
+  "message": zod.string().min(1)
+})
+
+export const TestAiAgentResponse = zod.object({
+  "reply": zod.string()
+})
+
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -98,6 +178,40 @@ export const CreateAppointmentResponse = zod.object({
 })
 
 
+export const UpdateAppointmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateAppointmentBody = zod.object({
+  "start": zod.string().optional(),
+  "end": zod.string().optional(),
+  "client": zod.string().optional(),
+  "service": zod.string().optional(),
+  "professional": zod.string().optional(),
+  "room": zod.string().optional(),
+  "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']).optional()
+})
+
+export const UpdateAppointmentResponse = zod.object({
+  "id": zod.number().int(),
+  "start": zod.string(),
+  "end": zod.string(),
+  "client": zod.string(),
+  "service": zod.string(),
+  "professional": zod.string(),
+  "room": zod.string(),
+  "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
+  "avatar": zod.string()
+})
+
+
+export const DeleteAppointmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteAppointmentResponse = zod.void()
+
+
 /**
  * @summary Lista clientes unificados
  */
@@ -112,9 +226,79 @@ export const ListClientsResponseItem = zod.object({
   "lastVisit": zod.string(),
   "service": zod.string(),
   "status": zod.enum(['active', 'at_risk', 'new']),
-  "source": zod.string()
+  "source": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "notes": zod.string()
 })
 export const ListClientsResponse = zod.array(ListClientsResponseItem)
+
+
+export const createClientBodyNameMin = 2;
+
+
+
+export const CreateClientBody = zod.object({
+  "name": zod.string().min(createClientBodyNameMin),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "notes": zod.string(),
+  "service": zod.string(),
+  "status": zod.enum(['active', 'at_risk', 'new']),
+  "source": zod.string()
+})
+
+export const CreateClientResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "initials": zod.string(),
+  "lastVisit": zod.string(),
+  "service": zod.string(),
+  "status": zod.enum(['active', 'at_risk', 'new']),
+  "source": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "notes": zod.string()
+})
+
+
+export const UpdateClientParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateClientBodyNameMin = 2;
+
+
+
+export const UpdateClientBody = zod.object({
+  "name": zod.string().min(updateClientBodyNameMin),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "notes": zod.string(),
+  "service": zod.string(),
+  "status": zod.enum(['active', 'at_risk', 'new']),
+  "source": zod.string()
+})
+
+export const UpdateClientResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "initials": zod.string(),
+  "lastVisit": zod.string(),
+  "service": zod.string(),
+  "status": zod.enum(['active', 'at_risk', 'new']),
+  "source": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "notes": zod.string()
+})
+
+
+export const DeleteClientParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteClientResponse = zod.void()
 
 
 /**
@@ -198,6 +382,220 @@ export const ListServicesResponseItem = zod.object({
 export const ListServicesResponse = zod.array(ListServicesResponseItem)
 
 
+export const createServiceBodyNameMin = 2;
+
+
+
+export const CreateServiceBody = zod.object({
+  "name": zod.string().min(createServiceBodyNameMin),
+  "category": zod.string(),
+  "duration": zod.string(),
+  "price": zod.string(),
+  "accent": zod.string()
+})
+
+export const CreateServiceResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "duration": zod.string(),
+  "price": zod.string(),
+  "accent": zod.string()
+})
+
+
+export const UpdateServiceParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateServiceBodyNameMin = 2;
+
+
+
+export const UpdateServiceBody = zod.object({
+  "name": zod.string().min(updateServiceBodyNameMin),
+  "category": zod.string(),
+  "duration": zod.string(),
+  "price": zod.string(),
+  "accent": zod.string()
+})
+
+export const UpdateServiceResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "duration": zod.string(),
+  "price": zod.string(),
+  "accent": zod.string()
+})
+
+
+export const DeleteServiceParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteServiceResponse = zod.void()
+
+
+/**
+ * @summary Lista orçamentos criados
+ */
+export const listQuotesResponseOneClientNameMin = 2;
+
+export const listQuotesResponseOneDiscountMin = 0;
+
+
+export const listQuotesResponseOneItemsItemUnitPriceMin = 0;
+
+
+
+
+export const ListQuotesResponseItem = zod.object({
+  "clientName": zod.string().min(listQuotesResponseOneClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discount": zod.number().min(listQuotesResponseOneDiscountMin),
+  "notes": zod.string(),
+  "items": zod.array(zod.object({
+  "serviceId": zod.number().int(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(listQuotesResponseOneItemsItemUnitPriceMin)
+})).min(1)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "number": zod.string(),
+  "createdAt": zod.string(),
+  "subtotal": zod.number(),
+  "total": zod.number()
+}))
+export const ListQuotesResponse = zod.array(ListQuotesResponseItem)
+
+
+/**
+ * @summary Salva um orçamento
+ */
+export const createQuoteBodyClientNameMin = 2;
+
+export const createQuoteBodyDiscountMin = 0;
+
+
+export const createQuoteBodyItemsItemUnitPriceMin = 0;
+
+
+
+
+export const CreateQuoteBody = zod.object({
+  "clientName": zod.string().min(createQuoteBodyClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discount": zod.number().min(createQuoteBodyDiscountMin),
+  "notes": zod.string(),
+  "items": zod.array(zod.object({
+  "serviceId": zod.number().int(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(createQuoteBodyItemsItemUnitPriceMin)
+})).min(1)
+})
+
+export const createQuoteResponseOneClientNameMin = 2;
+
+export const createQuoteResponseOneDiscountMin = 0;
+
+
+export const createQuoteResponseOneItemsItemUnitPriceMin = 0;
+
+
+
+
+export const CreateQuoteResponse = zod.object({
+  "clientName": zod.string().min(createQuoteResponseOneClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discount": zod.number().min(createQuoteResponseOneDiscountMin),
+  "notes": zod.string(),
+  "items": zod.array(zod.object({
+  "serviceId": zod.number().int(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(createQuoteResponseOneItemsItemUnitPriceMin)
+})).min(1)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "number": zod.string(),
+  "createdAt": zod.string(),
+  "subtotal": zod.number(),
+  "total": zod.number()
+}))
+
+
+export const UpdateQuoteParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateQuoteBodyClientNameMin = 2;
+
+export const updateQuoteBodyDiscountMin = 0;
+
+
+export const updateQuoteBodyItemsItemUnitPriceMin = 0;
+
+
+
+
+export const UpdateQuoteBody = zod.object({
+  "clientName": zod.string().min(updateQuoteBodyClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discount": zod.number().min(updateQuoteBodyDiscountMin),
+  "notes": zod.string(),
+  "items": zod.array(zod.object({
+  "serviceId": zod.number().int(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(updateQuoteBodyItemsItemUnitPriceMin)
+})).min(1)
+})
+
+export const updateQuoteResponseOneClientNameMin = 2;
+
+export const updateQuoteResponseOneDiscountMin = 0;
+
+
+export const updateQuoteResponseOneItemsItemUnitPriceMin = 0;
+
+
+
+
+export const UpdateQuoteResponse = zod.object({
+  "clientName": zod.string().min(updateQuoteResponseOneClientNameMin),
+  "phone": zod.string(),
+  "validUntil": zod.string(),
+  "discount": zod.number().min(updateQuoteResponseOneDiscountMin),
+  "notes": zod.string(),
+  "items": zod.array(zod.object({
+  "serviceId": zod.number().int(),
+  "name": zod.string(),
+  "quantity": zod.number().int().min(1),
+  "unitPrice": zod.number().min(updateQuoteResponseOneItemsItemUnitPriceMin)
+})).min(1)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "number": zod.string(),
+  "createdAt": zod.string(),
+  "subtotal": zod.number(),
+  "total": zod.number()
+}))
+
+
+export const DeleteQuoteParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteQuoteResponse = zod.void()
+
+
 /**
  * @summary Resumo financeiro
  */
@@ -209,5 +607,99 @@ export const GetFinanceSummaryResponse = zod.object({
   "newClients": zod.number().int(),
   "returningClients": zod.number().int()
 })
+
+
+/**
+ * @summary Lista produtos e posição de estoque importados do backup
+ */
+export const ListInventoryQueryParams = zod.object({
+  "search": zod.coerce.string().optional()
+})
+
+export const ListInventoryResponseItem = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "brand": zod.string(),
+  "category": zod.string(),
+  "price": zod.number(),
+  "minimumStock": zod.number().int(),
+  "stock": zod.number().int(),
+  "nextExpiration": zod.string(),
+  "status": zod.enum(['ok', 'low', 'negative', 'expired'])
+})
+export const ListInventoryResponse = zod.array(ListInventoryResponseItem)
+
+
+export const createInventoryItemBodyNameMin = 2;
+
+export const createInventoryItemBodyPriceMin = 0;
+
+export const createInventoryItemBodyMinimumStockMin = 0;
+
+
+
+export const CreateInventoryItemBody = zod.object({
+  "name": zod.string().min(createInventoryItemBodyNameMin),
+  "brand": zod.string(),
+  "category": zod.string(),
+  "price": zod.number().min(createInventoryItemBodyPriceMin),
+  "minimumStock": zod.number().int().min(createInventoryItemBodyMinimumStockMin),
+  "stock": zod.number().int(),
+  "nextExpiration": zod.string()
+})
+
+export const CreateInventoryItemResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "brand": zod.string(),
+  "category": zod.string(),
+  "price": zod.number(),
+  "minimumStock": zod.number().int(),
+  "stock": zod.number().int(),
+  "nextExpiration": zod.string(),
+  "status": zod.enum(['ok', 'low', 'negative', 'expired'])
+})
+
+
+export const UpdateInventoryItemParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateInventoryItemBodyNameMin = 2;
+
+export const updateInventoryItemBodyPriceMin = 0;
+
+export const updateInventoryItemBodyMinimumStockMin = 0;
+
+
+
+export const UpdateInventoryItemBody = zod.object({
+  "name": zod.string().min(updateInventoryItemBodyNameMin),
+  "brand": zod.string(),
+  "category": zod.string(),
+  "price": zod.number().min(updateInventoryItemBodyPriceMin),
+  "minimumStock": zod.number().int().min(updateInventoryItemBodyMinimumStockMin),
+  "stock": zod.number().int(),
+  "nextExpiration": zod.string()
+})
+
+export const UpdateInventoryItemResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "brand": zod.string(),
+  "category": zod.string(),
+  "price": zod.number(),
+  "minimumStock": zod.number().int(),
+  "stock": zod.number().int(),
+  "nextExpiration": zod.string(),
+  "status": zod.enum(['ok', 'low', 'negative', 'expired'])
+})
+
+
+export const DeleteInventoryItemParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteInventoryItemResponse = zod.void()
 
 
