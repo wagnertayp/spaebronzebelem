@@ -17,7 +17,7 @@ export function Sidebar({ className }: { className?: string }) {
           </Link>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 space-y-1">
+        <nav aria-label="Navegação principal" className="flex-1 overflow-y-auto px-3 space-y-1.5">
           {navItems.map((item) => {
             const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
             const Icon = item.icon;
@@ -26,25 +26,32 @@ export function Sidebar({ className }: { className?: string }) {
               <Link 
                 key={item.href} 
                 href={item.href}
+                aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all duration-200 outline-none",
+                  "group relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2",
                   isActive 
-                    ? "bg-primary/10 text-primary-dark font-semibold dark:bg-primary/20 dark:text-primary-soft shadow-sm"
-                    : "text-text-secondary font-medium hover:text-text-primary hover:bg-black/[0.04] dark:hover:bg-white/[0.04] focus-visible:bg-black/5 dark:focus-visible:bg-white/5"
+                    ? "bg-primary text-white font-bold shadow-button"
+                    : "text-text-secondary font-medium hover:bg-primary-soft/70 hover:text-primary-dark hover:translate-x-0.5"
                 )}
               >
+                {isActive && <span className="absolute -left-1 h-6 w-1 rounded-full bg-white/90" aria-hidden="true" />}
+                <span className={cn(
+                  "grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-all",
+                  isActive ? "bg-white/16 text-white" : "bg-primary-soft/55 text-text-muted group-hover:bg-surface group-hover:text-primary"
+                )}>
                 <Icon 
                   className={cn(
-                    "w-[18px] h-[18px] transition-colors", 
-                    isActive ? "text-primary-dark dark:text-primary-soft" : "text-text-muted"
+                    "w-[17px] h-[17px] transition-colors", 
+                    isActive ? "text-white" : "text-current"
                   )} 
                   strokeWidth={isActive ? 2.5 : 2} 
                 />
+                </span>
                 {item.label}
               </Link>
             );
           })}
-        </div>
+        </nav>
 
         <div className="p-4 mt-auto">
           <Link 

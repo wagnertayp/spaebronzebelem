@@ -73,25 +73,33 @@ function MetricTrend({ trend, change }: { trend: string; change: string }) {
 const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
 function MetricCard({ 
-  title, current, prev, isCurrency, bg = "bg-[#FDFBF7]", highlight = false, invalid = false
+  title, current, prev, isCurrency, tone = 'blue', highlight = false, invalid = false
 }: { 
-  title: string; current: number; prev: number; isCurrency?: boolean; bg?: string; highlight?: boolean; invalid?: boolean
+  title: string; current: number; prev: number; isCurrency?: boolean; tone?: 'blue' | 'cyan' | 'violet' | 'navy'; highlight?: boolean; invalid?: boolean
 }) {
   const trend = invalid ? { trend: 'neutral', text: 'Período inválido' } : getTrend(current, prev);
   const displayValue = isCurrency ? formatCurrency(current) : current;
   
   return (
-    <div className={cn("p-5 rounded-[12px] border flex flex-col gap-3", bg, highlight ? "border-accent/30" : "border-accent/10")}>
-      <span className={cn("text-[13px] font-medium", highlight ? "text-dark" : "text-text-secondary")}>
+    <div className={cn(
+      "p-5 rounded-[16px] border flex flex-col gap-3 shadow-card transition-transform hover:-translate-y-0.5",
+      tone === 'blue' && "bg-[#E8F2FF] border-[#BBD8FF]",
+      tone === 'cyan' && "bg-[#E5F8FC] border-[#B4E8F2]",
+      tone === 'violet' && "bg-[#F0ECFF] border-[#D8CEFF]",
+      tone === 'navy' && "bg-primary text-white border-primary shadow-button"
+    )}>
+      <span className={cn("text-[13px] font-bold", tone === 'navy' ? "text-white/80" : "text-text-secondary")}>
         {title}
       </span>
       <div className="flex items-end justify-between mt-1">
-        <span className={cn("text-[28px] font-semibold tracking-[-0.03em] leading-none", highlight ? "text-primary-dark" : "text-dark", invalid && "text-text-muted")}>
+        <span className={cn("text-[28px] font-bold tracking-[-0.03em] leading-none", tone === 'navy' ? "text-white" : "text-dark", invalid && "text-text-muted")}>
           {invalid ? '-' : displayValue}
         </span>
       </div>
       <div>
-        <MetricTrend trend={trend.trend} change={trend.text} />
+        <div className={cn(tone === 'navy' && "[&_span]:bg-white/15 [&_span]:text-white")}>
+          <MetricTrend trend={trend.trend} change={trend.text} />
+        </div>
       </div>
     </div>
   );
@@ -265,9 +273,9 @@ export function Dashboard() {
 
   return (
     <div className="space-y-10 max-w-[1200px] mx-auto pb-16 px-4 sm:px-6 relative">
-      <div className="absolute top-0 right-0 w-full max-w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-accent/15 via-primary/5 to-transparent -z-10 pointer-events-none opacity-60 rounded-bl-[100%]" />
+      <div className="absolute top-0 right-0 w-full max-w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-accent/8 to-transparent -z-10 pointer-events-none opacity-70 rounded-bl-[100%]" />
       
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-10 pb-6 border-b border-accent/20">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-10 pb-6 border-b border-primary/15">
         <div>
           <h1 className="text-[32px] md:text-[38px] font-medium tracking-tight text-dark">
             {getGreeting()}, Wagner.
@@ -278,7 +286,7 @@ export function Dashboard() {
         </div>
         
         <Button 
-          className="rounded-[12px] bg-dark text-white hover:bg-dark-soft shadow-none h-11 px-5"
+          className="rounded-[12px] bg-primary text-white hover:bg-primary-dark shadow-button h-11 px-5"
           onClick={() => setLocation('/agenda?novo=1')}
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -295,8 +303,8 @@ export function Dashboard() {
               className={cn(
                 "px-4 py-2 rounded-[12px] text-[13px] font-medium transition-colors border", 
                 period === p 
-                  ? 'bg-dark text-white border-dark' 
-                  : 'bg-white text-text-secondary border-accent/20 hover:border-accent/40'
+                  ? 'bg-primary text-white border-primary shadow-sm' 
+                  : 'bg-white text-text-secondary border-primary/15 hover:border-primary/40 hover:text-primary'
               )}
             >
               {p === 'today' && 'Hoje'}
@@ -308,7 +316,7 @@ export function Dashboard() {
           
           {period === 'custom' && (
             <div className="flex flex-col gap-1 ml-2">
-              <div className="flex items-center gap-2 bg-white rounded-[12px] p-1 border border-accent/20">
+              <div className="flex items-center gap-2 bg-white rounded-[12px] p-1 border border-primary/20">
                 <input 
                   type="date"
                   className="bg-transparent border-none text-[13px] text-dark outline-none px-2 h-8"
@@ -337,10 +345,10 @@ export function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard title="Agendamentos" current={metrics.agendamentos.current} prev={metrics.agendamentos.prev} bg="bg-[#FDFBF7]" invalid={!isValid} />
-          <MetricCard title="Clientes atendidos" current={metrics.clientes.current} prev={metrics.clientes.prev} bg="bg-[#FDFBF7]" invalid={!isValid} />
-          <MetricCard title="Orçamentos criados" current={metrics.orcamentos.current} prev={metrics.orcamentos.prev} bg="bg-[#FDFBF7]" invalid={!isValid} />
-          <MetricCard title="Valor em orçamentos" current={metrics.valorOrcamentos.current} prev={metrics.valorOrcamentos.prev} isCurrency bg="bg-primary/10" highlight invalid={!isValid} />
+          <MetricCard title="Agendamentos" current={metrics.agendamentos.current} prev={metrics.agendamentos.prev} tone="blue" invalid={!isValid} />
+          <MetricCard title="Clientes atendidos" current={metrics.clientes.current} prev={metrics.clientes.prev} tone="cyan" invalid={!isValid} />
+          <MetricCard title="Orçamentos criados" current={metrics.orcamentos.current} prev={metrics.orcamentos.prev} tone="violet" invalid={!isValid} />
+          <MetricCard title="Valor em orçamentos" current={metrics.valorOrcamentos.current} prev={metrics.valorOrcamentos.prev} isCurrency tone="navy" highlight invalid={!isValid} />
         </div>
       </div>
 
@@ -350,29 +358,29 @@ export function Dashboard() {
             <div className="w-1.5 h-1.5 rounded-full bg-warning" />
             Atenção Comercial
           </h2>
-          <div className="bg-[#FAF8F5] rounded-[12px] border border-accent/10 p-5 space-y-4 shadow-sm shadow-accent/5">
+          <div className="bg-surface rounded-[16px] border border-primary/15 p-5 space-y-4 shadow-card">
             <div 
-              className="flex items-center justify-between p-3.5 rounded-[10px] bg-white border border-accent/10 cursor-pointer hover:border-accent/30 transition-colors group"
+              className="flex items-center justify-between p-3.5 rounded-[12px] bg-primary-soft/40 border border-primary/10 cursor-pointer hover:border-primary/35 hover:bg-primary-soft/70 transition-colors group"
               onClick={() => setLocation('/whatsapp')}
             >
               <div>
                 <div className="text-[14px] font-medium text-dark mb-0.5">Leads aguardando resposta</div>
                 <div className="text-[12.5px] text-text-secondary">{leadsNew.length} contatos pendentes</div>
               </div>
-              <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-white transition-colors">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <ArrowRight className="w-4 h-4" />
               </div>
             </div>
             
             <div 
-              className="flex items-center justify-between p-3.5 rounded-[10px] bg-white border border-accent/10 cursor-pointer hover:border-accent/30 transition-colors group"
+              className="flex items-center justify-between p-3.5 rounded-[12px] bg-primary-soft/40 border border-primary/10 cursor-pointer hover:border-primary/35 hover:bg-primary-soft/70 transition-colors group"
               onClick={() => setLocation('/servicos')}
             >
               <div>
                 <div className="text-[14px] font-medium text-dark mb-0.5">Orçamentos aguardando retorno</div>
                 <div className="text-[12.5px] text-text-secondary">{leadsQuote.length} propostas enviadas</div>
               </div>
-              <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-white transition-colors">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                 <ArrowRight className="w-4 h-4" />
               </div>
             </div>
@@ -380,7 +388,7 @@ export function Dashboard() {
             <div className="pt-2">
               <div className="flex items-center justify-between mb-3.5">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Leads Urgentes</span>
-                <button className="text-[12px] text-accent font-medium hover:text-accent/80 transition-colors" onClick={() => setLocation('/whatsapp')}>Ver todos</button>
+                <button className="text-[12px] text-primary font-bold hover:text-primary-dark transition-colors" onClick={() => setLocation('/whatsapp')}>Ver todos</button>
               </div>
               <div className="space-y-2.5">
                 {urgentLeads.length === 0 ? (
@@ -411,7 +419,7 @@ export function Dashboard() {
             <div className="w-1.5 h-1.5 rounded-full bg-success" />
             Equipe em Atendimento
           </h2>
-          <div className="bg-[#596653] rounded-[12px] p-6 text-white h-[calc(100%-48px)] min-h-[300px] shadow-sm shadow-dark/10">
+          <div className="bg-gradient-to-br from-primary-dark to-dark-soft rounded-[16px] p-6 text-white h-[calc(100%-48px)] min-h-[300px] shadow-container">
             {inProgressAppts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
                 <Clock className="w-8 h-8 mb-3" />
