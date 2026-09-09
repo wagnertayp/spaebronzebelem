@@ -11,33 +11,42 @@ import {
   Router as WouterRouter,
 } from 'wouter';
 
-const queryClient = new QueryClient();
+import { AppShell } from '@/components/layout/app-shell';
+import { Dashboard } from '@/pages/dashboard';
+import { Agenda } from '@/pages/agenda';
+import { Clientes } from '@/pages/clientes';
+import { WhatsApp } from '@/pages/whatsapp';
+import { Servicos } from '@/pages/servicos';
+import { Financeiro } from '@/pages/financeiro';
+import { Estoque } from '@/pages/estoque';
+import { Relatorios } from '@/pages/relatorios';
 
-function Home() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Replit Agent is building...
-        </h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Your app will appear here once it's ready.
-        </p>
-      </div>
-    </div>
-  );
-}
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function Router() {
   return (
-    // Keep a shared shell (sidebar, navbar) outside the boundary so it
-    // survives a page crash.
-    <RoutedErrorBoundary>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route component={NotFound} />
-      </Switch>
-    </RoutedErrorBoundary>
+    <AppShell>
+      <RoutedErrorBoundary>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/agenda" component={Agenda} />
+          <Route path="/clientes" component={Clientes} />
+          <Route path="/whatsapp" component={WhatsApp} />
+          <Route path="/servicos" component={Servicos} />
+          <Route path="/financeiro" component={Financeiro} />
+          <Route path="/estoque" component={Estoque} />
+          <Route path="/relatorios" component={Relatorios} />
+          <Route component={NotFound} />
+        </Switch>
+      </RoutedErrorBoundary>
+    </AppShell>
   );
 }
 

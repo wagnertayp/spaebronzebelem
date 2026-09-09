@@ -1,64 +1,55 @@
-import * as React from 'react';
-import { Slot } from '@radix-ui/react-slot';
-import { cn } from '@/lib/utils';
-import { cva, type VariantProps } from 'class-variance-authority';
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0' +
-    ' hover-elevate active-elevate-2',
+  "inline-flex items-center justify-center whitespace-nowrap rounded-[12px] text-[13px] font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] hover:-translate-y-[1px]",
   {
     variants: {
       variant: {
-        default:
-          // @replit: no hover, and add primary border
-          'bg-primary text-primary-foreground border border-primary-border',
+        default: "bg-gradient-to-br from-primary to-primary-dark text-primary-foreground shadow-button hover:shadow-lg",
         destructive:
-          'bg-destructive text-destructive-foreground shadow-sm border-destructive-border',
+          "bg-error text-white hover:bg-error/90 shadow-sm",
         outline:
-          // @replit Shows the background color of whatever card / sidebar / accent background it is inside of.
-          // Inherits the current text color. Uses shadow-xs. no shadow on active
-          // No hover state
-          ' border [border-color:var(--button-outline)] shadow-xs active:shadow-none ',
+          "border border-border bg-transparent hover:bg-surface-soft hover:text-text-primary text-text-secondary",
         secondary:
-          // @replit border, no hover, no shadow, secondary border.
-          'border bg-secondary text-secondary-foreground border border-secondary-border ',
-        // @replit no hover, transparent border
-        ghost: 'border border-transparent',
-        link: 'text-primary underline-offset-4 hover:underline',
+          "bg-surface-soft text-text-primary hover:bg-black/5 dark:hover:bg-white/10",
+        ghost: "hover:bg-surface-soft hover:text-text-primary text-text-secondary",
+        link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        // @replit changed sizes
-        default: 'min-h-9 px-4 py-2',
-        sm: 'min-h-8 rounded-md px-3 text-xs',
-        lg: 'min-h-10 rounded-md px-8',
-        icon: 'h-9 w-9',
+        default: "h-[36px] px-[16px]",
+        sm: "h-[32px] px-[12px] text-[12px] rounded-[10px]",
+        lg: "h-[42px] px-[20px] rounded-[14px] text-[14px]",
+        icon: "h-[36px] w-[36px] rounded-[12px]",
       },
     },
     defaultVariants: {
-      variant: 'default',
-      size: 'default',
+      variant: "default",
+      size: "default",
     },
-  },
-);
+  }
+)
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
+  asChild?: boolean
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : 'button';
+    const Comp = asChild ? Slot : "button"
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
       />
-    );
-  },
-);
-Button.displayName = 'Button';
+    )
+  }
+)
+Button.displayName = "Button"
 
-export { Button, buttonVariants };
+export { Button, buttonVariants }
