@@ -47,15 +47,16 @@ export interface WhatsappConnection {
   message: string;
 }
 
-export interface WhatsappConnectionInput {
-  /** @minLength 1 */
+export interface WhatsappConnectResponse {
+  created: boolean;
   instance: string;
-}
-
-export interface WhatsappInstance {
-  name: string;
-  state: string;
   connected: boolean;
+  state: string;
+  message: string;
+  /** @nullable */
+  qrCode: string | null;
+  /** @nullable */
+  pairingCode: string | null;
 }
 
 export interface WhatsappAutomation {

@@ -1,0 +1,1 @@
+- [Evolution QR connection flow](evolution-qr-flow.md) — connect by creating an instance and showing its QR, not by selecting from shared instances.

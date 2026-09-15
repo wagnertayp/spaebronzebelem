@@ -10,9 +10,7 @@ import {
   getListServicesQueryKey,
   useGetWhatsappConnection,
   getGetWhatsappConnectionQueryKey,
-  useListWhatsappInstances,
-  getListWhatsappInstancesQueryKey,
-  useUpdateWhatsappConnection,
+  useConnectWhatsapp,
   useGetWhatsappAutomation,
   useUpdateWhatsappAutomation,
   getGetWhatsappAutomationQueryKey,
@@ -53,8 +51,7 @@ export function WhatsApp() {
   const { data: whatsappConnection, isLoading: isConnectionLoading } = useGetWhatsappConnection({
     query: { queryKey: getGetWhatsappConnectionQueryKey(), refetchInterval: 30_000 },
   });
-  const { data: whatsappInstances = [], isLoading: isInstancesLoading } = useListWhatsappInstances();
-  const updateWhatsappConnection = useUpdateWhatsappConnection();
+  const connectWhatsapp = useConnectWhatsapp();
   const { data: whatsappAutomation } = useGetWhatsappAutomation();
   const updateWhatsappAutomation = useUpdateWhatsappAutomation();
   const { data: whatsappMessages = [] } = useListWhatsappMessages({ limit: 5 });
@@ -72,7 +69,7 @@ export function WhatsApp() {
     reminder2h: true,
     timezone: 'America/Belem',
   });
-  const [selectedInstance, setSelectedInstance] = useState('');
+  const [qrCode, setQrCode] = useState<string | null>(null);
 
   // Config Form State
   const [formData, setFormData] = useState<AiAgentConfig>({
@@ -99,10 +96,6 @@ export function WhatsApp() {
   useEffect(() => {
     if (whatsappAutomation) setAutomationForm(whatsappAutomation);
   }, [whatsappAutomation]);
-
-  useEffect(() => {
-    if (whatsappConnection?.instance) setSelectedInstance(whatsappConnection.instance);
-  }, [whatsappConnection?.instance]);
 
   const handleSaveConfig = () => {
     updateConfig.mutate(
@@ -131,21 +124,20 @@ export function WhatsApp() {
     );
   };
 
-  const handleConnectInstance = () => {
-    if (!selectedInstance) return;
-    updateWhatsappConnection.mutate(
-      { data: { instance: selectedInstance } },
+  const handleConnectWhatsapp = () => {
+    connectWhatsapp.mutate(
+      undefined,
       {
         onSuccess: (data) => {
-          queryClient.setQueryData(getGetWhatsappConnectionQueryKey(), data);
-          queryClient.invalidateQueries({ queryKey: getListWhatsappInstancesQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetWhatsappConnectionQueryKey() });
+          if (data.qrCode) setQrCode(data.qrCode);
           toast({
-            title: data.connected ? 'WhatsApp conectado' : 'Instância selecionada',
+            title: data.connected ? 'WhatsApp conectado' : data.qrCode ? 'QR Code gerado' : 'Instância criada',
             description: data.message,
             variant: data.connected ? 'default' : 'destructive',
           });
         },
-        onError: () => toast({ title: 'Erro', description: 'Não foi possível selecionar a instância.', variant: 'destructive' }),
+        onError: () => toast({ title: 'Erro', description: 'Não foi possível gerar o QR Code.', variant: 'destructive' }),
       },
     );
   };
@@ -270,25 +262,11 @@ export function WhatsApp() {
             <div className="font-semibold text-text-primary text-lg">
               {isConnectionLoading ? 'Verificando...' : whatsappConnection?.connected ? 'WhatsApp conectado' : 'Não conectado'}
             </div>
-            <div className="text-xs text-text-muted truncate mb-3">{whatsappConnection?.message || 'Escolha uma instância disponível'}</div>
-            <div className="flex gap-2">
-              <select
-                value={selectedInstance}
-                onChange={(event) => setSelectedInstance(event.target.value)}
-                disabled={isInstancesLoading || updateWhatsappConnection.isPending}
-                className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background px-2 text-xs text-text-primary"
-              >
-                <option value="">{isInstancesLoading ? 'Carregando instâncias...' : 'Selecione uma instância'}</option>
-                {whatsappInstances.map((instance) => (
-                  <option key={instance.name} value={instance.name}>
-                    {instance.name}{instance.connected ? ' · conectada' : ` · ${instance.state}`}
-                  </option>
-                ))}
-              </select>
-              <Button size="sm" onClick={handleConnectInstance} disabled={!selectedInstance || updateWhatsappConnection.isPending}>
-                {updateWhatsappConnection.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Usar'}
-              </Button>
-            </div>
+            <div className="text-xs text-text-muted truncate mb-3">{whatsappConnection?.message || 'Gere um QR Code para conectar o WhatsApp'}</div>
+            <Button size="sm" onClick={handleConnectWhatsapp} disabled={connectWhatsapp.isPending} className="gap-2">
+              {connectWhatsapp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+              Gerar QR Code
+            </Button>
           </div>
         </Card>
       </div>
@@ -365,6 +343,23 @@ export function WhatsApp() {
           </div>
         </div>
       </Card>
+
+      <Dialog open={Boolean(qrCode)} onOpenChange={(open) => !open && setQrCode(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Conectar WhatsApp</DialogTitle>
+            <DialogDescription>
+              Abra o WhatsApp no celular, entre em <strong>Aparelhos conectados</strong> e escaneie este QR Code.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrCode && <img src={qrCode} alt="QR Code para conectar o WhatsApp" className="w-64 h-64 rounded-xl border border-border p-2" />}
+            <p className="text-xs text-center text-text-muted">
+              Depois de escanear, esta janela pode levar alguns segundos para atualizar o status da conexão.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex items-center gap-1 border-b border-border">
         <button 

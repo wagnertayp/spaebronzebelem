@@ -101,33 +101,17 @@ export const GetWhatsappConnectionResponse = zod.object({
 
 
 /**
- * @summary Seleciona a instância da Evolution API para o agente
+ * @summary Cria uma instância e gera o QR Code do WhatsApp
  */
-
-
-
-export const UpdateWhatsappConnectionBody = zod.object({
-  "instance": zod.string().min(1)
-})
-
-export const UpdateWhatsappConnectionResponse = zod.object({
-  "configured": zod.boolean(),
-  "connected": zod.boolean(),
+export const ConnectWhatsappResponse = zod.object({
+  "created": zod.boolean(),
   "instance": zod.string(),
+  "connected": zod.boolean(),
   "state": zod.string(),
-  "message": zod.string()
+  "message": zod.string(),
+  "qrCode": zod.string().nullable(),
+  "pairingCode": zod.string().nullable()
 })
-
-
-/**
- * @summary Lista as instâncias disponíveis na Evolution API
- */
-export const ListWhatsappInstancesResponseItem = zod.object({
-  "name": zod.string(),
-  "state": zod.string(),
-  "connected": zod.boolean()
-})
-export const ListWhatsappInstancesResponse = zod.array(ListWhatsappInstancesResponseItem)
 
 
 /**

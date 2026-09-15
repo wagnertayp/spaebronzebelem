@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 type EvolutionConfig = {
   baseUrl: string;
   instance: string | null;
@@ -28,6 +30,100 @@ export const getEvolutionConfig = (): EvolutionConfig | null => {
 export const setEvolutionInstance = (instance: string) => {
   selectedInstance = instance.trim() || null;
   return selectedInstance;
+};
+
+const qrCodeFromResponse = (body: Record<string, unknown>): string | null => {
+  const qr = body.qrcode as Record<string, unknown> | undefined;
+  const value = qr?.base64 ?? qr?.base64Image ?? body.base64;
+  if (typeof value !== "string" || !value) return null;
+  return value.startsWith("data:image") ? value : `data:image/png;base64,${value}`;
+};
+
+const pairingCodeFromResponse = (body: Record<string, unknown>): string | null => {
+  const qr = body.qrcode as Record<string, unknown> | undefined;
+  const value = qr?.pairingCode ?? body.pairingCode;
+  return typeof value === "string" && value ? value : null;
+};
+
+export const connectEvolutionInstance = async () => {
+  const config = getEvolutionConfig();
+  if (!config) {
+    return {
+      created: false,
+      instance: "",
+      connected: false,
+      state: "not_configured",
+      message: "Evolution API não configurada",
+      qrCode: null,
+      pairingCode: null,
+    };
+  }
+
+  const instance = config.instance ?? `spa-${randomUUID().slice(0, 8)}`;
+  try {
+    let response: Response;
+    if (config.instance) {
+      response = await fetch(
+        `${config.baseUrl}/instance/connect/${encodeURIComponent(instance)}`,
+        { headers: { apikey: config.apiKey } },
+      );
+    } else {
+      response = await fetch(`${config.baseUrl}/instance/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: config.apiKey,
+        },
+        body: JSON.stringify({
+          instanceName: instance,
+          integration: "WHATSAPP-BAILEYS",
+          qrcode: true,
+        }),
+      });
+    }
+    const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok) {
+      return {
+        created: false,
+        instance,
+        connected: false,
+        state: `http_${response.status}`,
+        message: `Evolution API ${response.status}: ${String(body.message ?? body.error ?? "não foi possível gerar o QR Code")}`,
+        qrCode: null,
+        pairingCode: null,
+      };
+    }
+
+    setEvolutionInstance(instance);
+    const qrCode = qrCodeFromResponse(body);
+    const pairingCode = pairingCodeFromResponse(body);
+    const status = String(
+      (body.instance as Record<string, unknown> | undefined)?.status ??
+      body.state ??
+      (qrCode ? "qr_pending" : "created"),
+    );
+    return {
+      created: !config.instance,
+      instance,
+      connected: ["open", "connected"].includes(status.toLowerCase()),
+      state: status,
+      message: qrCode
+        ? "QR Code gerado. Escaneie com o WhatsApp."
+        : "Instância criada. Aguarde a conexão do WhatsApp.",
+      qrCode,
+      pairingCode,
+    };
+  } catch (error) {
+    return {
+      created: false,
+      instance,
+      connected: false,
+      state: "unreachable",
+      message: error instanceof Error ? error.message : "Falha de conexão com a Evolution API",
+      qrCode: null,
+      pairingCode: null,
+    };
+  }
 };
 
 export const normalizeWhatsappPhone = (value: string): string => {
@@ -143,6 +239,8 @@ export const getEvolutionConnection = async () => {
       state,
       message: connected
         ? "WhatsApp conectado"
+        : response.ok && ["connecting", "qr_pending", "created"].includes(state.toLowerCase())
+          ? "Aguardando leitura do QR Code"
         : response.status === 401 || response.status === 403
           ? "A Evolution API recusou a chave ou a instância"
           : `Evolution API respondeu com HTTP ${response.status}`,
