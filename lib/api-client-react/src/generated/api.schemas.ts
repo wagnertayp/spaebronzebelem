@@ -409,6 +409,9 @@ export const FinancialMovementInputPaymentMethod = {
   debit: 'debit',
   cash: 'cash',
   boleto: 'boleto',
+  transfer: 'transfer',
+  card: 'card',
+  other: 'other',
 } as const;
 
 export interface FinancialMovementInput {
@@ -417,7 +420,7 @@ export interface FinancialMovementInput {
   /** @minLength 2 */
   description: string;
   category: string;
-  /** @minimum 0.01 */
+  /** @minimum 0 */
   amount: number;
   status: FinancialMovementInputStatus;
   client: string;
@@ -426,6 +429,9 @@ export interface FinancialMovementInput {
   quoteId?: number;
   paymentMethod?: FinancialMovementInputPaymentMethod;
   source?: string;
+  sourceId?: number;
+  paymentDate?: string;
+  paymentNote?: string;
 }
 
 export type FinancialMovement = FinancialMovementInput & {
@@ -449,6 +455,203 @@ export interface ProfessionalInput {
 export type Professional = ProfessionalInput & {
   id: number;
 };
+
+export type CommissionType = typeof CommissionType[keyof typeof CommissionType];
+
+
+export const CommissionType = {
+  percent: 'percent',
+  fixed: 'fixed',
+} as const;
+
+export type CalculationBase = typeof CalculationBase[keyof typeof CalculationBase];
+
+
+export const CalculationBase = {
+  gross: 'gross',
+  net: 'net',
+  paid: 'paid',
+} as const;
+
+export interface CommissionRuleInput {
+  serviceId: number;
+  /** @minLength 1 */
+  serviceName: string;
+  type: CommissionType;
+  /** @minimum 0 */
+  value: number;
+  active: boolean;
+}
+
+export type CommissionRule = CommissionRuleInput & {
+  id: number;
+  professionalId: number;
+};
+
+export interface CommissionConfigInput {
+  commissionType: CommissionType;
+  /** @minimum 0 */
+  defaultValue: number;
+  calculationBase: CalculationBase;
+  discountInCalculation: boolean;
+  cardFeeInCalculation: boolean;
+  cancellationsGenerate: boolean;
+  productsGenerate: boolean;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  productCommissionPercent: number;
+}
+
+export type CommissionConfig = CommissionConfigInput & {
+  professionalId: number;
+  updatedAt: string;
+};
+
+export type CommissionItemStatus = typeof CommissionItemStatus[keyof typeof CommissionItemStatus];
+
+
+export const CommissionItemStatus = {
+  eligible: 'eligible',
+  blocked: 'blocked',
+  closed: 'closed',
+  paid: 'paid',
+} as const;
+
+export type CommissionItemSnapshot = { [key: string]: unknown };
+
+export interface CommissionItem {
+  id: number;
+  appointmentId: number;
+  professionalId: number;
+  professionalName: string;
+  /** @nullable */
+  serviceId: number | null;
+  serviceName: string;
+  /** @nullable */
+  date: string | null;
+  status: CommissionItemStatus;
+  /** @nullable */
+  blockedReason: string | null;
+  /** @nullable */
+  baseAmount: number | null;
+  rateType: CommissionType;
+  /** @nullable */
+  rateValue: number | null;
+  /** @nullable */
+  commissionAmount: number | null;
+  calculationBase: CalculationBase;
+  snapshot: CommissionItemSnapshot;
+}
+
+export interface CommissionSummary {
+  from: string;
+  to: string;
+  /** @nullable */
+  professionalId: number | null;
+  totalAmount: number;
+  eligibleAmount: number;
+  blockedCount: number;
+  itemCount: number;
+  items: CommissionItem[];
+}
+
+export type CommissionClosureStatus = typeof CommissionClosureStatus[keyof typeof CommissionClosureStatus];
+
+
+export const CommissionClosureStatus = {
+  open: 'open',
+  closed: 'closed',
+  paid: 'paid',
+} as const;
+
+export interface CommissionClosureInput {
+  professionalId: number;
+  /** @minLength 10 */
+  from: string;
+  /** @minLength 10 */
+  to: string;
+  /** @minLength 10 */
+  dueDate: string;
+}
+
+export type CommissionPaymentInputPaymentMethod = typeof CommissionPaymentInputPaymentMethod[keyof typeof CommissionPaymentInputPaymentMethod];
+
+
+export const CommissionPaymentInputPaymentMethod = {
+  pix: 'pix',
+  cash: 'cash',
+  transfer: 'transfer',
+  card: 'card',
+  other: 'other',
+} as const;
+
+export interface CommissionPaymentInput {
+  /** @minLength 10 */
+  paymentDate: string;
+  paymentMethod: CommissionPaymentInputPaymentMethod;
+  note: string;
+}
+
+export interface CommissionClosure {
+  id: number;
+  professionalId: number;
+  professionalName: string;
+  from: string;
+  to: string;
+  dueDate: string;
+  status: CommissionClosureStatus;
+  totalAmount: number;
+  itemIds: number[];
+  itemSnapshots: CommissionItem[];
+  /** @nullable */
+  financialMovementId: number | null;
+  /** @nullable */
+  closedAt: string | null;
+  /** @nullable */
+  paidAt: string | null;
+  /** @nullable */
+  paymentDate: string | null;
+  /** @nullable */
+  paymentMethod: string | null;
+  /** @nullable */
+  paymentNote: string | null;
+}
+
+export type CommissionAuditAction = typeof CommissionAuditAction[keyof typeof CommissionAuditAction];
+
+
+export const CommissionAuditAction = {
+  config: 'config',
+  close: 'close',
+  reopen: 'reopen',
+  pay: 'pay',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CommissionAuditBefore = { [key: string]: unknown } | null;
+
+/**
+ * @nullable
+ */
+export type CommissionAuditAfter = { [key: string]: unknown } | null;
+
+export interface CommissionAudit {
+  id: number;
+  action: CommissionAuditAction;
+  professionalId: number;
+  /** @nullable */
+  closureId: number | null;
+  username: string;
+  timestamp: string;
+  /** @nullable */
+  before: CommissionAuditBefore;
+  /** @nullable */
+  after: CommissionAuditAfter;
+}
 
 export type InventoryItemStatus = typeof InventoryItemStatus[keyof typeof InventoryItemStatus];
 
@@ -502,6 +705,44 @@ to?: string;
 
 export type ListFinancialMovementsParams = {
 month?: string;
+};
+
+export type GetCommissionsSummaryParams = {
+/**
+ * @minLength 10
+ */
+from: string;
+/**
+ * @minLength 10
+ */
+to: string;
+professionalId?: number;
+status?: CommissionItemStatus;
+};
+
+export type ListCommissionItemsParams = {
+/**
+ * @minLength 10
+ */
+from: string;
+/**
+ * @minLength 10
+ */
+to: string;
+professionalId?: number;
+status?: CommissionItemStatus;
+};
+
+export type ListCommissionClosuresParams = {
+professionalId?: number;
+from?: string;
+to?: string;
+status?: CommissionClosureStatus;
+};
+
+export type ListCommissionAuditParams = {
+professionalId?: number;
+closureId?: number;
 };
 
 export type ListInventoryParams = {

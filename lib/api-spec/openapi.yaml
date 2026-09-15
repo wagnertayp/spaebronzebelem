@@ -560,6 +560,203 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         "204": { description: Deleted professional }
+  /professionals/{id}/commission-config:
+    get:
+      operationId: getProfessionalCommissionConfig
+      tags: [professionals]
+      summary: Retorna a configuração de comissões do profissional
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Commission configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommissionConfig" }
+    put:
+      operationId: updateProfessionalCommissionConfig
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommissionConfigInput" }
+      responses:
+        "200":
+          description: Updated commission configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommissionConfig" }
+  /professionals/{id}/commission-rules:
+    get:
+      operationId: listCommissionRules
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Service commission rules
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CommissionRule" } }
+    post:
+      operationId: createCommissionRule
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommissionRuleInput" }
+      responses:
+        "201":
+          description: Created commission rule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommissionRule" }
+  /professionals/{id}/commission-rules/{ruleId}:
+    patch:
+      operationId: updateCommissionRule
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: ruleId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommissionRuleInput" }
+      responses:
+        "200":
+          description: Updated commission rule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommissionRule" }
+    delete:
+      operationId: deleteCommissionRule
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: ruleId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted commission rule }
+  /commissions/summary:
+    get:
+      operationId: getCommissionsSummary
+      tags: [professionals]
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, minLength: 10 } }
+        - { name: to, in: query, required: true, schema: { type: string, minLength: 10 } }
+        - { name: professionalId, in: query, required: false, schema: { type: integer } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/CommissionItemStatus" } }
+      responses:
+        "200":
+          description: Commission summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommissionSummary" }
+  /commissions/items:
+    get:
+      operationId: listCommissionItems
+      tags: [professionals]
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, minLength: 10 } }
+        - { name: to, in: query, required: true, schema: { type: string, minLength: 10 } }
+        - { name: professionalId, in: query, required: false, schema: { type: integer } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/CommissionItemStatus" } }
+      responses:
+        "200":
+          description: Commission items
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CommissionItem" } }
+  /commissions/items/{id}:
+    get:
+      operationId: getCommissionItem
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Commission item details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommissionItem" }
+  /commissions/closures:
+    get:
+      operationId: listCommissionClosures
+      tags: [professionals]
+      parameters:
+        - { name: professionalId, in: query, required: false, schema: { type: integer } }
+        - { name: from, in: query, required: false, schema: { type: string } }
+        - { name: to, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/CommissionClosureStatus" } }
+      responses:
+        "200":
+          description: Commission closures
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CommissionClosure" } }
+  /commissions/closures/close:
+    post:
+      operationId: closeCommissionPeriod
+      tags: [professionals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommissionClosureInput" }
+      responses:
+        "200":
+          description: Closed commission period
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommissionClosure" }
+  /commissions/closures/{id}/reopen:
+    post:
+      operationId: reopenCommissionPeriod
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Reopened commission period
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommissionClosure" }
+  /commissions/closures/{id}/pay:
+    post:
+      operationId: payCommissionPeriod
+      tags: [professionals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommissionPaymentInput" }
+      responses:
+        "200":
+          description: Paid commission period
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommissionClosure" }
+  /commissions/audit:
+    get:
+      operationId: listCommissionAudit
+      tags: [professionals]
+      parameters:
+        - { name: professionalId, in: query, required: false, schema: { type: integer } }
+        - { name: closureId, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Commission audit history
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CommissionAudit" } }
   /inventory:
     get:
       operationId: listInventory
@@ -907,14 +1104,17 @@ components:
         date: { type: string }
         description: { type: string, minLength: 2 }
         category: { type: string }
-        amount: { type: number, minimum: 0.01 }
+        amount: { type: number, minimum: 0 }
         status: { type: string, enum: [paid, pending] }
         client: { type: string }
         service: { type: string }
         professional: { type: string }
         quoteId: { type: integer }
-        paymentMethod: { type: string, enum: [pix, credit, debit, cash, boleto] }
+        paymentMethod: { type: string, enum: [pix, credit, debit, cash, boleto, transfer, card, other] }
         source: { type: string }
+        sourceId: { type: integer }
+        paymentDate: { type: string }
+        paymentNote: { type: string }
       required: [type, date, description, category, amount, status, client, service, professional]
     FinancialMovement:
       allOf:
@@ -940,6 +1140,133 @@ components:
           properties:
             id: { type: integer }
           required: [id]
+    CommissionType:
+      type: string
+      enum: [percent, fixed]
+    CalculationBase:
+      type: string
+      enum: [gross, net, paid]
+    CommissionRuleInput:
+      type: object
+      properties:
+        serviceId: { type: integer }
+        serviceName: { type: string, minLength: 1 }
+        type: { $ref: "#/components/schemas/CommissionType" }
+        value: { type: number, minimum: 0 }
+        active: { type: boolean }
+      required: [serviceId, serviceName, type, value, active]
+    CommissionRule:
+      allOf:
+        - $ref: "#/components/schemas/CommissionRuleInput"
+        - type: object
+          properties:
+            id: { type: integer }
+            professionalId: { type: integer }
+          required: [id, professionalId]
+    CommissionConfigInput:
+      type: object
+      properties:
+        commissionType: { $ref: "#/components/schemas/CommissionType" }
+        defaultValue: { type: number, minimum: 0 }
+        calculationBase: { $ref: "#/components/schemas/CalculationBase" }
+        discountInCalculation: { type: boolean }
+        cardFeeInCalculation: { type: boolean }
+        cancellationsGenerate: { type: boolean }
+        productsGenerate: { type: boolean }
+        productCommissionPercent: { type: number, minimum: 0, maximum: 100 }
+      required: [commissionType, defaultValue, calculationBase, discountInCalculation, cardFeeInCalculation, cancellationsGenerate, productsGenerate, productCommissionPercent]
+    CommissionConfig:
+      allOf:
+        - $ref: "#/components/schemas/CommissionConfigInput"
+        - type: object
+          properties:
+            professionalId: { type: integer }
+            updatedAt: { type: string }
+          required: [professionalId, updatedAt]
+    CommissionItemStatus:
+      type: string
+      enum: [eligible, blocked, closed, paid]
+    CommissionItem:
+      type: object
+      properties:
+        id: { type: integer }
+        appointmentId: { type: integer }
+        professionalId: { type: integer }
+        professionalName: { type: string }
+        serviceId: { type: ["integer", "null"] }
+        serviceName: { type: string }
+        date: { type: ["string", "null"] }
+        status: { $ref: "#/components/schemas/CommissionItemStatus" }
+        blockedReason: { type: ["string", "null"] }
+        baseAmount: { type: ["number", "null"] }
+        rateType: { $ref: "#/components/schemas/CommissionType" }
+        rateValue: { type: ["number", "null"] }
+        commissionAmount: { type: ["number", "null"] }
+        calculationBase: { $ref: "#/components/schemas/CalculationBase" }
+        snapshot: { type: object, additionalProperties: true }
+      required: [id, appointmentId, professionalId, professionalName, serviceId, serviceName, date, status, blockedReason, baseAmount, rateType, rateValue, commissionAmount, calculationBase, snapshot]
+    CommissionSummary:
+      type: object
+      properties:
+        from: { type: string }
+        to: { type: string }
+        professionalId: { type: ["integer", "null"] }
+        totalAmount: { type: number }
+        eligibleAmount: { type: number }
+        blockedCount: { type: integer }
+        itemCount: { type: integer }
+        items: { type: array, items: { $ref: "#/components/schemas/CommissionItem" } }
+      required: [from, to, professionalId, totalAmount, eligibleAmount, blockedCount, itemCount, items]
+    CommissionClosureStatus:
+      type: string
+      enum: [open, closed, paid]
+    CommissionClosureInput:
+      type: object
+      properties:
+        professionalId: { type: integer }
+        from: { type: string, minLength: 10 }
+        to: { type: string, minLength: 10 }
+        dueDate: { type: string, minLength: 10 }
+      required: [professionalId, from, to, dueDate]
+    CommissionPaymentInput:
+      type: object
+      properties:
+        paymentDate: { type: string, minLength: 10 }
+        paymentMethod: { type: string, enum: [pix, cash, transfer, card, other] }
+        note: { type: string }
+      required: [paymentDate, paymentMethod, note]
+    CommissionClosure:
+      type: object
+      properties:
+        id: { type: integer }
+        professionalId: { type: integer }
+        professionalName: { type: string }
+        from: { type: string }
+        to: { type: string }
+        dueDate: { type: string }
+        status: { $ref: "#/components/schemas/CommissionClosureStatus" }
+        totalAmount: { type: number }
+        itemIds: { type: array, items: { type: integer } }
+        itemSnapshots: { type: array, items: { $ref: "#/components/schemas/CommissionItem" } }
+        financialMovementId: { type: ["integer", "null"] }
+        closedAt: { type: ["string", "null"] }
+        paidAt: { type: ["string", "null"] }
+        paymentDate: { type: ["string", "null"] }
+        paymentMethod: { type: ["string", "null"] }
+        paymentNote: { type: ["string", "null"] }
+      required: [id, professionalId, professionalName, from, to, dueDate, status, totalAmount, itemIds, itemSnapshots, financialMovementId, closedAt, paidAt, paymentDate, paymentMethod, paymentNote]
+    CommissionAudit:
+      type: object
+      properties:
+        id: { type: integer }
+        action: { type: string, enum: [config, close, reopen, pay] }
+        professionalId: { type: integer }
+        closureId: { type: ["integer", "null"] }
+        username: { type: string }
+        timestamp: { type: string }
+        before: { type: ["object", "null"], additionalProperties: true }
+        after: { type: ["object", "null"], additionalProperties: true }
+      required: [id, action, professionalId, closureId, username, timestamp, before, after]
     InventoryItem:
       type: object
       properties:

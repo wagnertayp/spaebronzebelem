@@ -28,10 +28,21 @@ import type {
   AppointmentUpdate,
   Client,
   ClientInput,
+  CommissionAudit,
+  CommissionClosure,
+  CommissionClosureInput,
+  CommissionConfig,
+  CommissionConfigInput,
+  CommissionItem,
+  CommissionPaymentInput,
+  CommissionRule,
+  CommissionRuleInput,
+  CommissionSummary,
   Dashboard,
   FinanceSummary,
   FinancialMovement,
   FinancialMovementInput,
+  GetCommissionsSummaryParams,
   HealthStatus,
   InventoryItem,
   InventoryItemInput,
@@ -40,6 +51,9 @@ import type {
   LeadUpdate,
   ListAppointmentsParams,
   ListClientsParams,
+  ListCommissionAuditParams,
+  ListCommissionClosuresParams,
+  ListCommissionItemsParams,
   ListFinancialMovementsParams,
   ListInventoryParams,
   ListQuotesParams,
@@ -2982,6 +2996,1000 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteProfessionalMutationOptions(options));
     }
+
+export const getGetProfessionalCommissionConfigUrl = (id: number,) => {
+
+
+
+
+  return `/api/professionals/${id}/commission-config`
+}
+
+/**
+ * @summary Retorna a configuração de comissões do profissional
+ */
+export const getProfessionalCommissionConfig = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CommissionConfig> => {
+
+  return customFetch<CommissionConfig>(getGetProfessionalCommissionConfigUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProfessionalCommissionConfigQueryKey = (id: number,) => {
+    return [
+    `/api/professionals/${id}/commission-config`
+    ] as const;
+    }
+
+
+export const getGetProfessionalCommissionConfigQueryOptions = <TData = Awaited<ReturnType<typeof getProfessionalCommissionConfig>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProfessionalCommissionConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProfessionalCommissionConfigQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProfessionalCommissionConfig>>> = ({ signal }) => getProfessionalCommissionConfig(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProfessionalCommissionConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProfessionalCommissionConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getProfessionalCommissionConfig>>>
+export type GetProfessionalCommissionConfigQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Retorna a configuração de comissões do profissional
+ */
+
+export function useGetProfessionalCommissionConfig<TData = Awaited<ReturnType<typeof getProfessionalCommissionConfig>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProfessionalCommissionConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProfessionalCommissionConfigQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateProfessionalCommissionConfigUrl = (id: number,) => {
+
+
+
+
+  return `/api/professionals/${id}/commission-config`
+}
+
+export const updateProfessionalCommissionConfig = async (id: number,
+    commissionConfigInput: CommissionConfigInput, options?: Parameters<typeof customFetch>[1]): Promise<CommissionConfig> => {
+
+  return customFetch<CommissionConfig>(getUpdateProfessionalCommissionConfigUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commissionConfigInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateProfessionalCommissionConfigMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProfessionalCommissionConfig>>, TError,{id: number;data: BodyType<CommissionConfigInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateProfessionalCommissionConfig>>, TError,{id: number;data: BodyType<CommissionConfigInput>}, TContext> => {
+
+const mutationKey = ['updateProfessionalCommissionConfig'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateProfessionalCommissionConfig>>, {id: number;data: BodyType<CommissionConfigInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateProfessionalCommissionConfig(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateProfessionalCommissionConfigMutationResult = NonNullable<Awaited<ReturnType<typeof updateProfessionalCommissionConfig>>>
+    export type UpdateProfessionalCommissionConfigMutationBody = BodyType<CommissionConfigInput>
+    export type UpdateProfessionalCommissionConfigMutationError = ErrorType<unknown>
+
+    export const useUpdateProfessionalCommissionConfig = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProfessionalCommissionConfig>>, TError,{id: number;data: BodyType<CommissionConfigInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateProfessionalCommissionConfig>>,
+        TError,
+        {id: number;data: BodyType<CommissionConfigInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateProfessionalCommissionConfigMutationOptions(options));
+    }
+
+export const getListCommissionRulesUrl = (id: number,) => {
+
+
+
+
+  return `/api/professionals/${id}/commission-rules`
+}
+
+export const listCommissionRules = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CommissionRule[]> => {
+
+  return customFetch<CommissionRule[]>(getListCommissionRulesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCommissionRulesQueryKey = (id: number,) => {
+    return [
+    `/api/professionals/${id}/commission-rules`
+    ] as const;
+    }
+
+
+export const getListCommissionRulesQueryOptions = <TData = Awaited<ReturnType<typeof listCommissionRules>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommissionRules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCommissionRulesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommissionRules>>> = ({ signal }) => listCommissionRules(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCommissionRules>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCommissionRulesQueryResult = NonNullable<Awaited<ReturnType<typeof listCommissionRules>>>
+export type ListCommissionRulesQueryError = ErrorType<unknown>
+
+
+
+export function useListCommissionRules<TData = Awaited<ReturnType<typeof listCommissionRules>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommissionRules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCommissionRulesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCommissionRuleUrl = (id: number,) => {
+
+
+
+
+  return `/api/professionals/${id}/commission-rules`
+}
+
+export const createCommissionRule = async (id: number,
+    commissionRuleInput: CommissionRuleInput, options?: Parameters<typeof customFetch>[1]): Promise<CommissionRule> => {
+
+  return customFetch<CommissionRule>(getCreateCommissionRuleUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commissionRuleInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCommissionRuleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommissionRule>>, TError,{id: number;data: BodyType<CommissionRuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCommissionRule>>, TError,{id: number;data: BodyType<CommissionRuleInput>}, TContext> => {
+
+const mutationKey = ['createCommissionRule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCommissionRule>>, {id: number;data: BodyType<CommissionRuleInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createCommissionRule(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCommissionRuleMutationResult = NonNullable<Awaited<ReturnType<typeof createCommissionRule>>>
+    export type CreateCommissionRuleMutationBody = BodyType<CommissionRuleInput>
+    export type CreateCommissionRuleMutationError = ErrorType<unknown>
+
+    export const useCreateCommissionRule = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommissionRule>>, TError,{id: number;data: BodyType<CommissionRuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCommissionRule>>,
+        TError,
+        {id: number;data: BodyType<CommissionRuleInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCommissionRuleMutationOptions(options));
+    }
+
+export const getUpdateCommissionRuleUrl = (id: number,
+    ruleId: number,) => {
+
+
+
+
+  return `/api/professionals/${id}/commission-rules/${ruleId}`
+}
+
+export const updateCommissionRule = async (id: number,
+    ruleId: number,
+    commissionRuleInput: CommissionRuleInput, options?: Parameters<typeof customFetch>[1]): Promise<CommissionRule> => {
+
+  return customFetch<CommissionRule>(getUpdateCommissionRuleUrl(id,ruleId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commissionRuleInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCommissionRuleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommissionRule>>, TError,{id: number;ruleId: number;data: BodyType<CommissionRuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCommissionRule>>, TError,{id: number;ruleId: number;data: BodyType<CommissionRuleInput>}, TContext> => {
+
+const mutationKey = ['updateCommissionRule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCommissionRule>>, {id: number;ruleId: number;data: BodyType<CommissionRuleInput>}> = (props) => {
+          const {id,ruleId,data} = props ?? {};
+
+          return  updateCommissionRule(id,ruleId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCommissionRuleMutationResult = NonNullable<Awaited<ReturnType<typeof updateCommissionRule>>>
+    export type UpdateCommissionRuleMutationBody = BodyType<CommissionRuleInput>
+    export type UpdateCommissionRuleMutationError = ErrorType<unknown>
+
+    export const useUpdateCommissionRule = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommissionRule>>, TError,{id: number;ruleId: number;data: BodyType<CommissionRuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCommissionRule>>,
+        TError,
+        {id: number;ruleId: number;data: BodyType<CommissionRuleInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCommissionRuleMutationOptions(options));
+    }
+
+export const getDeleteCommissionRuleUrl = (id: number,
+    ruleId: number,) => {
+
+
+
+
+  return `/api/professionals/${id}/commission-rules/${ruleId}`
+}
+
+export const deleteCommissionRule = async (id: number,
+    ruleId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteCommissionRuleUrl(id,ruleId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCommissionRuleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCommissionRule>>, TError,{id: number;ruleId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCommissionRule>>, TError,{id: number;ruleId: number}, TContext> => {
+
+const mutationKey = ['deleteCommissionRule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCommissionRule>>, {id: number;ruleId: number}> = (props) => {
+          const {id,ruleId} = props ?? {};
+
+          return  deleteCommissionRule(id,ruleId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCommissionRuleMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCommissionRule>>>
+
+    export type DeleteCommissionRuleMutationError = ErrorType<unknown>
+
+    export const useDeleteCommissionRule = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCommissionRule>>, TError,{id: number;ruleId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCommissionRule>>,
+        TError,
+        {id: number;ruleId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteCommissionRuleMutationOptions(options));
+    }
+
+export const getGetCommissionsSummaryUrl = (params: GetCommissionsSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/commissions/summary?${stringifiedParams}` : `/api/commissions/summary`
+}
+
+export const getCommissionsSummary = async (params: GetCommissionsSummaryParams, options?: Parameters<typeof customFetch>[1]): Promise<CommissionSummary> => {
+
+  return customFetch<CommissionSummary>(getGetCommissionsSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommissionsSummaryQueryKey = (params?: GetCommissionsSummaryParams,) => {
+    return [
+    `/api/commissions/summary`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCommissionsSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getCommissionsSummary>>, TError = ErrorType<unknown>>(params: GetCommissionsSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionsSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommissionsSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommissionsSummary>>> = ({ signal }) => getCommissionsSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommissionsSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommissionsSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getCommissionsSummary>>>
+export type GetCommissionsSummaryQueryError = ErrorType<unknown>
+
+
+
+export function useGetCommissionsSummary<TData = Awaited<ReturnType<typeof getCommissionsSummary>>, TError = ErrorType<unknown>>(
+ params: GetCommissionsSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionsSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommissionsSummaryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCommissionItemsUrl = (params: ListCommissionItemsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/commissions/items?${stringifiedParams}` : `/api/commissions/items`
+}
+
+export const listCommissionItems = async (params: ListCommissionItemsParams, options?: Parameters<typeof customFetch>[1]): Promise<CommissionItem[]> => {
+
+  return customFetch<CommissionItem[]>(getListCommissionItemsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCommissionItemsQueryKey = (params?: ListCommissionItemsParams,) => {
+    return [
+    `/api/commissions/items`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCommissionItemsQueryOptions = <TData = Awaited<ReturnType<typeof listCommissionItems>>, TError = ErrorType<unknown>>(params: ListCommissionItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommissionItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCommissionItemsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommissionItems>>> = ({ signal }) => listCommissionItems(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCommissionItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCommissionItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listCommissionItems>>>
+export type ListCommissionItemsQueryError = ErrorType<unknown>
+
+
+
+export function useListCommissionItems<TData = Awaited<ReturnType<typeof listCommissionItems>>, TError = ErrorType<unknown>>(
+ params: ListCommissionItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommissionItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCommissionItemsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCommissionItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/commissions/items/${id}`
+}
+
+export const getCommissionItem = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CommissionItem> => {
+
+  return customFetch<CommissionItem>(getGetCommissionItemUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommissionItemQueryKey = (id: number,) => {
+    return [
+    `/api/commissions/items/${id}`
+    ] as const;
+    }
+
+
+export const getGetCommissionItemQueryOptions = <TData = Awaited<ReturnType<typeof getCommissionItem>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionItem>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommissionItemQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommissionItem>>> = ({ signal }) => getCommissionItem(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommissionItem>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommissionItemQueryResult = NonNullable<Awaited<ReturnType<typeof getCommissionItem>>>
+export type GetCommissionItemQueryError = ErrorType<unknown>
+
+
+
+export function useGetCommissionItem<TData = Awaited<ReturnType<typeof getCommissionItem>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionItem>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommissionItemQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCommissionClosuresUrl = (params?: ListCommissionClosuresParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/commissions/closures?${stringifiedParams}` : `/api/commissions/closures`
+}
+
+export const listCommissionClosures = async (params?: ListCommissionClosuresParams, options?: Parameters<typeof customFetch>[1]): Promise<CommissionClosure[]> => {
+
+  return customFetch<CommissionClosure[]>(getListCommissionClosuresUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCommissionClosuresQueryKey = (params?: ListCommissionClosuresParams,) => {
+    return [
+    `/api/commissions/closures`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCommissionClosuresQueryOptions = <TData = Awaited<ReturnType<typeof listCommissionClosures>>, TError = ErrorType<unknown>>(params?: ListCommissionClosuresParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommissionClosures>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCommissionClosuresQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommissionClosures>>> = ({ signal }) => listCommissionClosures(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCommissionClosures>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCommissionClosuresQueryResult = NonNullable<Awaited<ReturnType<typeof listCommissionClosures>>>
+export type ListCommissionClosuresQueryError = ErrorType<unknown>
+
+
+
+export function useListCommissionClosures<TData = Awaited<ReturnType<typeof listCommissionClosures>>, TError = ErrorType<unknown>>(
+ params?: ListCommissionClosuresParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommissionClosures>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCommissionClosuresQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCloseCommissionPeriodUrl = () => {
+
+
+
+
+  return `/api/commissions/closures/close`
+}
+
+export const closeCommissionPeriod = async (commissionClosureInput: CommissionClosureInput, options?: Parameters<typeof customFetch>[1]): Promise<CommissionClosure> => {
+
+  return customFetch<CommissionClosure>(getCloseCommissionPeriodUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commissionClosureInput)
+  }
+);}
+
+
+
+
+
+export const getCloseCommissionPeriodMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeCommissionPeriod>>, TError,{data: BodyType<CommissionClosureInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeCommissionPeriod>>, TError,{data: BodyType<CommissionClosureInput>}, TContext> => {
+
+const mutationKey = ['closeCommissionPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeCommissionPeriod>>, {data: BodyType<CommissionClosureInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  closeCommissionPeriod(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseCommissionPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof closeCommissionPeriod>>>
+    export type CloseCommissionPeriodMutationBody = BodyType<CommissionClosureInput>
+    export type CloseCommissionPeriodMutationError = ErrorType<unknown>
+
+    export const useCloseCommissionPeriod = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeCommissionPeriod>>, TError,{data: BodyType<CommissionClosureInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof closeCommissionPeriod>>,
+        TError,
+        {data: BodyType<CommissionClosureInput>},
+        TContext
+      > => {
+      return useMutation(getCloseCommissionPeriodMutationOptions(options));
+    }
+
+export const getReopenCommissionPeriodUrl = (id: number,) => {
+
+
+
+
+  return `/api/commissions/closures/${id}/reopen`
+}
+
+export const reopenCommissionPeriod = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CommissionClosure> => {
+
+  return customFetch<CommissionClosure>(getReopenCommissionPeriodUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReopenCommissionPeriodMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenCommissionPeriod>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenCommissionPeriod>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['reopenCommissionPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenCommissionPeriod>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  reopenCommissionPeriod(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenCommissionPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof reopenCommissionPeriod>>>
+
+    export type ReopenCommissionPeriodMutationError = ErrorType<unknown>
+
+    export const useReopenCommissionPeriod = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenCommissionPeriod>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reopenCommissionPeriod>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getReopenCommissionPeriodMutationOptions(options));
+    }
+
+export const getPayCommissionPeriodUrl = (id: number,) => {
+
+
+
+
+  return `/api/commissions/closures/${id}/pay`
+}
+
+export const payCommissionPeriod = async (id: number,
+    commissionPaymentInput: CommissionPaymentInput, options?: Parameters<typeof customFetch>[1]): Promise<CommissionClosure> => {
+
+  return customFetch<CommissionClosure>(getPayCommissionPeriodUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commissionPaymentInput)
+  }
+);}
+
+
+
+
+
+export const getPayCommissionPeriodMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payCommissionPeriod>>, TError,{id: number;data: BodyType<CommissionPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof payCommissionPeriod>>, TError,{id: number;data: BodyType<CommissionPaymentInput>}, TContext> => {
+
+const mutationKey = ['payCommissionPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof payCommissionPeriod>>, {id: number;data: BodyType<CommissionPaymentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  payCommissionPeriod(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PayCommissionPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof payCommissionPeriod>>>
+    export type PayCommissionPeriodMutationBody = BodyType<CommissionPaymentInput>
+    export type PayCommissionPeriodMutationError = ErrorType<unknown>
+
+    export const usePayCommissionPeriod = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payCommissionPeriod>>, TError,{id: number;data: BodyType<CommissionPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof payCommissionPeriod>>,
+        TError,
+        {id: number;data: BodyType<CommissionPaymentInput>},
+        TContext
+      > => {
+      return useMutation(getPayCommissionPeriodMutationOptions(options));
+    }
+
+export const getListCommissionAuditUrl = (params?: ListCommissionAuditParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/commissions/audit?${stringifiedParams}` : `/api/commissions/audit`
+}
+
+export const listCommissionAudit = async (params?: ListCommissionAuditParams, options?: Parameters<typeof customFetch>[1]): Promise<CommissionAudit[]> => {
+
+  return customFetch<CommissionAudit[]>(getListCommissionAuditUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCommissionAuditQueryKey = (params?: ListCommissionAuditParams,) => {
+    return [
+    `/api/commissions/audit`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCommissionAuditQueryOptions = <TData = Awaited<ReturnType<typeof listCommissionAudit>>, TError = ErrorType<unknown>>(params?: ListCommissionAuditParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommissionAudit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCommissionAuditQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommissionAudit>>> = ({ signal }) => listCommissionAudit(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCommissionAudit>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCommissionAuditQueryResult = NonNullable<Awaited<ReturnType<typeof listCommissionAudit>>>
+export type ListCommissionAuditQueryError = ErrorType<unknown>
+
+
+
+export function useListCommissionAudit<TData = Awaited<ReturnType<typeof listCommissionAudit>>, TError = ErrorType<unknown>>(
+ params?: ListCommissionAuditParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommissionAudit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCommissionAuditQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListInventoryUrl = (params?: ListInventoryParams,) => {
   const normalizedParams = new URLSearchParams();

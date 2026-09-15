@@ -15,4 +15,7 @@ export const FinancialMovementInputPaymentMethod = {
   debit: 'debit',
   cash: 'cash',
   boleto: 'boleto',
+  transfer: 'transfer',
+  card: 'card',
+  other: 'other',
 } as const;

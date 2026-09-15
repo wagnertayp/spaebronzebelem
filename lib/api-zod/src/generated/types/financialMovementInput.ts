@@ -15,7 +15,7 @@ export interface FinancialMovementInput {
   /** @minLength 2 */
   description: string;
   category: string;
-  /** @minimum 0.01 */
+  /** @minimum 0 */
   amount: number;
   status: FinancialMovementInputStatus;
   client: string;
@@ -24,4 +24,7 @@ export interface FinancialMovementInput {
   quoteId?: number;
   paymentMethod?: FinancialMovementInputPaymentMethod;
   source?: string;
+  sourceId?: number;
+  paymentDate?: string;
+  paymentNote?: string;
 }

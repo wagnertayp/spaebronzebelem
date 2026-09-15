@@ -77,6 +77,37 @@ import {
   UpdateAiAgentConfigResponse,
   TestAiAgentBody,
   TestAiAgentResponse,
+  GetProfessionalCommissionConfigParams,
+  GetProfessionalCommissionConfigResponse,
+  UpdateProfessionalCommissionConfigParams,
+  UpdateProfessionalCommissionConfigBody,
+  UpdateProfessionalCommissionConfigResponse,
+  ListCommissionRulesParams,
+  ListCommissionRulesResponse,
+  CreateCommissionRuleParams,
+  CreateCommissionRuleBody,
+  CreateCommissionRuleResponse,
+  UpdateCommissionRuleParams,
+  UpdateCommissionRuleBody,
+  UpdateCommissionRuleResponse,
+  DeleteCommissionRuleParams,
+  GetCommissionsSummaryQueryParams,
+  GetCommissionsSummaryResponse,
+  ListCommissionItemsQueryParams,
+  ListCommissionItemsResponse,
+  GetCommissionItemParams,
+  GetCommissionItemResponse,
+  ListCommissionClosuresQueryParams,
+  ListCommissionClosuresResponse,
+  CloseCommissionPeriodBody,
+  CloseCommissionPeriodResponse,
+  ReopenCommissionPeriodParams,
+  ReopenCommissionPeriodResponse,
+  PayCommissionPeriodParams,
+  PayCommissionPeriodBody,
+  PayCommissionPeriodResponse,
+  ListCommissionAuditQueryParams,
+  ListCommissionAuditResponse,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import backup from "../data/spa-backup.json";
@@ -196,6 +227,94 @@ const professionals: Professional[] = [
   { id: 3, name: "Rosana", specialty: "Estética facial", phone: "", email: "", commissionRate: 20, active: true },
   { id: 4, name: "Wallace", specialty: "Massoterapia", phone: "", email: "", commissionRate: 15, active: true },
 ];
+
+type CommissionConfig = {
+  professionalId: number;
+  commissionType: "percent" | "fixed";
+  defaultValue: number;
+  calculationBase: "gross" | "net" | "paid";
+  discountInCalculation: boolean;
+  cardFeeInCalculation: boolean;
+  cancellationsGenerate: boolean;
+  productsGenerate: boolean;
+  productCommissionPercent: number;
+  updatedAt: string;
+};
+type CommissionRule = {
+  id: number;
+  professionalId: number;
+  serviceId: number;
+  serviceName: string;
+  type: "percent" | "fixed";
+  value: number;
+  active: boolean;
+};
+type CommissionItem = {
+  id: number;
+  appointmentId: number;
+  professionalId: number | null;
+  professionalName: string;
+  serviceId: number | null;
+  serviceName: string;
+  date: string | null;
+  status: "eligible" | "blocked" | "closed" | "paid";
+  blockedReason: string | null;
+  baseAmount: number | null;
+  rateType: "percent" | "fixed";
+  rateValue: number | null;
+  commissionAmount: number | null;
+  calculationBase: "gross" | "net" | "paid";
+  snapshot: Record<string, unknown>;
+};
+type CommissionClosure = {
+  id: number;
+  professionalId: number;
+  professionalName: string;
+  from: string;
+  to: string;
+  dueDate: string;
+  status: "open" | "closed" | "paid";
+  totalAmount: number;
+  itemIds: number[];
+  itemSnapshots: CommissionItem[];
+  financialMovementId: number | null;
+  closedAt: string | null;
+  paidAt: string | null;
+  paymentDate: string | null;
+  paymentMethod: string | null;
+  paymentNote: string | null;
+};
+type CommissionAudit = {
+  id: number;
+  action: "config" | "close" | "reopen" | "pay";
+  professionalId: number;
+  closureId: number | null;
+  username: string;
+  timestamp: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+};
+
+const commissionConfigs = new Map<number, CommissionConfig>(
+  professionals.map((professional) => [
+    professional.id,
+    {
+      professionalId: professional.id,
+      commissionType: "percent",
+      defaultValue: professional.commissionRate,
+      calculationBase: "gross",
+      discountInCalculation: false,
+      cardFeeInCalculation: false,
+      cancellationsGenerate: false,
+      productsGenerate: false,
+      productCommissionPercent: 0,
+      updatedAt: new Date().toISOString(),
+    },
+  ]),
+);
+const commissionRules: CommissionRule[] = [];
+const commissionClosures: CommissionClosure[] = [];
+const commissionAudit: CommissionAudit[] = [];
 
 const financialMovements: FinancialMovement[] = [
   { id: 1, type: "revenue", date: "2026-09-02", description: "Massagens", category: "Serviços", amount: 16400, status: "paid", client: "", service: "Massagem", professional: "Ana" },
@@ -411,6 +530,138 @@ const inventory = backup.inventory.map((item) => ({ ...item }));
 
 const getInitials = (name: string) =>
   name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
+
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const parseMoney = (value: string | number | undefined): number | null => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const appointmentDate = (start: string): string | null => {
+  if (/^\d{4}-\d{2}-\d{2}(?:$|T|\s)/.test(start)) {
+    const date = start.slice(0, 10);
+    const parsed = new Date(`${date}T00:00:00Z`);
+    return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date ? null : date;
+  }
+  return null;
+};
+const professionalForAppointment = (appointment: Appointment) => {
+  const record = appointment as Appointment & { professionalId?: number };
+  return record.professionalId
+    ? professionals.find((professional) => professional.id === record.professionalId)
+    : professionals.find((professional) => professional.name.toLocaleLowerCase("pt-BR") === appointment.professional.toLocaleLowerCase("pt-BR"));
+};
+const serviceForAppointment = (appointment: Appointment) => {
+  const record = appointment as Appointment & { serviceId?: number };
+  return record.serviceId
+    ? services.find((service) => service.id === record.serviceId)
+    : services.find((service) => service.name.toLocaleLowerCase("pt-BR") === appointment.service.toLocaleLowerCase("pt-BR"));
+};
+
+const getCommissionItems = (from: string, to: string, professionalId?: number): CommissionItem[] => {
+  const closedItems = new Map<number, "closed" | "paid">();
+  for (const closure of commissionClosures) {
+    if (closure.status !== "open") {
+      for (const itemId of closure.itemIds) closedItems.set(itemId, closure.status);
+    }
+  }
+  return appointments
+    .filter((appointment) => appointment.status === "completed")
+    .filter((appointment) => {
+      const date = appointmentDate(appointment.start);
+      return !date || (date >= from && date <= to);
+    })
+    .filter((appointment) => !professionalId || professionalForAppointment(appointment)?.id === professionalId)
+    .map((appointment): CommissionItem => {
+      const professional = professionalForAppointment(appointment);
+      const service = serviceForAppointment(appointment);
+      const config = professional ? commissionConfigs.get(professional.id) : undefined;
+      const date = appointmentDate(appointment.start);
+      const rule = professional && service
+        ? commissionRules.find((entry) => entry.professionalId === professional.id && entry.serviceId === service.id && entry.active)
+        : undefined;
+      const rateType = rule?.type ?? config?.commissionType ?? "percent";
+      const rateValue = rule?.value ?? config?.defaultValue ?? null;
+      const baseAmount = service ? parseMoney(service.price) : null;
+      let status: CommissionItem["status"] = "eligible";
+      let blockedReason: string | null = null;
+      if (!date) {
+        status = "blocked";
+        blockedReason = "Agendamento sem data real";
+      } else if (!professional) {
+        status = "blocked";
+        blockedReason = "Profissional não resolvido";
+      } else if (!service || baseAmount == null) {
+        status = "blocked";
+        blockedReason = "Serviço ou preço não resolvido";
+      } else if (!config) {
+        status = "blocked";
+        blockedReason = "Configuração de comissão ausente";
+      } else if (config.calculationBase !== "gross") {
+        status = "blocked";
+        blockedReason = `Base ${config.calculationBase} indisponível nos dados atuais`;
+      } else if (config.discountInCalculation) {
+        status = "blocked";
+        blockedReason = "Descontos do atendimento não disponíveis";
+      } else if (config.cardFeeInCalculation) {
+        status = "blocked";
+        blockedReason = "Taxa de cartão não disponível";
+      }
+      const commissionAmount = status === "eligible" && rateValue != null
+        ? rateType === "percent" ? baseAmount! * rateValue / 100 : rateValue
+        : null;
+      const itemId = appointment.id;
+      const closedStatus = closedItems.get(itemId);
+      if (closedStatus && status === "eligible") status = closedStatus;
+      return {
+        id: itemId,
+        appointmentId: appointment.id,
+        professionalId: professional?.id ?? null,
+        professionalName: professional?.name ?? appointment.professional,
+        serviceId: service?.id ?? null,
+        serviceName: service?.name ?? appointment.service,
+        date,
+        status,
+        blockedReason,
+        baseAmount,
+        rateType,
+        rateValue,
+        commissionAmount,
+        calculationBase: config?.calculationBase ?? "gross",
+        snapshot: {
+          baseAmount,
+          rateType,
+          rateValue,
+          calculationBase: config?.calculationBase ?? "gross",
+          ruleId: rule?.id ?? null,
+          discountInCalculation: config?.discountInCalculation ?? false,
+          cardFeeInCalculation: config?.cardFeeInCalculation ?? false,
+        },
+      };
+    });
+};
+
+const audit = (
+  action: CommissionAudit["action"],
+  professionalId: number,
+  closureId: number | null,
+  username: string,
+  before: unknown,
+  after: unknown,
+) => {
+  commissionAudit.unshift({
+    id: commissionAudit.length ? Math.max(...commissionAudit.map((entry) => entry.id)) + 1 : 1,
+    action,
+    professionalId,
+    closureId,
+    username,
+    timestamp: new Date().toISOString(),
+    before: before == null ? null : clone(before) as Record<string, unknown>,
+    after: after == null ? null : clone(after) as Record<string, unknown>,
+  });
+};
 
 const getInventoryStatus = (stock: number, minimumStock: number, nextExpiration: string) => {
   const [day, month, year] = nextExpiration.split("/").map(Number);
@@ -634,6 +885,18 @@ router.post("/professionals", (req, res) => {
   const id = professionals.length ? Math.max(...professionals.map((professional) => professional.id)) + 1 : 1;
   const professional: Professional = { id, ...input };
   professionals.push(professional);
+  commissionConfigs.set(id, {
+    professionalId: id,
+    commissionType: "percent",
+    defaultValue: input.commissionRate,
+    calculationBase: "gross",
+    discountInCalculation: false,
+    cardFeeInCalculation: false,
+    cancellationsGenerate: false,
+    productsGenerate: false,
+    productCommissionPercent: 0,
+    updatedAt: new Date().toISOString(),
+  });
   res.status(201).json(CreateProfessionalResponse.parse(professional));
 });
 
@@ -643,6 +906,13 @@ router.patch("/professionals/:id", (req, res) => {
   const professional = professionals.find((item) => item.id === id);
   if (!professional) return void res.status(404).json({ error: "Profissional não encontrado" });
   Object.assign(professional, input);
+  if (input.commissionRate !== undefined) {
+    const config = commissionConfigs.get(id);
+    if (config) {
+      config.defaultValue = input.commissionRate;
+      config.updatedAt = new Date().toISOString();
+    }
+  }
   res.json(UpdateProfessionalResponse.parse(professional));
 });
 
@@ -650,7 +920,12 @@ router.delete("/professionals/:id", (req, res) => {
   const { id } = DeleteProfessionalParams.parse(req.params);
   const index = professionals.findIndex((item) => item.id === id);
   if (index < 0) return void res.status(404).json({ error: "Profissional não encontrado" });
+  if (appointments.some((appointment) => professionalForAppointment(appointment)?.id === id) ||
+      commissionClosures.some((closure) => closure.professionalId === id)) {
+    return void res.status(409).json({ error: "Profissional possui agendamentos ou fechamentos; desative-o em vez de excluir" });
+  }
   professionals.splice(index, 1);
+  commissionConfigs.delete(id);
   res.status(204).end();
 });
 
@@ -930,6 +1205,309 @@ router.delete("/inventory/:id", (req, res) => {
   if (index < 0) return void res.status(404).json({ error: "Produto não encontrado" });
   inventory.splice(index, 1);
   res.status(204).end();
+});
+
+router.get("/professionals/:id/commission-config", (req, res) => {
+  const { id } = GetProfessionalCommissionConfigParams.parse(req.params);
+  if (!professionals.some((professional) => professional.id === id)) {
+    res.status(404).json({ error: "Profissional não encontrado" });
+    return;
+  }
+  let config = commissionConfigs.get(id);
+  if (!config) {
+    const professional = professionals.find((entry) => entry.id === id)!;
+    config = {
+      professionalId: id,
+      commissionType: "percent",
+      defaultValue: professional.commissionRate,
+      calculationBase: "gross",
+      discountInCalculation: false,
+      cardFeeInCalculation: false,
+      cancellationsGenerate: false,
+      productsGenerate: false,
+      productCommissionPercent: 0,
+      updatedAt: new Date().toISOString(),
+    };
+    commissionConfigs.set(id, config);
+  }
+  res.json(GetProfessionalCommissionConfigResponse.parse(config));
+});
+
+router.put("/professionals/:id/commission-config", (req, res) => {
+  const { id } = UpdateProfessionalCommissionConfigParams.parse(req.params);
+  const input = UpdateProfessionalCommissionConfigBody.parse(req.body);
+  if (!professionals.some((professional) => professional.id === id)) {
+    res.status(404).json({ error: "Profissional não encontrado" });
+    return;
+  }
+  const before = commissionConfigs.get(id) ?? null;
+  const config: CommissionConfig = { professionalId: id, ...input, updatedAt: new Date().toISOString() };
+  commissionConfigs.set(id, config);
+  const professional = professionals.find((entry) => entry.id === id);
+  if (professional && input.commissionType === "percent") professional.commissionRate = input.defaultValue;
+  audit("config", id, null, res.locals.session?.username ?? "unknown", before, config);
+  res.json(UpdateProfessionalCommissionConfigResponse.parse(config));
+});
+
+router.get("/professionals/:id/commission-rules", (req, res) => {
+  const { id } = ListCommissionRulesParams.parse(req.params);
+  if (!professionals.some((professional) => professional.id === id)) {
+    res.status(404).json({ error: "Profissional não encontrado" });
+    return;
+  }
+  res.json(ListCommissionRulesResponse.parse(commissionRules.filter((rule) => rule.professionalId === id)));
+});
+
+router.post("/professionals/:id/commission-rules", (req, res) => {
+  const { id } = CreateCommissionRuleParams.parse(req.params);
+  const input = CreateCommissionRuleBody.parse(req.body);
+  if (!professionals.some((professional) => professional.id === id)) {
+    res.status(404).json({ error: "Profissional não encontrado" });
+    return;
+  }
+  if (!services.some((service) => service.id === input.serviceId)) {
+    res.status(400).json({ error: "Serviço não encontrado" });
+    return;
+  }
+  const service = services.find((entry) => entry.id === input.serviceId)!;
+  const duplicate = commissionRules.find((rule) => rule.professionalId === id && rule.serviceId === input.serviceId);
+  if (duplicate) {
+    res.status(409).json({ error: "Já existe uma regra para este serviço" });
+    return;
+  }
+  const rule: CommissionRule = {
+    id: commissionRules.length ? Math.max(...commissionRules.map((entry) => entry.id)) + 1 : 1,
+    professionalId: id,
+    ...input,
+    serviceName: service.name,
+  };
+  commissionRules.push(rule);
+  res.status(201).json(CreateCommissionRuleResponse.parse(rule));
+});
+
+router.patch("/professionals/:id/commission-rules/:ruleId", (req, res) => {
+  const { id, ruleId } = UpdateCommissionRuleParams.parse(req.params);
+  const input = UpdateCommissionRuleBody.parse(req.body);
+  const rule = commissionRules.find((entry) => entry.id === ruleId && entry.professionalId === id);
+  if (!rule) {
+    res.status(404).json({ error: "Regra de comissão não encontrada" });
+    return;
+  }
+  const service = services.find((entry) => entry.id === input.serviceId);
+  if (!service) {
+    res.status(400).json({ error: "Serviço não encontrado" });
+    return;
+  }
+  const duplicate = commissionRules.find((entry) => entry.id !== ruleId && entry.professionalId === id && entry.serviceId === input.serviceId);
+  if (duplicate) {
+    res.status(409).json({ error: "Já existe uma regra para este serviço" });
+    return;
+  }
+  Object.assign(rule, input, { serviceName: service.name });
+  res.json(UpdateCommissionRuleResponse.parse(rule));
+});
+
+router.delete("/professionals/:id/commission-rules/:ruleId", (req, res) => {
+  const { id, ruleId } = DeleteCommissionRuleParams.parse(req.params);
+  const index = commissionRules.findIndex((entry) => entry.id === ruleId && entry.professionalId === id);
+  if (index < 0) {
+    res.status(404).json({ error: "Regra de comissão não encontrada" });
+    return;
+  }
+  commissionRules.splice(index, 1);
+  res.status(204).end();
+});
+
+router.get("/commissions/items", (req, res) => {
+  const query = ListCommissionItemsQueryParams.parse(req.query);
+  const items = getCommissionItems(query.from, query.to, query.professionalId)
+    .filter((item) => !query.status || item.status === query.status);
+  res.json(ListCommissionItemsResponse.parse(items));
+});
+
+router.get("/commissions/items/:id", (req, res) => {
+  const { id } = GetCommissionItemParams.parse(req.params);
+  const item = getCommissionItems("0000-01-01", "9999-12-31").find((entry) => entry.id === id);
+  if (!item) {
+    res.status(404).json({ error: "Item de comissão não encontrado" });
+    return;
+  }
+  res.json(GetCommissionItemResponse.parse(item));
+});
+
+router.get("/commissions/summary", (req, res) => {
+  const query = GetCommissionsSummaryQueryParams.parse(req.query);
+  const items = getCommissionItems(query.from, query.to, query.professionalId)
+    .filter((item) => !query.status || item.status === query.status);
+  const eligibleAmount = items.reduce((sum, item) => sum + (item.commissionAmount ?? 0), 0);
+  res.json(GetCommissionsSummaryResponse.parse({
+    from: query.from,
+    to: query.to,
+    professionalId: query.professionalId ?? null,
+    totalAmount: eligibleAmount,
+    eligibleAmount,
+    blockedCount: items.filter((item) => item.status === "blocked").length,
+    itemCount: items.length,
+    items,
+  }));
+});
+
+router.get("/commissions/closures", (req, res) => {
+  const query = ListCommissionClosuresQueryParams.parse(req.query);
+  const result = commissionClosures.filter((closure) =>
+    (!query.professionalId || closure.professionalId === query.professionalId) &&
+    (!query.from || closure.from >= query.from) &&
+    (!query.to || closure.to <= query.to) &&
+    (!query.status || closure.status === query.status),
+  );
+  res.json(ListCommissionClosuresResponse.parse(result));
+});
+
+router.post("/commissions/closures/close", (req, res) => {
+  const input = CloseCommissionPeriodBody.parse(req.body);
+  const professional = professionals.find((entry) => entry.id === input.professionalId);
+  if (!professional) {
+    res.status(404).json({ error: "Profissional não encontrado" });
+    return;
+  }
+  if (input.from > input.to) {
+    res.status(400).json({ error: "Período inválido" });
+    return;
+  }
+  let closure = commissionClosures.find((entry) =>
+    entry.professionalId === input.professionalId && entry.from === input.from && entry.to === input.to,
+  );
+  if (closure?.status === "paid" || closure?.status === "closed") {
+    res.json(CloseCommissionPeriodResponse.parse(closure));
+    return;
+  }
+  const before = closure ? clone(closure) : null;
+  const items = getCommissionItems(input.from, input.to, input.professionalId)
+    .filter((item) => item.professionalId === input.professionalId);
+  const snapshots = items.map((item) => item.status === "eligible" ? { ...clone(item), status: "closed" as const } : clone(item));
+  const totalAmount = snapshots.reduce((sum, item) => sum + (item.commissionAmount ?? 0), 0);
+  if (!closure) {
+    closure = {
+      id: commissionClosures.length ? Math.max(...commissionClosures.map((entry) => entry.id)) + 1 : 1,
+      professionalId: input.professionalId,
+      professionalName: professional.name,
+      from: input.from,
+      to: input.to,
+      dueDate: input.dueDate,
+      status: "open",
+      totalAmount: 0,
+      itemIds: [],
+      itemSnapshots: [],
+      financialMovementId: null,
+      closedAt: null,
+      paidAt: null,
+      paymentDate: null,
+      paymentMethod: null,
+      paymentNote: null,
+    };
+    commissionClosures.push(closure);
+  }
+  let movement = closure.financialMovementId
+    ? financialMovements.find((entry) => entry.id === closure!.financialMovementId)
+    : undefined;
+  if (!movement) {
+    movement = {
+      id: financialMovements.length ? Math.max(...financialMovements.map((entry) => entry.id)) + 1 : 1,
+      type: "expense",
+      date: input.dueDate,
+      description: `Comissões de ${professional.name} (${input.from} a ${input.to})`,
+      category: "Comissões",
+      amount: totalAmount,
+      status: "pending",
+      client: "",
+      service: "",
+      professional: professional.name,
+      source: "commission_closure",
+      sourceId: closure.id,
+    };
+    financialMovements.unshift(movement);
+    closure.financialMovementId = movement.id;
+  } else {
+    Object.assign(movement, { amount: totalAmount, status: "pending" as const, date: input.dueDate, professional: professional.name });
+  }
+  Object.assign(closure, {
+    status: "closed" as const,
+    dueDate: input.dueDate,
+    totalAmount,
+    itemIds: snapshots.map((item) => item.id),
+    itemSnapshots: snapshots,
+    closedAt: new Date().toISOString(),
+  });
+  audit("close", input.professionalId, closure.id, res.locals.session?.username ?? "unknown", before, closure);
+  res.json(CloseCommissionPeriodResponse.parse(closure));
+});
+
+router.post("/commissions/closures/:id/reopen", (req, res) => {
+  const { id } = ReopenCommissionPeriodParams.parse(req.params);
+  const closure = commissionClosures.find((entry) => entry.id === id);
+  if (!closure) {
+    res.status(404).json({ error: "Fechamento não encontrado" });
+    return;
+  }
+  if (closure.status === "paid") {
+    res.status(409).json({ error: "Fechamento pago não pode ser reaberto" });
+    return;
+  }
+  if (closure.status !== "closed") {
+    res.status(409).json({ error: "Somente fechamentos fechados podem ser reabertos" });
+    return;
+  }
+  const before = clone(closure);
+  closure.status = "open";
+  closure.closedAt = null;
+  audit("reopen", closure.professionalId, closure.id, res.locals.session?.username ?? "unknown", before, closure);
+  res.json(ReopenCommissionPeriodResponse.parse(closure));
+});
+
+router.post("/commissions/closures/:id/pay", (req, res) => {
+  const { id } = PayCommissionPeriodParams.parse(req.params);
+  const input = PayCommissionPeriodBody.parse(req.body);
+  const closure = commissionClosures.find((entry) => entry.id === id);
+  if (!closure) {
+    res.status(404).json({ error: "Fechamento não encontrado" });
+    return;
+  }
+  if (closure.status !== "closed") {
+    res.status(409).json({ error: "Somente fechamentos fechados podem ser pagos" });
+    return;
+  }
+  const movement = closure.financialMovementId
+    ? financialMovements.find((entry) => entry.id === closure.financialMovementId)
+    : undefined;
+  if (!movement) {
+    res.status(409).json({ error: "Movimentação financeira do fechamento não encontrada" });
+    return;
+  }
+  const before = clone(closure);
+  Object.assign(closure, {
+    status: "paid" as const,
+    paidAt: new Date().toISOString(),
+    paymentDate: input.paymentDate,
+    paymentMethod: input.paymentMethod,
+    paymentNote: input.note,
+  });
+  Object.assign(movement, {
+    status: "paid" as const,
+    paymentDate: input.paymentDate,
+    paymentMethod: input.paymentMethod,
+    paymentNote: input.note,
+  });
+  audit("pay", closure.professionalId, closure.id, res.locals.session?.username ?? "unknown", before, closure);
+  res.json(PayCommissionPeriodResponse.parse(closure));
+});
+
+router.get("/commissions/audit", (req, res) => {
+  const query = ListCommissionAuditQueryParams.parse(req.query);
+  const result = commissionAudit.filter((entry) =>
+    (!query.professionalId || entry.professionalId === query.professionalId) &&
+    (!query.closureId || entry.closureId === query.closureId),
+  );
+  res.json(ListCommissionAuditResponse.parse(result));
 });
 
 export default router;

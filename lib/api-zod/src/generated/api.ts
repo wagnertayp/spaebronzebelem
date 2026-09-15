@@ -1080,7 +1080,7 @@ export const CreateQuotePaymentBody = zod.object({
 
 export const createQuotePaymentResponseOneDescriptionMin = 2;
 
-export const createQuotePaymentResponseOneAmountMin = 0.01;
+export const createQuotePaymentResponseOneAmountMin = 0;
 
 
 
@@ -1095,8 +1095,11 @@ export const CreateQuotePaymentResponse = zod.object({
   "service": zod.string(),
   "professional": zod.string(),
   "quoteId": zod.number().int().optional(),
-  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
-  "source": zod.string().optional()
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto', 'transfer', 'card', 'other']).optional(),
+  "source": zod.string().optional(),
+  "sourceId": zod.number().int().optional(),
+  "paymentDate": zod.string().optional(),
+  "paymentNote": zod.string().optional()
 }).and(zod.object({
   "id": zod.number().int()
 }))
@@ -1124,7 +1127,7 @@ export const ListFinancialMovementsQueryParams = zod.object({
 
 export const listFinancialMovementsResponseOneDescriptionMin = 2;
 
-export const listFinancialMovementsResponseOneAmountMin = 0.01;
+export const listFinancialMovementsResponseOneAmountMin = 0;
 
 
 
@@ -1139,8 +1142,11 @@ export const ListFinancialMovementsResponseItem = zod.object({
   "service": zod.string(),
   "professional": zod.string(),
   "quoteId": zod.number().int().optional(),
-  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
-  "source": zod.string().optional()
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto', 'transfer', 'card', 'other']).optional(),
+  "source": zod.string().optional(),
+  "sourceId": zod.number().int().optional(),
+  "paymentDate": zod.string().optional(),
+  "paymentNote": zod.string().optional()
 }).and(zod.object({
   "id": zod.number().int()
 }))
@@ -1152,7 +1158,7 @@ export const ListFinancialMovementsResponse = zod.array(ListFinancialMovementsRe
  */
 export const createFinancialMovementBodyDescriptionMin = 2;
 
-export const createFinancialMovementBodyAmountMin = 0.01;
+export const createFinancialMovementBodyAmountMin = 0;
 
 
 
@@ -1167,13 +1173,16 @@ export const CreateFinancialMovementBody = zod.object({
   "service": zod.string(),
   "professional": zod.string(),
   "quoteId": zod.number().int().optional(),
-  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
-  "source": zod.string().optional()
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto', 'transfer', 'card', 'other']).optional(),
+  "source": zod.string().optional(),
+  "sourceId": zod.number().int().optional(),
+  "paymentDate": zod.string().optional(),
+  "paymentNote": zod.string().optional()
 })
 
 export const createFinancialMovementResponseOneDescriptionMin = 2;
 
-export const createFinancialMovementResponseOneAmountMin = 0.01;
+export const createFinancialMovementResponseOneAmountMin = 0;
 
 
 
@@ -1188,8 +1197,11 @@ export const CreateFinancialMovementResponse = zod.object({
   "service": zod.string(),
   "professional": zod.string(),
   "quoteId": zod.number().int().optional(),
-  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
-  "source": zod.string().optional()
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto', 'transfer', 'card', 'other']).optional(),
+  "source": zod.string().optional(),
+  "sourceId": zod.number().int().optional(),
+  "paymentDate": zod.string().optional(),
+  "paymentNote": zod.string().optional()
 }).and(zod.object({
   "id": zod.number().int()
 }))
@@ -1201,7 +1213,7 @@ export const UpdateFinancialMovementParams = zod.object({
 
 export const updateFinancialMovementBodyDescriptionMin = 2;
 
-export const updateFinancialMovementBodyAmountMin = 0.01;
+export const updateFinancialMovementBodyAmountMin = 0;
 
 
 
@@ -1216,13 +1228,16 @@ export const UpdateFinancialMovementBody = zod.object({
   "service": zod.string(),
   "professional": zod.string(),
   "quoteId": zod.number().int().optional(),
-  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
-  "source": zod.string().optional()
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto', 'transfer', 'card', 'other']).optional(),
+  "source": zod.string().optional(),
+  "sourceId": zod.number().int().optional(),
+  "paymentDate": zod.string().optional(),
+  "paymentNote": zod.string().optional()
 })
 
 export const updateFinancialMovementResponseOneDescriptionMin = 2;
 
-export const updateFinancialMovementResponseOneAmountMin = 0.01;
+export const updateFinancialMovementResponseOneAmountMin = 0;
 
 
 
@@ -1237,8 +1252,11 @@ export const UpdateFinancialMovementResponse = zod.object({
   "service": zod.string(),
   "professional": zod.string(),
   "quoteId": zod.number().int().optional(),
-  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto']).optional(),
-  "source": zod.string().optional()
+  "paymentMethod": zod.enum(['pix', 'credit', 'debit', 'cash', 'boleto', 'transfer', 'card', 'other']).optional(),
+  "source": zod.string().optional(),
+  "sourceId": zod.number().int().optional(),
+  "paymentDate": zod.string().optional(),
+  "paymentNote": zod.string().optional()
 }).and(zod.object({
   "id": zod.number().int()
 }))
@@ -1356,6 +1374,478 @@ export const DeleteProfessionalParams = zod.object({
 })
 
 export const DeleteProfessionalResponse = zod.void()
+
+
+/**
+ * @summary Retorna a configuração de comissões do profissional
+ */
+export const GetProfessionalCommissionConfigParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const getProfessionalCommissionConfigResponseOneDefaultValueMin = 0;
+
+export const getProfessionalCommissionConfigResponseOneProductCommissionPercentMin = 0;
+export const getProfessionalCommissionConfigResponseOneProductCommissionPercentMax = 100;
+
+
+
+export const GetProfessionalCommissionConfigResponse = zod.object({
+  "commissionType": zod.enum(['percent', 'fixed']),
+  "defaultValue": zod.number().min(getProfessionalCommissionConfigResponseOneDefaultValueMin),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "discountInCalculation": zod.boolean(),
+  "cardFeeInCalculation": zod.boolean(),
+  "cancellationsGenerate": zod.boolean(),
+  "productsGenerate": zod.boolean(),
+  "productCommissionPercent": zod.number().min(getProfessionalCommissionConfigResponseOneProductCommissionPercentMin).max(getProfessionalCommissionConfigResponseOneProductCommissionPercentMax)
+}).and(zod.object({
+  "professionalId": zod.number().int(),
+  "updatedAt": zod.string()
+}))
+
+
+export const UpdateProfessionalCommissionConfigParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateProfessionalCommissionConfigBodyDefaultValueMin = 0;
+
+export const updateProfessionalCommissionConfigBodyProductCommissionPercentMin = 0;
+export const updateProfessionalCommissionConfigBodyProductCommissionPercentMax = 100;
+
+
+
+export const UpdateProfessionalCommissionConfigBody = zod.object({
+  "commissionType": zod.enum(['percent', 'fixed']),
+  "defaultValue": zod.number().min(updateProfessionalCommissionConfigBodyDefaultValueMin),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "discountInCalculation": zod.boolean(),
+  "cardFeeInCalculation": zod.boolean(),
+  "cancellationsGenerate": zod.boolean(),
+  "productsGenerate": zod.boolean(),
+  "productCommissionPercent": zod.number().min(updateProfessionalCommissionConfigBodyProductCommissionPercentMin).max(updateProfessionalCommissionConfigBodyProductCommissionPercentMax)
+})
+
+export const updateProfessionalCommissionConfigResponseOneDefaultValueMin = 0;
+
+export const updateProfessionalCommissionConfigResponseOneProductCommissionPercentMin = 0;
+export const updateProfessionalCommissionConfigResponseOneProductCommissionPercentMax = 100;
+
+
+
+export const UpdateProfessionalCommissionConfigResponse = zod.object({
+  "commissionType": zod.enum(['percent', 'fixed']),
+  "defaultValue": zod.number().min(updateProfessionalCommissionConfigResponseOneDefaultValueMin),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "discountInCalculation": zod.boolean(),
+  "cardFeeInCalculation": zod.boolean(),
+  "cancellationsGenerate": zod.boolean(),
+  "productsGenerate": zod.boolean(),
+  "productCommissionPercent": zod.number().min(updateProfessionalCommissionConfigResponseOneProductCommissionPercentMin).max(updateProfessionalCommissionConfigResponseOneProductCommissionPercentMax)
+}).and(zod.object({
+  "professionalId": zod.number().int(),
+  "updatedAt": zod.string()
+}))
+
+
+export const ListCommissionRulesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+export const listCommissionRulesResponseOneValueMin = 0;
+
+
+
+export const ListCommissionRulesResponseItem = zod.object({
+  "serviceId": zod.number().int(),
+  "serviceName": zod.string().min(1),
+  "type": zod.enum(['percent', 'fixed']),
+  "value": zod.number().min(listCommissionRulesResponseOneValueMin),
+  "active": zod.boolean()
+}).and(zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int()
+}))
+export const ListCommissionRulesResponse = zod.array(ListCommissionRulesResponseItem)
+
+
+export const CreateCommissionRuleParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+export const createCommissionRuleBodyValueMin = 0;
+
+
+
+export const CreateCommissionRuleBody = zod.object({
+  "serviceId": zod.number().int(),
+  "serviceName": zod.string().min(1),
+  "type": zod.enum(['percent', 'fixed']),
+  "value": zod.number().min(createCommissionRuleBodyValueMin),
+  "active": zod.boolean()
+})
+
+
+export const createCommissionRuleResponseOneValueMin = 0;
+
+
+
+export const CreateCommissionRuleResponse = zod.object({
+  "serviceId": zod.number().int(),
+  "serviceName": zod.string().min(1),
+  "type": zod.enum(['percent', 'fixed']),
+  "value": zod.number().min(createCommissionRuleResponseOneValueMin),
+  "active": zod.boolean()
+}).and(zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int()
+}))
+
+
+export const UpdateCommissionRuleParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "ruleId": zod.coerce.number().int()
+})
+
+
+export const updateCommissionRuleBodyValueMin = 0;
+
+
+
+export const UpdateCommissionRuleBody = zod.object({
+  "serviceId": zod.number().int(),
+  "serviceName": zod.string().min(1),
+  "type": zod.enum(['percent', 'fixed']),
+  "value": zod.number().min(updateCommissionRuleBodyValueMin),
+  "active": zod.boolean()
+})
+
+
+export const updateCommissionRuleResponseOneValueMin = 0;
+
+
+
+export const UpdateCommissionRuleResponse = zod.object({
+  "serviceId": zod.number().int(),
+  "serviceName": zod.string().min(1),
+  "type": zod.enum(['percent', 'fixed']),
+  "value": zod.number().min(updateCommissionRuleResponseOneValueMin),
+  "active": zod.boolean()
+}).and(zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int()
+}))
+
+
+export const DeleteCommissionRuleParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "ruleId": zod.coerce.number().int()
+})
+
+export const DeleteCommissionRuleResponse = zod.void()
+
+
+export const getCommissionsSummaryQueryFromMin = 10;
+
+export const getCommissionsSummaryQueryToMin = 10;
+
+
+
+export const GetCommissionsSummaryQueryParams = zod.object({
+  "from": zod.coerce.string().min(getCommissionsSummaryQueryFromMin),
+  "to": zod.coerce.string().min(getCommissionsSummaryQueryToMin),
+  "professionalId": zod.coerce.number().int().optional(),
+  "status": zod.enum(['eligible', 'blocked', 'closed', 'paid']).optional()
+})
+
+export const GetCommissionsSummaryResponse = zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "professionalId": zod.number().int().nullable(),
+  "totalAmount": zod.number(),
+  "eligibleAmount": zod.number(),
+  "blockedCount": zod.number().int(),
+  "itemCount": zod.number().int(),
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "appointmentId": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "serviceId": zod.number().int().nullable(),
+  "serviceName": zod.string(),
+  "date": zod.string().nullable(),
+  "status": zod.enum(['eligible', 'blocked', 'closed', 'paid']),
+  "blockedReason": zod.string().nullable(),
+  "baseAmount": zod.number().nullable(),
+  "rateType": zod.enum(['percent', 'fixed']),
+  "rateValue": zod.number().nullable(),
+  "commissionAmount": zod.number().nullable(),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "snapshot": zod.record(zod.string(), zod.unknown())
+}))
+})
+
+
+export const listCommissionItemsQueryFromMin = 10;
+
+export const listCommissionItemsQueryToMin = 10;
+
+
+
+export const ListCommissionItemsQueryParams = zod.object({
+  "from": zod.coerce.string().min(listCommissionItemsQueryFromMin),
+  "to": zod.coerce.string().min(listCommissionItemsQueryToMin),
+  "professionalId": zod.coerce.number().int().optional(),
+  "status": zod.enum(['eligible', 'blocked', 'closed', 'paid']).optional()
+})
+
+export const ListCommissionItemsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "appointmentId": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "serviceId": zod.number().int().nullable(),
+  "serviceName": zod.string(),
+  "date": zod.string().nullable(),
+  "status": zod.enum(['eligible', 'blocked', 'closed', 'paid']),
+  "blockedReason": zod.string().nullable(),
+  "baseAmount": zod.number().nullable(),
+  "rateType": zod.enum(['percent', 'fixed']),
+  "rateValue": zod.number().nullable(),
+  "commissionAmount": zod.number().nullable(),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "snapshot": zod.record(zod.string(), zod.unknown())
+})
+export const ListCommissionItemsResponse = zod.array(ListCommissionItemsResponseItem)
+
+
+export const GetCommissionItemParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetCommissionItemResponse = zod.object({
+  "id": zod.number().int(),
+  "appointmentId": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "serviceId": zod.number().int().nullable(),
+  "serviceName": zod.string(),
+  "date": zod.string().nullable(),
+  "status": zod.enum(['eligible', 'blocked', 'closed', 'paid']),
+  "blockedReason": zod.string().nullable(),
+  "baseAmount": zod.number().nullable(),
+  "rateType": zod.enum(['percent', 'fixed']),
+  "rateValue": zod.number().nullable(),
+  "commissionAmount": zod.number().nullable(),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "snapshot": zod.record(zod.string(), zod.unknown())
+})
+
+
+export const ListCommissionClosuresQueryParams = zod.object({
+  "professionalId": zod.coerce.number().int().optional(),
+  "from": zod.coerce.string().optional(),
+  "to": zod.coerce.string().optional(),
+  "status": zod.enum(['open', 'closed', 'paid']).optional()
+})
+
+export const ListCommissionClosuresResponseItem = zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "dueDate": zod.string(),
+  "status": zod.enum(['open', 'closed', 'paid']),
+  "totalAmount": zod.number(),
+  "itemIds": zod.array(zod.number().int()),
+  "itemSnapshots": zod.array(zod.object({
+  "id": zod.number().int(),
+  "appointmentId": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "serviceId": zod.number().int().nullable(),
+  "serviceName": zod.string(),
+  "date": zod.string().nullable(),
+  "status": zod.enum(['eligible', 'blocked', 'closed', 'paid']),
+  "blockedReason": zod.string().nullable(),
+  "baseAmount": zod.number().nullable(),
+  "rateType": zod.enum(['percent', 'fixed']),
+  "rateValue": zod.number().nullable(),
+  "commissionAmount": zod.number().nullable(),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "snapshot": zod.record(zod.string(), zod.unknown())
+})),
+  "financialMovementId": zod.number().int().nullable(),
+  "closedAt": zod.string().nullable(),
+  "paidAt": zod.string().nullable(),
+  "paymentDate": zod.string().nullable(),
+  "paymentMethod": zod.string().nullable(),
+  "paymentNote": zod.string().nullable()
+})
+export const ListCommissionClosuresResponse = zod.array(ListCommissionClosuresResponseItem)
+
+
+export const closeCommissionPeriodBodyFromMin = 10;
+
+export const closeCommissionPeriodBodyToMin = 10;
+
+export const closeCommissionPeriodBodyDueDateMin = 10;
+
+
+
+export const CloseCommissionPeriodBody = zod.object({
+  "professionalId": zod.number().int(),
+  "from": zod.string().min(closeCommissionPeriodBodyFromMin),
+  "to": zod.string().min(closeCommissionPeriodBodyToMin),
+  "dueDate": zod.string().min(closeCommissionPeriodBodyDueDateMin)
+})
+
+export const CloseCommissionPeriodResponse = zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "dueDate": zod.string(),
+  "status": zod.enum(['open', 'closed', 'paid']),
+  "totalAmount": zod.number(),
+  "itemIds": zod.array(zod.number().int()),
+  "itemSnapshots": zod.array(zod.object({
+  "id": zod.number().int(),
+  "appointmentId": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "serviceId": zod.number().int().nullable(),
+  "serviceName": zod.string(),
+  "date": zod.string().nullable(),
+  "status": zod.enum(['eligible', 'blocked', 'closed', 'paid']),
+  "blockedReason": zod.string().nullable(),
+  "baseAmount": zod.number().nullable(),
+  "rateType": zod.enum(['percent', 'fixed']),
+  "rateValue": zod.number().nullable(),
+  "commissionAmount": zod.number().nullable(),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "snapshot": zod.record(zod.string(), zod.unknown())
+})),
+  "financialMovementId": zod.number().int().nullable(),
+  "closedAt": zod.string().nullable(),
+  "paidAt": zod.string().nullable(),
+  "paymentDate": zod.string().nullable(),
+  "paymentMethod": zod.string().nullable(),
+  "paymentNote": zod.string().nullable()
+})
+
+
+export const ReopenCommissionPeriodParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReopenCommissionPeriodResponse = zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "dueDate": zod.string(),
+  "status": zod.enum(['open', 'closed', 'paid']),
+  "totalAmount": zod.number(),
+  "itemIds": zod.array(zod.number().int()),
+  "itemSnapshots": zod.array(zod.object({
+  "id": zod.number().int(),
+  "appointmentId": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "serviceId": zod.number().int().nullable(),
+  "serviceName": zod.string(),
+  "date": zod.string().nullable(),
+  "status": zod.enum(['eligible', 'blocked', 'closed', 'paid']),
+  "blockedReason": zod.string().nullable(),
+  "baseAmount": zod.number().nullable(),
+  "rateType": zod.enum(['percent', 'fixed']),
+  "rateValue": zod.number().nullable(),
+  "commissionAmount": zod.number().nullable(),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "snapshot": zod.record(zod.string(), zod.unknown())
+})),
+  "financialMovementId": zod.number().int().nullable(),
+  "closedAt": zod.string().nullable(),
+  "paidAt": zod.string().nullable(),
+  "paymentDate": zod.string().nullable(),
+  "paymentMethod": zod.string().nullable(),
+  "paymentNote": zod.string().nullable()
+})
+
+
+export const PayCommissionPeriodParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const payCommissionPeriodBodyPaymentDateMin = 10;
+
+
+
+export const PayCommissionPeriodBody = zod.object({
+  "paymentDate": zod.string().min(payCommissionPeriodBodyPaymentDateMin),
+  "paymentMethod": zod.enum(['pix', 'cash', 'transfer', 'card', 'other']),
+  "note": zod.string()
+})
+
+export const PayCommissionPeriodResponse = zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "dueDate": zod.string(),
+  "status": zod.enum(['open', 'closed', 'paid']),
+  "totalAmount": zod.number(),
+  "itemIds": zod.array(zod.number().int()),
+  "itemSnapshots": zod.array(zod.object({
+  "id": zod.number().int(),
+  "appointmentId": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "professionalName": zod.string(),
+  "serviceId": zod.number().int().nullable(),
+  "serviceName": zod.string(),
+  "date": zod.string().nullable(),
+  "status": zod.enum(['eligible', 'blocked', 'closed', 'paid']),
+  "blockedReason": zod.string().nullable(),
+  "baseAmount": zod.number().nullable(),
+  "rateType": zod.enum(['percent', 'fixed']),
+  "rateValue": zod.number().nullable(),
+  "commissionAmount": zod.number().nullable(),
+  "calculationBase": zod.enum(['gross', 'net', 'paid']),
+  "snapshot": zod.record(zod.string(), zod.unknown())
+})),
+  "financialMovementId": zod.number().int().nullable(),
+  "closedAt": zod.string().nullable(),
+  "paidAt": zod.string().nullable(),
+  "paymentDate": zod.string().nullable(),
+  "paymentMethod": zod.string().nullable(),
+  "paymentNote": zod.string().nullable()
+})
+
+
+export const ListCommissionAuditQueryParams = zod.object({
+  "professionalId": zod.coerce.number().int().optional(),
+  "closureId": zod.coerce.number().int().optional()
+})
+
+export const ListCommissionAuditResponseItem = zod.object({
+  "id": zod.number().int(),
+  "action": zod.enum(['config', 'close', 'reopen', 'pay']),
+  "professionalId": zod.number().int(),
+  "closureId": zod.number().int().nullable(),
+  "username": zod.string(),
+  "timestamp": zod.string(),
+  "before": zod.record(zod.string(), zod.unknown()).nullable(),
+  "after": zod.record(zod.string(), zod.unknown()).nullable()
+})
+export const ListCommissionAuditResponse = zod.array(ListCommissionAuditResponseItem)
 
 
 /**

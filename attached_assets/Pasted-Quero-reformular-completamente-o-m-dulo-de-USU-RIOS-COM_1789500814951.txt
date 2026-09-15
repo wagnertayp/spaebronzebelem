@@ -1,0 +1,598 @@
+Quero reformular completamente o módulo de USUÁRIOS > COMISSÕES do sistema atual.
+
+IMPORTANTE:
+- Não criar um sistema separado.
+- Trabalhar em cima da estrutura existente.
+- Preservar a identidade visual atual da aplicação.
+- Manter o mesmo sidebar, tipografia, espaçamentos, cores, ícones e padrão visual.
+- O objetivo é transformar o módulo de comissão em uma ferramenta real de gestão e fechamento de profissionais.
+- Não alterar outras áreas do sistema sem necessidade.
+
+==================================================
+1. ESTRUTURA DO MÓDULO USUÁRIOS
+==================================================
+
+A página atualmente possui:
+
+USUÁRIOS
+"Profissionais, comissões e desempenho por período."
+
+Abas:
+- Profissionais
+- Comissões
+
+Manter essa estrutura, mas melhorar bastante a experiência.
+
+Na aba PROFISSIONAIS, substituir os cards atuais por uma tabela/listagem mais profissional e compacta.
+
+Topo:
+
+Título:
+"Usuários"
+
+Descrição:
+"Profissionais, comissões e desempenho por período."
+
+Botão:
+"+ Novo Profissional"
+
+Adicionar uma pequena métrica:
+"4 profissionais ativos"
+
+Tabela:
+
+PROFISSIONAL | ESPECIALIDADE | COMISSÃO PADRÃO | PRODUÇÃO DO MÊS | COMISSÃO GERADA | STATUS | AÇÕES
+
+Exemplo:
+
+Marina
+Massagens e terapias
+20%
+R$ 8.400
+R$ 1.680
+ATIVO
+
+Paula
+Drenagem e tratamentos corporais
+18%
+R$ 6.200
+R$ 1.116
+ATIVO
+
+Rosana
+Estética facial
+20%
+R$ 7.800
+R$ 1.560
+ATIVO
+
+Wallace
+Massoterapia
+15%
+R$ 4.500
+R$ 675
+ATIVO
+
+As informações devem ser dinâmicas e derivadas dos dados reais do sistema.
+
+Nas ações de cada profissional utilizar menu "..." com:
+
+- Ver perfil
+- Editar
+- Configurar comissão
+- Ver produção
+- Ver comissões
+- Desativar
+
+==================================================
+2. CONFIGURAÇÃO DE COMISSÃO DO PROFISSIONAL
+==================================================
+
+Ao clicar em "Configurar comissão", abrir um modal ou drawer lateral elegante.
+
+Título:
+"Configuração de comissão"
+
+Subtítulo:
+"Defina como a comissão deste profissional será calculada."
+
+SEÇÃO:
+"Regra padrão"
+
+Campo:
+
+Tipo de comissão
+[ Percentual ▼ ]
+
+Opções:
+- Percentual
+- Valor fixo
+
+Se percentual:
+
+Percentual padrão
+[ 20,00 % ]
+
+Base de cálculo:
+
+( ) Valor bruto do serviço
+( ) Valor líquido após desconto
+(•) Valor efetivamente recebido
+
+Configurações:
+
+[ toggle ] Desconto entra no cálculo
+[ toggle ] Taxa do cartão entra no cálculo
+[ toggle ] Cancelamentos geram comissão
+[ toggle ] Produtos vendidos geram comissão
+
+Se "Produtos vendidos geram comissão" estiver ativo:
+
+Comissão sobre produtos
+[ 5,00 % ]
+
+==================================================
+3. REGRAS DIFERENCIADAS
+==================================================
+
+Adicionar uma seção:
+
+"Regras por serviço"
+
+Descrição:
+"Defina percentuais específicos para determinados serviços."
+
+Botão:
+"+ Adicionar regra"
+
+Exemplo:
+
+Drenagem
+18%
+
+Massagem relaxante
+20%
+
+Limpeza de pele
+15%
+
+Procedimento premium
+25%
+
+Produtos
+5%
+
+Cada regra deve possuir:
+- Serviço
+- Tipo
+- Percentual/valor
+- Ativo
+- Editar
+- Remover
+
+IMPORTANTE:
+
+A regra específica do serviço deve ter prioridade sobre a comissão padrão do profissional.
+
+Exemplo:
+
+Profissional:
+Marina
+Comissão padrão: 20%
+
+Serviço:
+Drenagem
+Comissão específica: 18%
+
+Ao realizar uma drenagem para Marina, o sistema deve calcular 18%, e não 20%.
+
+==================================================
+4. ABA COMISSÕES
+==================================================
+
+Transformar a aba "Comissões" em um verdadeiro painel financeiro de comissionamento.
+
+Título:
+
+"Comissões"
+
+Descrição:
+
+"Acompanhe a produção, as comissões geradas e os valores a pagar aos profissionais."
+
+No topo, criar filtros:
+
+[ Hoje ▼ ]
+[ Este mês ▼ ]
+[ Personalizado ]
+
+Filtros adicionais:
+
+[ Todos os profissionais ▼ ]
+[ Todos os status ▼ ]
+
+Status:
+- Em aberto
+- Fechada
+- Paga
+
+==================================================
+5. CARDS DE RESUMO
+==================================================
+
+Criar quatro cards:
+
+COMISSÕES DO PERÍODO
+R$ 12.480
+
+A PAGAR
+R$ 8.920
+
+JÁ PAGO
+R$ 3.560
+
+ATENDIMENTOS COM COMISSÃO
+24
+
+Os valores devem ser calculados dinamicamente.
+
+==================================================
+6. TABELA DE COMISSÕES
+==================================================
+
+Criar tabela:
+
+PROFISSIONAL | PRODUÇÃO | COMISSÃO | STATUS | AÇÕES
+
+Exemplo:
+
+Marina
+R$ 8.400
+R$ 1.680
+EM ABERTO
+
+Paula
+R$ 6.200
+R$ 1.116
+PAGO
+
+Rosana
+R$ 7.800
+R$ 1.560
+EM ABERTO
+
+Wallace
+R$ 4.500
+R$ 675
+EM ABERTO
+
+Adicionar botão:
+
+"Ver detalhes"
+
+==================================================
+7. DETALHAMENTO DA COMISSÃO
+==================================================
+
+Ao clicar em um profissional, abrir uma página, modal ou drawer detalhado.
+
+Exemplo:
+
+COMISSÃO — MARINA
+
+Período:
+01/09/2026 → 30/09/2026
+
+Resumo:
+
+Atendimentos
+32
+
+Produção
+R$ 8.400
+
+Descontos
+R$ 300
+
+Base de comissão
+R$ 8.100
+
+Percentual
+20%
+
+COMISSÃO TOTAL
+R$ 1.620
+
+Abaixo, mostrar os atendimentos que geraram comissão:
+
+DATA | CLIENTE | SERVIÇO | VALOR | % | COMISSÃO
+
+15/09
+Ana
+Drenagem
+R$ 180
+20%
+R$ 36
+
+15/09
+Carla
+Massagem
+R$ 200
+20%
+R$ 40
+
+Cada atendimento deve mostrar de onde veio o valor da comissão.
+
+==================================================
+8. FECHAMENTO DE COMISSÃO
+==================================================
+
+Adicionar funcionalidade de fechamento.
+
+Enquanto a comissão estiver sendo calculada:
+
+STATUS:
+🟠 EM ABERTO
+
+Botão:
+"Fechar comissão"
+
+Ao clicar:
+
+Exibir confirmação:
+
+"Fechar comissão?"
+
+"Após o fechamento, os valores deste período serão registrados e não poderão ser alterados sem reabrir o fechamento."
+
+Resumo:
+
+Profissional: Marina
+Período: 01/09/2026 → 30/09/2026
+Produção: R$ 8.400
+Comissão: R$ 1.680
+
+Botões:
+
+[Cancelar]
+[Fechar comissão]
+
+Depois do fechamento:
+
+STATUS:
+🔵 FECHADA
+
+Registrar:
+- Data do fechamento
+- Usuário responsável pelo fechamento
+- Período
+- Valor total
+- Detalhamento dos atendimentos
+
+==================================================
+9. PAGAMENTO DA COMISSÃO
+==================================================
+
+Depois de fechada, permitir:
+
+"Registrar pagamento"
+
+Ao clicar:
+
+Valor:
+R$ 1.680
+
+Data do pagamento:
+[ 30/09/2026 ]
+
+Forma de pagamento:
+[ PIX ▼ ]
+
+Opções:
+- PIX
+- Dinheiro
+- Transferência
+- Cartão
+- Outro
+
+Observação:
+[ opcional ]
+
+Botão:
+"Confirmar pagamento"
+
+Após pagamento:
+
+STATUS:
+🟢 PAGA
+
+Mostrar:
+"Pago em 30/09/2026"
+
+==================================================
+10. INTEGRAÇÃO COM FINANCEIRO
+==================================================
+
+Integrar o módulo de comissão ao módulo Financeiro existente.
+
+Quando uma comissão for FECHADA:
+
+Criar automaticamente uma obrigação financeira:
+
+Categoria:
+"Comissões"
+
+Descrição:
+"Comissão — Marina — Setembro/2026"
+
+Valor:
+R$ 1.680
+
+Vencimento:
+definido pelo fechamento
+
+Status:
+"A pagar"
+
+Quando o pagamento for registrado no módulo de comissões, atualizar também o financeiro para:
+
+Status:
+"Pago"
+
+Evitar duplicidade de lançamentos.
+
+==================================================
+11. REGRAS DE CÁLCULO
+==================================================
+
+Criar uma estrutura centralizada para cálculo das comissões.
+
+Fluxo:
+
+ATENDIMENTO
+↓
+SERVIÇO REALIZADO
+↓
+PAGAMENTO
+↓
+PROFISSIONAL RESPONSÁVEL
+↓
+VERIFICAR REGRA ESPECÍFICA DO SERVIÇO
+↓
+SE NÃO EXISTIR, USAR REGRA PADRÃO
+↓
+APLICAR BASE DE CÁLCULO
+↓
+CALCULAR COMISSÃO
+↓
+REGISTRAR COMISSÃO
+
+Exemplo:
+
+Serviço:
+Drenagem
+
+Valor:
+R$ 200
+
+Profissional:
+Marina
+
+Regra específica:
+18%
+
+Comissão:
+R$ 36
+
+Se não existir regra específica:
+
+Regra padrão:
+20%
+
+Comissão:
+R$ 40
+
+==================================================
+12. HISTÓRICO E AUDITORIA
+==================================================
+
+Toda comissão deve possuir histórico.
+
+Registrar:
+
+- Atendimento de origem
+- Serviço
+- Cliente
+- Profissional
+- Valor do serviço
+- Desconto
+- Base de cálculo
+- Percentual aplicado
+- Valor da comissão
+- Data
+- Status
+- Data de fechamento
+- Data de pagamento
+- Usuário responsável
+
+Nunca alterar silenciosamente uma comissão já fechada.
+
+Se houver alteração em atendimento que afete uma comissão fechada, exigir reabertura do fechamento.
+
+==================================================
+13. UX / UI
+==================================================
+
+Manter exatamente a linguagem visual atual do sistema:
+
+- Fundo claro/off-white
+- Marrom como cor principal
+- Verde para status positivos
+- Vermelho somente para ações destrutivas
+- Cards com bordas suaves
+- Cantos arredondados
+- Sombras extremamente sutis
+- Tipografia elegante
+- Muito espaço em branco
+- Ícones minimalistas
+- Botões compactos
+- Tabelas limpas
+- Hierarquia visual forte
+
+Não exagerar em cores.
+
+Evitar interfaces cheias.
+
+A sensação deve ser de um SaaS premium para gestão de SPA.
+
+==================================================
+14. RESPONSIVIDADE
+==================================================
+
+A interface deve funcionar perfeitamente em:
+
+- Desktop
+- Tablet
+- Mobile
+
+No mobile, transformar a tabela em cards/lista adaptativa.
+
+Modais e drawers devem funcionar corretamente em telas pequenas.
+
+==================================================
+15. IMPORTANTE SOBRE DADOS
+==================================================
+
+Não utilizar valores hardcoded na implementação final.
+
+Os dados exibidos inicialmente podem utilizar os profissionais já existentes no sistema apenas como dados de exemplo, mas a arquitetura deve estar preparada para dados reais.
+
+As comissões devem ser calculadas a partir dos atendimentos, serviços e pagamentos existentes.
+
+Não duplicar regras de cálculo em diferentes componentes.
+
+Criar uma lógica central de comissão para que todas as telas utilizem a mesma regra.
+
+==================================================
+RESULTADO ESPERADO
+==================================================
+
+Quero que o módulo deixe de ser apenas:
+
+"Profissional + percentual"
+
+e passe a funcionar como um sistema completo de:
+
+PROFISSIONAL
+→ REGRA DE COMISSÃO
+→ SERVIÇO
+→ ATENDIMENTO
+→ CÁLCULO
+→ COMISSÃO
+→ FECHAMENTO
+→ PAGAMENTO
+→ FINANCEIRO
+
+Priorize uma implementação elegante, simples de utilizar e com aparência de produto SaaS profissional.
+
+Antes de implementar, analise a estrutura atual do projeto e reutilize os componentes, estilos, banco de dados e padrões existentes sempre que possível.
