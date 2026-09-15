@@ -73,34 +73,17 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WhatsappConnection" }
-    put:
-      operationId: updateWhatsappConnection
+  /whatsapp/connect:
+    post:
+      operationId: connectWhatsapp
       tags: [ai-agent]
-      summary: Seleciona a instância da Evolution API para o agente
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/WhatsappConnectionInput" }
+      summary: Cria uma instância e gera o QR Code do WhatsApp
       responses:
         "200":
-          description: Selected WhatsApp connection
+          description: WhatsApp QR Code
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/WhatsappConnection" }
-  /whatsapp/instances:
-    get:
-      operationId: listWhatsappInstances
-      tags: [ai-agent]
-      summary: Lista as instâncias disponíveis na Evolution API
-      responses:
-        "200":
-          description: Available WhatsApp instances
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/WhatsappInstance" }
+              schema: { $ref: "#/components/schemas/WhatsappConnectResponse" }
   /whatsapp/automation:
     get:
       operationId: getWhatsappAutomation
@@ -959,18 +942,17 @@ components:
         state: { type: string }
         message: { type: string }
       required: [configured, connected, instance, state, message]
-    WhatsappConnectionInput:
+    WhatsappConnectResponse:
       type: object
       properties:
-        instance: { type: string, minLength: 1 }
-      required: [instance]
-    WhatsappInstance:
-      type: object
-      properties:
-        name: { type: string }
-        state: { type: string }
+        created: { type: boolean }
+        instance: { type: string }
         connected: { type: boolean }
-      required: [name, state, connected]
+        state: { type: string }
+        message: { type: string }
+        qrCode: { type: ["string", "null"] }
+        pairingCode: { type: ["string", "null"] }
+      required: [created, instance, connected, state, message, qrCode, pairingCode]
     WhatsappAutomation:
       type: object
       properties:
