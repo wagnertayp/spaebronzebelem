@@ -27,3 +27,4 @@ channel = "stable-25_05"
 [userenv.shared]
 EVOLUTION_API_URL = "https://api.sincrostudio.pro"
 EVOLUTION_TIMEZONE = "America/Belem"
+EVOLUTION_INSTANCE = "spa-08c7cff6"
