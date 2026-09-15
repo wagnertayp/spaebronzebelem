@@ -74,6 +74,8 @@ import type {
   ServiceInput,
   WhatsappAutomation,
   WhatsappConnection,
+  WhatsappConnectionInput,
+  WhatsappInstance,
   WhatsappMessage
 } from './api.schemas';
 
@@ -388,6 +390,154 @@ export function useGetWhatsappConnection<TData = Awaited<ReturnType<typeof getWh
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetWhatsappConnectionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateWhatsappConnectionUrl = () => {
+
+
+
+
+  return `/api/whatsapp/connection`
+}
+
+/**
+ * @summary Seleciona a instância da Evolution API para o agente
+ */
+export const updateWhatsappConnection = async (whatsappConnectionInput: WhatsappConnectionInput, options?: Parameters<typeof customFetch>[1]): Promise<WhatsappConnection> => {
+
+  return customFetch<WhatsappConnection>(getUpdateWhatsappConnectionUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(whatsappConnectionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateWhatsappConnectionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWhatsappConnection>>, TError,{data: BodyType<WhatsappConnectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWhatsappConnection>>, TError,{data: BodyType<WhatsappConnectionInput>}, TContext> => {
+
+const mutationKey = ['updateWhatsappConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWhatsappConnection>>, {data: BodyType<WhatsappConnectionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateWhatsappConnection(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWhatsappConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof updateWhatsappConnection>>>
+    export type UpdateWhatsappConnectionMutationBody = BodyType<WhatsappConnectionInput>
+    export type UpdateWhatsappConnectionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Seleciona a instância da Evolution API para o agente
+ */
+export const useUpdateWhatsappConnection = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWhatsappConnection>>, TError,{data: BodyType<WhatsappConnectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateWhatsappConnection>>,
+        TError,
+        {data: BodyType<WhatsappConnectionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateWhatsappConnectionMutationOptions(options));
+    }
+
+export const getListWhatsappInstancesUrl = () => {
+
+
+
+
+  return `/api/whatsapp/instances`
+}
+
+/**
+ * @summary Lista as instâncias disponíveis na Evolution API
+ */
+export const listWhatsappInstances = async ( options?: Parameters<typeof customFetch>[1]): Promise<WhatsappInstance[]> => {
+
+  return customFetch<WhatsappInstance[]>(getListWhatsappInstancesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWhatsappInstancesQueryKey = () => {
+    return [
+    `/api/whatsapp/instances`
+    ] as const;
+    }
+
+
+export const getListWhatsappInstancesQueryOptions = <TData = Awaited<ReturnType<typeof listWhatsappInstances>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhatsappInstances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWhatsappInstancesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWhatsappInstances>>> = ({ signal }) => listWhatsappInstances({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWhatsappInstances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWhatsappInstancesQueryResult = NonNullable<Awaited<ReturnType<typeof listWhatsappInstances>>>
+export type ListWhatsappInstancesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Lista as instâncias disponíveis na Evolution API
+ */
+
+export function useListWhatsappInstances<TData = Awaited<ReturnType<typeof listWhatsappInstances>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhatsappInstances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWhatsappInstancesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

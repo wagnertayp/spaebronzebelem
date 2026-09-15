@@ -101,6 +101,36 @@ export const GetWhatsappConnectionResponse = zod.object({
 
 
 /**
+ * @summary Seleciona a instância da Evolution API para o agente
+ */
+
+
+
+export const UpdateWhatsappConnectionBody = zod.object({
+  "instance": zod.string().min(1)
+})
+
+export const UpdateWhatsappConnectionResponse = zod.object({
+  "configured": zod.boolean(),
+  "connected": zod.boolean(),
+  "instance": zod.string(),
+  "state": zod.string(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Lista as instâncias disponíveis na Evolution API
+ */
+export const ListWhatsappInstancesResponseItem = zod.object({
+  "name": zod.string(),
+  "state": zod.string(),
+  "connected": zod.boolean()
+})
+export const ListWhatsappInstancesResponse = zod.array(ListWhatsappInstancesResponseItem)
+
+
+/**
  * @summary Retorna as automações de agenda do WhatsApp
  */
 export const getWhatsappAutomationResponseTimezoneMin = 3;

@@ -10,6 +10,9 @@ import {
   getListServicesQueryKey,
   useGetWhatsappConnection,
   getGetWhatsappConnectionQueryKey,
+  useListWhatsappInstances,
+  getListWhatsappInstancesQueryKey,
+  useUpdateWhatsappConnection,
   useGetWhatsappAutomation,
   useUpdateWhatsappAutomation,
   getGetWhatsappAutomationQueryKey,
@@ -50,6 +53,8 @@ export function WhatsApp() {
   const { data: whatsappConnection, isLoading: isConnectionLoading } = useGetWhatsappConnection({
     query: { queryKey: getGetWhatsappConnectionQueryKey(), refetchInterval: 30_000 },
   });
+  const { data: whatsappInstances = [], isLoading: isInstancesLoading } = useListWhatsappInstances();
+  const updateWhatsappConnection = useUpdateWhatsappConnection();
   const { data: whatsappAutomation } = useGetWhatsappAutomation();
   const updateWhatsappAutomation = useUpdateWhatsappAutomation();
   const { data: whatsappMessages = [] } = useListWhatsappMessages({ limit: 5 });
@@ -67,6 +72,7 @@ export function WhatsApp() {
     reminder2h: true,
     timezone: 'America/Belem',
   });
+  const [selectedInstance, setSelectedInstance] = useState('');
 
   // Config Form State
   const [formData, setFormData] = useState<AiAgentConfig>({
@@ -94,6 +100,10 @@ export function WhatsApp() {
     if (whatsappAutomation) setAutomationForm(whatsappAutomation);
   }, [whatsappAutomation]);
 
+  useEffect(() => {
+    if (whatsappConnection?.instance) setSelectedInstance(whatsappConnection.instance);
+  }, [whatsappConnection?.instance]);
+
   const handleSaveConfig = () => {
     updateConfig.mutate(
       { data: formData },
@@ -117,6 +127,25 @@ export function WhatsApp() {
           toast({ title: 'Automação salva', description: 'As confirmações e lembretes foram atualizados.' });
         },
         onError: () => toast({ title: 'Erro', description: 'Não foi possível salvar as automações.', variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleConnectInstance = () => {
+    if (!selectedInstance) return;
+    updateWhatsappConnection.mutate(
+      { data: { instance: selectedInstance } },
+      {
+        onSuccess: (data) => {
+          queryClient.setQueryData(getGetWhatsappConnectionQueryKey(), data);
+          queryClient.invalidateQueries({ queryKey: getListWhatsappInstancesQueryKey() });
+          toast({
+            title: data.connected ? 'WhatsApp conectado' : 'Instância selecionada',
+            description: data.message,
+            variant: data.connected ? 'default' : 'destructive',
+          });
+        },
+        onError: () => toast({ title: 'Erro', description: 'Não foi possível selecionar a instância.', variant: 'destructive' }),
       },
     );
   };
@@ -212,7 +241,7 @@ export function WhatsApp() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card className="p-4 flex items-center gap-4">
+        <Card className="p-4 flex items-start gap-4">
           <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", formData.active ? "bg-success/10 text-success" : "bg-text-muted/10 text-text-muted")}>
             <Bot className="w-6 h-6" />
           </div>
@@ -236,12 +265,30 @@ export function WhatsApp() {
           <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", whatsappConnection?.connected ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>
             <MessageCircle className="w-6 h-6" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-[13px] text-text-muted font-medium uppercase tracking-wider mb-1">Evolution API</div>
             <div className="font-semibold text-text-primary text-lg">
               {isConnectionLoading ? 'Verificando...' : whatsappConnection?.connected ? 'WhatsApp conectado' : 'Não conectado'}
             </div>
-            <div className="text-xs text-text-muted truncate">{whatsappConnection?.instance || 'Instância não configurada'}</div>
+            <div className="text-xs text-text-muted truncate mb-3">{whatsappConnection?.message || 'Escolha uma instância disponível'}</div>
+            <div className="flex gap-2">
+              <select
+                value={selectedInstance}
+                onChange={(event) => setSelectedInstance(event.target.value)}
+                disabled={isInstancesLoading || updateWhatsappConnection.isPending}
+                className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background px-2 text-xs text-text-primary"
+              >
+                <option value="">{isInstancesLoading ? 'Carregando instâncias...' : 'Selecione uma instância'}</option>
+                {whatsappInstances.map((instance) => (
+                  <option key={instance.name} value={instance.name}>
+                    {instance.name}{instance.connected ? ' · conectada' : ` · ${instance.state}`}
+                  </option>
+                ))}
+              </select>
+              <Button size="sm" onClick={handleConnectInstance} disabled={!selectedInstance || updateWhatsappConnection.isPending}>
+                {updateWhatsappConnection.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Usar'}
+              </Button>
+            </div>
           </div>
         </Card>
       </div>

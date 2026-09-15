@@ -78,6 +78,9 @@ import {
   TestAiAgentBody,
   TestAiAgentResponse,
   GetWhatsappConnectionResponse,
+  UpdateWhatsappConnectionBody,
+  UpdateWhatsappConnectionResponse,
+  ListWhatsappInstancesResponse,
   GetWhatsappAutomationResponse,
   UpdateWhatsappAutomationBody,
   UpdateWhatsappAutomationResponse,
@@ -124,7 +127,9 @@ import { requireSession } from "../lib/auth";
 import {
   getEvolutionConfig,
   getEvolutionConnection,
+  listEvolutionInstances,
   normalizeWhatsappPhone,
+  setEvolutionInstance,
   sendEvolutionText,
 } from "../lib/evolution";
 
@@ -933,6 +938,20 @@ router.delete("/appointments/:id", (req, res) => {
 
 router.get("/whatsapp/connection", async (_req, res) => {
   res.json(GetWhatsappConnectionResponse.parse(await getEvolutionConnection()));
+});
+
+router.put("/whatsapp/connection", async (req, res) => {
+  const { instance } = UpdateWhatsappConnectionBody.parse(req.body);
+  setEvolutionInstance(instance);
+  res.json(UpdateWhatsappConnectionResponse.parse(await getEvolutionConnection()));
+});
+
+router.get("/whatsapp/instances", async (_req, res) => {
+  try {
+    res.json(ListWhatsappInstancesResponse.parse(await listEvolutionInstances()));
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "Não foi possível listar as instâncias" });
+  }
 });
 
 router.get("/whatsapp/automation", (_req, res) => {

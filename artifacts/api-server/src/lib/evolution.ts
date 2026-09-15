@@ -1,8 +1,16 @@
 type EvolutionConfig = {
   baseUrl: string;
-  instance: string;
+  instance: string | null;
   apiKey: string;
 };
+
+export type EvolutionInstance = {
+  name: string;
+  state: string;
+  connected: boolean;
+};
+
+let selectedInstance = process.env["EVOLUTION_INSTANCE"]?.trim() || null;
 
 export type EvolutionSendResult = {
   ok: boolean;
@@ -12,10 +20,14 @@ export type EvolutionSendResult = {
 
 export const getEvolutionConfig = (): EvolutionConfig | null => {
   const baseUrl = process.env["EVOLUTION_API_URL"]?.replace(/\/+$/, "");
-  const instance = process.env["EVOLUTION_INSTANCE"]?.trim();
   const apiKey = process.env["EVOLUTION_API_KEY"]?.trim();
-  if (!baseUrl || !instance || !apiKey) return null;
-  return { baseUrl, instance, apiKey };
+  if (!baseUrl || !apiKey) return null;
+  return { baseUrl, instance: selectedInstance, apiKey };
+};
+
+export const setEvolutionInstance = (instance: string) => {
+  selectedInstance = instance.trim() || null;
+  return selectedInstance;
 };
 
 export const normalizeWhatsappPhone = (value: string): string => {
@@ -29,7 +41,7 @@ export const sendEvolutionText = async (
   text: string,
 ): Promise<EvolutionSendResult> => {
   const config = getEvolutionConfig();
-  if (!config) {
+  if (!config || !config.instance) {
     return { ok: false, providerMessageId: null, error: "Evolution API não configurada" };
   }
 
@@ -76,6 +88,9 @@ export const getEvolutionConnection = async () => {
   const config = getEvolutionConfig();
   if (!config) {
     return { configured: false, connected: false, instance: "", state: "not_configured", message: "Evolution API não configurada" };
+  }
+  if (!config.instance) {
+    return { configured: true, connected: false, instance: "", state: "no_instance_selected", message: "Selecione uma instância conectada" };
   }
   try {
     const response = await fetch(
@@ -141,4 +156,30 @@ export const getEvolutionConnection = async () => {
       message: "Não foi possível consultar a Evolution API",
     };
   }
+};
+
+const parseEvolutionInstances = (value: unknown): EvolutionInstance[] => {
+  const items = Array.isArray(value) ? value : [];
+  return items
+    .map((item) => {
+      const record = item as Record<string, unknown>;
+      const nested = record.instance as Record<string, unknown> | undefined;
+      const name = String(record.name ?? nested?.instanceName ?? nested?.name ?? "").trim();
+      const state = String(record.connectionStatus ?? nested?.connectionStatus ?? nested?.state ?? "unknown");
+      return { name, state, connected: ["open", "connected"].includes(state.toLowerCase()) };
+    })
+    .filter((item) => item.name);
+};
+
+export const listEvolutionInstances = async (): Promise<EvolutionInstance[]> => {
+  const config = getEvolutionConfig();
+  if (!config) return [];
+  const response = await fetch(`${config.baseUrl}/instance/fetchInstances`, {
+    headers: { apikey: config.apiKey },
+  });
+  const body = await response.json().catch(() => []);
+  if (!response.ok) {
+    throw new Error(`Evolution API respondeu com HTTP ${response.status}`);
+  }
+  return parseEvolutionInstances(body);
 };

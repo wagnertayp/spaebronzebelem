@@ -73,6 +73,34 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WhatsappConnection" }
+    put:
+      operationId: updateWhatsappConnection
+      tags: [ai-agent]
+      summary: Seleciona a instância da Evolution API para o agente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WhatsappConnectionInput" }
+      responses:
+        "200":
+          description: Selected WhatsApp connection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappConnection" }
+  /whatsapp/instances:
+    get:
+      operationId: listWhatsappInstances
+      tags: [ai-agent]
+      summary: Lista as instâncias disponíveis na Evolution API
+      responses:
+        "200":
+          description: Available WhatsApp instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WhatsappInstance" }
   /whatsapp/automation:
     get:
       operationId: getWhatsappAutomation
@@ -931,6 +959,18 @@ components:
         state: { type: string }
         message: { type: string }
       required: [configured, connected, instance, state, message]
+    WhatsappConnectionInput:
+      type: object
+      properties:
+        instance: { type: string, minLength: 1 }
+      required: [instance]
+    WhatsappInstance:
+      type: object
+      properties:
+        name: { type: string }
+        state: { type: string }
+        connected: { type: boolean }
+      required: [name, state, connected]
     WhatsappAutomation:
       type: object
       properties:

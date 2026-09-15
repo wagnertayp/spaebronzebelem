@@ -47,6 +47,17 @@ export interface WhatsappConnection {
   message: string;
 }
 
+export interface WhatsappConnectionInput {
+  /** @minLength 1 */
+  instance: string;
+}
+
+export interface WhatsappInstance {
+  name: string;
+  state: string;
+  connected: boolean;
+}
+
 export interface WhatsappAutomation {
   enabled: boolean;
   confirmations: boolean;

@@ -90,6 +90,8 @@ export * from './serviceInput';
 export * from './serviceMix';
 export * from './whatsappAutomation';
 export * from './whatsappConnection';
+export * from './whatsappConnectionInput';
+export * from './whatsappInstance';
 export * from './whatsappMessage';
 export * from './whatsappMessageDirection';
 export * from './whatsappMessageKind';
