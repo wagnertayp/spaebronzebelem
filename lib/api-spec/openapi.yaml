@@ -62,6 +62,85 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AiAgentTestResponse" }
+  /whatsapp/connection:
+    get:
+      operationId: getWhatsappConnection
+      tags: [ai-agent]
+      summary: Verifica a conexão da instância da Evolution API
+      responses:
+        "200":
+          description: WhatsApp connection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappConnection" }
+  /whatsapp/automation:
+    get:
+      operationId: getWhatsappAutomation
+      tags: [ai-agent]
+      summary: Retorna as automações de agenda do WhatsApp
+      responses:
+        "200":
+          description: WhatsApp automation settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappAutomation" }
+    put:
+      operationId: updateWhatsappAutomation
+      tags: [ai-agent]
+      summary: Atualiza as automações de agenda do WhatsApp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WhatsappAutomation" }
+      responses:
+        "200":
+          description: Updated WhatsApp automation settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappAutomation" }
+  /whatsapp/messages:
+    get:
+      operationId: listWhatsappMessages
+      tags: [ai-agent]
+      summary: Lista as mensagens enviadas e recebidas pelo agente
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        "200":
+          description: WhatsApp messages
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/WhatsappMessage" } }
+  /whatsapp/appointments/{id}/confirmation:
+    post:
+      operationId: sendWhatsappAppointmentConfirmation
+      tags: [ai-agent]
+      summary: Envia confirmação manual de um agendamento
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Confirmation result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SendAppointmentConfirmationResponse" }
+  /integrations/evolution/webhook:
+    post:
+      operationId: receiveEvolutionWebhook
+      tags: [ai-agent]
+      summary: Recebe eventos de mensagens da Evolution API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: Webhook accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionWebhookResponse" }
   /healthz:
     get:
       operationId: healthCheck
@@ -843,6 +922,51 @@ components:
       properties:
         reply: { type: string }
       required: [reply]
+    WhatsappConnection:
+      type: object
+      properties:
+        configured: { type: boolean }
+        connected: { type: boolean }
+        instance: { type: string }
+        state: { type: string }
+        message: { type: string }
+      required: [configured, connected, instance, state, message]
+    WhatsappAutomation:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        confirmations: { type: boolean }
+        reminder24h: { type: boolean }
+        reminder2h: { type: boolean }
+        timezone: { type: string, minLength: 3 }
+      required: [enabled, confirmations, reminder24h, reminder2h, timezone]
+    WhatsappMessage:
+      type: object
+      properties:
+        id: { type: integer }
+        direction: { type: string, enum: [inbound, outbound] }
+        phone: { type: string }
+        clientName: { type: string }
+        appointmentId: { type: ["integer", "null"] }
+        text: { type: string }
+        status: { type: string, enum: [pending, sent, delivered, received, skipped, failed] }
+        kind: { type: string, enum: [confirmation, reminder24h, reminder2h, reply, handoff] }
+        providerMessageId: { type: ["string", "null"] }
+        error: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, direction, phone, clientName, appointmentId, text, status, kind, providerMessageId, error, createdAt]
+    SendAppointmentConfirmationResponse:
+      type: object
+      properties:
+        sent: { type: boolean }
+        message: { $ref: "#/components/schemas/WhatsappMessage" }
+      required: [sent, message]
+    EvolutionWebhookResponse:
+      type: object
+      properties:
+        received: { type: boolean }
+        action: { type: string }
+      required: [received, action]
     HealthStatus:
       type: object
       properties:
