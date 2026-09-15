@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -36,7 +36,7 @@
   --color-warning: var(--warning);
   --color-error: var(--error);
 
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
   --radius-xs: 8px;
   --radius-sm: 12px;
@@ -46,34 +46,34 @@
   --radius-2xl: 40px;
   --radius-pill: 9999px;
 
-  --shadow-sm: 0 2px 8px -2px rgba(15, 23, 42, 0.04), 0 1px 3px -1px rgba(15, 23, 42, 0.02);
-  --shadow-md: 0 4px 16px -4px rgba(15, 23, 42, 0.06), 0 2px 6px -2px rgba(15, 23, 42, 0.03);
-  --shadow-card: 0 8px 24px -4px rgba(15, 23, 42, 0.04), 0 2px 8px -2px rgba(15, 23, 42, 0.02);
-  --shadow-container: 0 20px 40px -5px rgba(15, 23, 42, 0.06), 0 8px 16px -6px rgba(15, 23, 42, 0.04);
-  --shadow-button: 0 4px 12px rgba(27, 110, 221, 0.25);
-  --shadow-button-accent: 0 4px 12px rgba(27, 110, 221, 0.18);
+  --shadow-sm: 0 2px 8px -2px rgba(44, 33, 25, 0.04), 0 1px 3px -1px rgba(44, 33, 25, 0.02);
+  --shadow-md: 0 4px 16px -4px rgba(44, 33, 25, 0.06), 0 2px 6px -2px rgba(44, 33, 25, 0.03);
+  --shadow-card: 0 8px 24px -4px rgba(44, 33, 25, 0.04), 0 2px 8px -2px rgba(44, 33, 25, 0.02);
+  --shadow-container: 0 20px 40px -5px rgba(44, 33, 25, 0.06), 0 8px 16px -6px rgba(44, 33, 25, 0.04);
+  --shadow-button: 0 4px 12px rgba(122, 92, 67, 0.2);
+  --shadow-button-accent: 0 4px 12px rgba(122, 92, 67, 0.15);
 }
 
 :root {
-  --background: #F8FAFC;
+  --background: #FDFBF8;
   --surface: #FFFFFF;
-  --surface-soft: #F1F5F9;
+  --surface-soft: #F4F1EA;
 
-  --primary: #1B6EDD;
-  --primary-dark: #104D9B;
-  --primary-soft: #EFF6FF;
+  --primary: #7A5C43;
+  --primary-dark: #4A3525;
+  --primary-soft: #D6C5B3;
 
-  --dark: #0F172A;
-  --dark-soft: #1E293B;
+  --dark: #2C2119;
+  --dark-soft: #423429;
 
-  --text: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #94A3B8;
+  --text: #2C2119;
+  --text-secondary: #736357;
+  --text-muted: #A3968C;
 
-  --accent: #1B6EDD;
-  --accent-soft: #EFF6FF;
+  --accent: #7A5C43;
+  --accent-soft: #D6C5B3;
   
-  --border: #E2E8F0;
+  --border: #E8DFD5;
 
   --success: #10B981;
   --warning: #F59E0B;
@@ -81,25 +81,25 @@
 }
 
 .dark {
-  --background: #020617;
-  --surface: #0F172A;
-  --surface-soft: #1E293B;
+  --background: #1C1510;
+  --surface: #261D17;
+  --surface-soft: #382B22;
 
-  --primary: #3B82F6;
-  --primary-dark: #60A5FA;
-  --primary-soft: #1E3A8A;
+  --primary: #C5B09C;
+  --primary-dark: #E1D0C1;
+  --primary-soft: #423429;
 
-  --dark: #FFFFFF;
-  --dark-soft: #F8FAFC;
+  --dark: #FDFBF8;
+  --dark-soft: #E8DFD5;
 
-  --text: #F8FAFC;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  --text: #FDFBF8;
+  --text-secondary: #B3A599;
+  --text-muted: #857568;
 
-  --accent: #60A5FA;
-  --accent-soft: #172554;
+  --accent: #C5B09C;
+  --accent-soft: #423429;
   
-  --border: #1E293B;
+  --border: #382B22;
 
   --success: #34D399;
   --warning: #FBBF24;
@@ -112,7 +112,7 @@
   }
 
   html {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
   body {
@@ -123,10 +123,10 @@
 
 .bg-subtle-grid {
   background-size: 24px 24px;
-  background-image: linear-gradient(to right, rgba(15, 23, 42, 0.03) 1px, transparent 1px),
-                    linear-gradient(to bottom, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+  background-image: linear-gradient(to right, rgba(44, 33, 25, 0.03) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(44, 33, 25, 0.03) 1px, transparent 1px);
 }
 .dark .bg-subtle-grid {
-  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-                    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-image: linear-gradient(to right, rgba(253, 251, 248, 0.03) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(253, 251, 248, 0.03) 1px, transparent 1px);
 }

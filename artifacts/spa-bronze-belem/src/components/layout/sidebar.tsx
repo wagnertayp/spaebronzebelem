@@ -32,13 +32,10 @@ export function Sidebar({ className }: { className?: string }) {
                 className={cn(
                   "group relative flex min-h-[44px] items-center gap-3.5 rounded-lg px-4 py-2 text-[14px] outline-none transition-all duration-200 overflow-hidden",
                   isActive 
-                    ? "bg-primary/10 text-primary font-semibold"
+                    ? "bg-primary-soft/30 text-primary-dark font-semibold"
                     : "text-text-secondary font-medium hover:bg-surface-soft hover:text-text-primary"
                 )}
               >
-                {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[55%] bg-primary rounded-r-full" aria-hidden="true" />
-                )}
                 <Icon 
                   className={cn(
                     "w-[20px] h-[20px] shrink-0 transition-colors", 
@@ -54,7 +51,7 @@ export function Sidebar({ className }: { className?: string }) {
 
         <div className="p-4 mt-auto">
           <Link href="/configuracoes" className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-soft transition-colors group outline-none focus-visible:ring-2 ring-primary/50 border border-transparent hover:border-border/40">
-            <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold text-[14px] shrink-0 shadow-sm">
+            <div className="w-10 h-10 rounded-lg bg-primary-soft text-primary-dark flex items-center justify-center font-bold text-[14px] shrink-0 shadow-sm border border-primary-soft/50">
               {initials}
             </div>
             <div className="flex-1 min-w-0">
