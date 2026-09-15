@@ -39,6 +39,8 @@ import type {
   CommissionRuleInput,
   CommissionSummary,
   Dashboard,
+  EvolutionWebhookPayload,
+  EvolutionWebhookResponse,
   FinanceSummary,
   FinancialMovement,
   FinancialMovementInput,
@@ -57,6 +59,7 @@ import type {
   ListFinancialMovementsParams,
   ListInventoryParams,
   ListQuotesParams,
+  ListWhatsappMessagesParams,
   Package,
   Professional,
   ProfessionalInput,
@@ -66,8 +69,12 @@ import type {
   QuoteInput,
   QuotePaymentInput,
   QuoteSendResponse,
+  SendAppointmentConfirmationResponse,
   Service,
-  ServiceInput
+  ServiceInput,
+  WhatsappAutomation,
+  WhatsappConnection,
+  WhatsappMessage
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -314,6 +321,457 @@ export const useTestAiAgent = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getTestAiAgentMutationOptions(options));
+    }
+
+export const getGetWhatsappConnectionUrl = () => {
+
+
+
+
+  return `/api/whatsapp/connection`
+}
+
+/**
+ * @summary Verifica a conexão da instância da Evolution API
+ */
+export const getWhatsappConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<WhatsappConnection> => {
+
+  return customFetch<WhatsappConnection>(getGetWhatsappConnectionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWhatsappConnectionQueryKey = () => {
+    return [
+    `/api/whatsapp/connection`
+    ] as const;
+    }
+
+
+export const getGetWhatsappConnectionQueryOptions = <TData = Awaited<ReturnType<typeof getWhatsappConnection>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWhatsappConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWhatsappConnectionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWhatsappConnection>>> = ({ signal }) => getWhatsappConnection({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWhatsappConnection>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWhatsappConnectionQueryResult = NonNullable<Awaited<ReturnType<typeof getWhatsappConnection>>>
+export type GetWhatsappConnectionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Verifica a conexão da instância da Evolution API
+ */
+
+export function useGetWhatsappConnection<TData = Awaited<ReturnType<typeof getWhatsappConnection>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWhatsappConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWhatsappConnectionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetWhatsappAutomationUrl = () => {
+
+
+
+
+  return `/api/whatsapp/automation`
+}
+
+/**
+ * @summary Retorna as automações de agenda do WhatsApp
+ */
+export const getWhatsappAutomation = async ( options?: Parameters<typeof customFetch>[1]): Promise<WhatsappAutomation> => {
+
+  return customFetch<WhatsappAutomation>(getGetWhatsappAutomationUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWhatsappAutomationQueryKey = () => {
+    return [
+    `/api/whatsapp/automation`
+    ] as const;
+    }
+
+
+export const getGetWhatsappAutomationQueryOptions = <TData = Awaited<ReturnType<typeof getWhatsappAutomation>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWhatsappAutomation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWhatsappAutomationQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWhatsappAutomation>>> = ({ signal }) => getWhatsappAutomation({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWhatsappAutomation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWhatsappAutomationQueryResult = NonNullable<Awaited<ReturnType<typeof getWhatsappAutomation>>>
+export type GetWhatsappAutomationQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Retorna as automações de agenda do WhatsApp
+ */
+
+export function useGetWhatsappAutomation<TData = Awaited<ReturnType<typeof getWhatsappAutomation>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWhatsappAutomation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWhatsappAutomationQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateWhatsappAutomationUrl = () => {
+
+
+
+
+  return `/api/whatsapp/automation`
+}
+
+/**
+ * @summary Atualiza as automações de agenda do WhatsApp
+ */
+export const updateWhatsappAutomation = async (whatsappAutomation: WhatsappAutomation, options?: Parameters<typeof customFetch>[1]): Promise<WhatsappAutomation> => {
+
+  return customFetch<WhatsappAutomation>(getUpdateWhatsappAutomationUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(whatsappAutomation)
+  }
+);}
+
+
+
+
+
+export const getUpdateWhatsappAutomationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWhatsappAutomation>>, TError,{data: BodyType<WhatsappAutomation>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWhatsappAutomation>>, TError,{data: BodyType<WhatsappAutomation>}, TContext> => {
+
+const mutationKey = ['updateWhatsappAutomation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWhatsappAutomation>>, {data: BodyType<WhatsappAutomation>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateWhatsappAutomation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWhatsappAutomationMutationResult = NonNullable<Awaited<ReturnType<typeof updateWhatsappAutomation>>>
+    export type UpdateWhatsappAutomationMutationBody = BodyType<WhatsappAutomation>
+    export type UpdateWhatsappAutomationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Atualiza as automações de agenda do WhatsApp
+ */
+export const useUpdateWhatsappAutomation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWhatsappAutomation>>, TError,{data: BodyType<WhatsappAutomation>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateWhatsappAutomation>>,
+        TError,
+        {data: BodyType<WhatsappAutomation>},
+        TContext
+      > => {
+      return useMutation(getUpdateWhatsappAutomationMutationOptions(options));
+    }
+
+export const getListWhatsappMessagesUrl = (params?: ListWhatsappMessagesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/whatsapp/messages?${stringifiedParams}` : `/api/whatsapp/messages`
+}
+
+/**
+ * @summary Lista as mensagens enviadas e recebidas pelo agente
+ */
+export const listWhatsappMessages = async (params?: ListWhatsappMessagesParams, options?: Parameters<typeof customFetch>[1]): Promise<WhatsappMessage[]> => {
+
+  return customFetch<WhatsappMessage[]>(getListWhatsappMessagesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWhatsappMessagesQueryKey = (params?: ListWhatsappMessagesParams,) => {
+    return [
+    `/api/whatsapp/messages`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListWhatsappMessagesQueryOptions = <TData = Awaited<ReturnType<typeof listWhatsappMessages>>, TError = ErrorType<unknown>>(params?: ListWhatsappMessagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhatsappMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWhatsappMessagesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWhatsappMessages>>> = ({ signal }) => listWhatsappMessages(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWhatsappMessages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWhatsappMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof listWhatsappMessages>>>
+export type ListWhatsappMessagesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Lista as mensagens enviadas e recebidas pelo agente
+ */
+
+export function useListWhatsappMessages<TData = Awaited<ReturnType<typeof listWhatsappMessages>>, TError = ErrorType<unknown>>(
+ params?: ListWhatsappMessagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhatsappMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWhatsappMessagesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendWhatsappAppointmentConfirmationUrl = (id: number,) => {
+
+
+
+
+  return `/api/whatsapp/appointments/${id}/confirmation`
+}
+
+/**
+ * @summary Envia confirmação manual de um agendamento
+ */
+export const sendWhatsappAppointmentConfirmation = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SendAppointmentConfirmationResponse> => {
+
+  return customFetch<SendAppointmentConfirmationResponse>(getSendWhatsappAppointmentConfirmationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSendWhatsappAppointmentConfirmationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWhatsappAppointmentConfirmation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendWhatsappAppointmentConfirmation>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['sendWhatsappAppointmentConfirmation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendWhatsappAppointmentConfirmation>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  sendWhatsappAppointmentConfirmation(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendWhatsappAppointmentConfirmationMutationResult = NonNullable<Awaited<ReturnType<typeof sendWhatsappAppointmentConfirmation>>>
+
+    export type SendWhatsappAppointmentConfirmationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Envia confirmação manual de um agendamento
+ */
+export const useSendWhatsappAppointmentConfirmation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWhatsappAppointmentConfirmation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendWhatsappAppointmentConfirmation>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSendWhatsappAppointmentConfirmationMutationOptions(options));
+    }
+
+export const getReceiveEvolutionWebhookUrl = () => {
+
+
+
+
+  return `/api/integrations/evolution/webhook`
+}
+
+/**
+ * @summary Recebe eventos de mensagens da Evolution API
+ */
+export const receiveEvolutionWebhook = async (evolutionWebhookPayload: EvolutionWebhookPayload, options?: Parameters<typeof customFetch>[1]): Promise<EvolutionWebhookResponse> => {
+
+  return customFetch<EvolutionWebhookResponse>(getReceiveEvolutionWebhookUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(evolutionWebhookPayload)
+  }
+);}
+
+
+
+
+
+export const getReceiveEvolutionWebhookMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveEvolutionWebhook>>, TError,{data: BodyType<EvolutionWebhookPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveEvolutionWebhook>>, TError,{data: BodyType<EvolutionWebhookPayload>}, TContext> => {
+
+const mutationKey = ['receiveEvolutionWebhook'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveEvolutionWebhook>>, {data: BodyType<EvolutionWebhookPayload>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  receiveEvolutionWebhook(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveEvolutionWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof receiveEvolutionWebhook>>>
+    export type ReceiveEvolutionWebhookMutationBody = BodyType<EvolutionWebhookPayload>
+    export type ReceiveEvolutionWebhookMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Recebe eventos de mensagens da Evolution API
+ */
+export const useReceiveEvolutionWebhook = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveEvolutionWebhook>>, TError,{data: BodyType<EvolutionWebhookPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof receiveEvolutionWebhook>>,
+        TError,
+        {data: BodyType<EvolutionWebhookPayload>},
+        TContext
+      > => {
+      return useMutation(getReceiveEvolutionWebhookMutationOptions(options));
     }
 
 export const getHealthCheckUrl = () => {

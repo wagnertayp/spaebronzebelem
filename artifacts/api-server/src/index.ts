@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { runWhatsappReminders } from "./routes/spa";
 
 const rawPort = process.env["PORT"];
 
@@ -23,3 +24,10 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 });
+
+const reminderInterval = setInterval(() => {
+  void runWhatsappReminders().catch((error) => {
+    logger.error({ err: error }, "WhatsApp reminder cycle failed");
+  });
+}, 60_000);
+reminderInterval.unref();

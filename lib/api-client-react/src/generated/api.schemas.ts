@@ -39,6 +39,83 @@ export interface AiAgentTestResponse {
   reply: string;
 }
 
+export interface WhatsappConnection {
+  configured: boolean;
+  connected: boolean;
+  instance: string;
+  state: string;
+  message: string;
+}
+
+export interface WhatsappAutomation {
+  enabled: boolean;
+  confirmations: boolean;
+  reminder24h: boolean;
+  reminder2h: boolean;
+  /** @minLength 3 */
+  timezone: string;
+}
+
+export type WhatsappMessageDirection = typeof WhatsappMessageDirection[keyof typeof WhatsappMessageDirection];
+
+
+export const WhatsappMessageDirection = {
+  inbound: 'inbound',
+  outbound: 'outbound',
+} as const;
+
+export type WhatsappMessageStatus = typeof WhatsappMessageStatus[keyof typeof WhatsappMessageStatus];
+
+
+export const WhatsappMessageStatus = {
+  pending: 'pending',
+  sent: 'sent',
+  delivered: 'delivered',
+  received: 'received',
+  skipped: 'skipped',
+  failed: 'failed',
+} as const;
+
+export type WhatsappMessageKind = typeof WhatsappMessageKind[keyof typeof WhatsappMessageKind];
+
+
+export const WhatsappMessageKind = {
+  confirmation: 'confirmation',
+  reminder24h: 'reminder24h',
+  reminder2h: 'reminder2h',
+  reply: 'reply',
+  handoff: 'handoff',
+} as const;
+
+export interface WhatsappMessage {
+  id: number;
+  direction: WhatsappMessageDirection;
+  phone: string;
+  clientName: string;
+  /** @nullable */
+  appointmentId: number | null;
+  text: string;
+  status: WhatsappMessageStatus;
+  kind: WhatsappMessageKind;
+  /** @nullable */
+  providerMessageId: string | null;
+  /** @nullable */
+  error: string | null;
+  createdAt: string;
+}
+
+export interface SendAppointmentConfirmationResponse {
+  sent: boolean;
+  message: WhatsappMessage;
+}
+
+export interface EvolutionWebhookResponse {
+  received: boolean;
+  action: string;
+}
+
+export interface EvolutionWebhookPayload { [key: string]: unknown }
+
 export interface HealthStatus {
   status: string;
 }
@@ -687,6 +764,14 @@ export interface InventoryItemInput {
   stock: number;
   nextExpiration: string;
 }
+
+export type ListWhatsappMessagesParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
 
 export type ListAppointmentsParams = {
 date?: string;

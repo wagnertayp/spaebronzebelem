@@ -83,14 +83,54 @@ export const getEvolutionConnection = async () => {
       { headers: { apikey: config.apiKey } },
     );
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
-    const state = String((body.instance as Record<string, unknown> | undefined)?.state ?? body.state ?? "unknown");
+    if (response.status === 404) {
+      const instancesResponse = await fetch(`${config.baseUrl}/instance/fetchInstances`, {
+        headers: { apikey: config.apiKey },
+      }).catch(() => null);
+      if (instancesResponse?.ok) {
+        const instancesBody = await instancesResponse.json().catch(() => []) as unknown;
+        const instances = Array.isArray(instancesBody) ? instancesBody : [];
+        const match = instances.find((item) => {
+          const record = item as Record<string, unknown>;
+          const nested = record.instance as Record<string, unknown> | undefined;
+          return String(record.name ?? nested?.instanceName ?? nested?.name ?? "") === config.instance;
+        }) as Record<string, unknown> | undefined;
+        if (!match) {
+          return {
+            configured: true,
+            connected: false,
+            instance: config.instance,
+            state: "instance_not_found",
+            message: "A chave respondeu, mas a instância configurada não foi encontrada",
+          };
+        }
+        const nested = match.instance as Record<string, unknown> | undefined;
+        const state = String(match.connectionStatus ?? nested?.connectionStatus ?? nested?.state ?? "unknown");
+        return {
+          configured: true,
+          connected: ["open", "connected"].includes(state.toLowerCase()),
+          instance: config.instance,
+          state,
+          message: `Instância encontrada: ${state}`,
+        };
+      }
+    }
+    const state = String(
+      (body.instance as Record<string, unknown> | undefined)?.state ??
+      body.state ??
+      (response.ok ? "unknown" : `http_${response.status}`),
+    );
     const connected = response.ok && ["open", "connected"].includes(state.toLowerCase());
     return {
       configured: true,
       connected,
       instance: config.instance,
       state,
-      message: connected ? "WhatsApp conectado" : "Instância configurada, mas não conectada",
+      message: connected
+        ? "WhatsApp conectado"
+        : response.status === 401 || response.status === 403
+          ? "A Evolution API recusou a chave ou a instância"
+          : `Evolution API respondeu com HTTP ${response.status}`,
     };
   } catch {
     return {

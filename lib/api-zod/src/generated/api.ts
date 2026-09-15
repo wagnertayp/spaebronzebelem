@@ -89,6 +89,125 @@ export const TestAiAgentResponse = zod.object({
 
 
 /**
+ * @summary Verifica a conexão da instância da Evolution API
+ */
+export const GetWhatsappConnectionResponse = zod.object({
+  "configured": zod.boolean(),
+  "connected": zod.boolean(),
+  "instance": zod.string(),
+  "state": zod.string(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Retorna as automações de agenda do WhatsApp
+ */
+export const getWhatsappAutomationResponseTimezoneMin = 3;
+
+
+
+export const GetWhatsappAutomationResponse = zod.object({
+  "enabled": zod.boolean(),
+  "confirmations": zod.boolean(),
+  "reminder24h": zod.boolean(),
+  "reminder2h": zod.boolean(),
+  "timezone": zod.string().min(getWhatsappAutomationResponseTimezoneMin)
+})
+
+
+/**
+ * @summary Atualiza as automações de agenda do WhatsApp
+ */
+export const updateWhatsappAutomationBodyTimezoneMin = 3;
+
+
+
+export const UpdateWhatsappAutomationBody = zod.object({
+  "enabled": zod.boolean(),
+  "confirmations": zod.boolean(),
+  "reminder24h": zod.boolean(),
+  "reminder2h": zod.boolean(),
+  "timezone": zod.string().min(updateWhatsappAutomationBodyTimezoneMin)
+})
+
+export const updateWhatsappAutomationResponseTimezoneMin = 3;
+
+
+
+export const UpdateWhatsappAutomationResponse = zod.object({
+  "enabled": zod.boolean(),
+  "confirmations": zod.boolean(),
+  "reminder24h": zod.boolean(),
+  "reminder2h": zod.boolean(),
+  "timezone": zod.string().min(updateWhatsappAutomationResponseTimezoneMin)
+})
+
+
+/**
+ * @summary Lista as mensagens enviadas e recebidas pelo agente
+ */
+export const listWhatsappMessagesQueryLimitMax = 100;
+
+
+
+export const ListWhatsappMessagesQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(listWhatsappMessagesQueryLimitMax).optional()
+})
+
+export const ListWhatsappMessagesResponseItem = zod.object({
+  "id": zod.number().int(),
+  "direction": zod.enum(['inbound', 'outbound']),
+  "phone": zod.string(),
+  "clientName": zod.string(),
+  "appointmentId": zod.number().int().nullable(),
+  "text": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff']),
+  "providerMessageId": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+export const ListWhatsappMessagesResponse = zod.array(ListWhatsappMessagesResponseItem)
+
+
+/**
+ * @summary Envia confirmação manual de um agendamento
+ */
+export const SendWhatsappAppointmentConfirmationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const SendWhatsappAppointmentConfirmationResponse = zod.object({
+  "sent": zod.boolean(),
+  "message": zod.object({
+  "id": zod.number().int(),
+  "direction": zod.enum(['inbound', 'outbound']),
+  "phone": zod.string(),
+  "clientName": zod.string(),
+  "appointmentId": zod.number().int().nullable(),
+  "text": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff']),
+  "providerMessageId": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Recebe eventos de mensagens da Evolution API
+ */
+export const ReceiveEvolutionWebhookBody = zod.record(zod.string(), zod.unknown())
+
+export const ReceiveEvolutionWebhookResponse = zod.object({
+  "received": zod.boolean(),
+  "action": zod.string()
+})
+
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({

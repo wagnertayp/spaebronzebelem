@@ -77,6 +77,15 @@ import {
   UpdateAiAgentConfigResponse,
   TestAiAgentBody,
   TestAiAgentResponse,
+  GetWhatsappConnectionResponse,
+  GetWhatsappAutomationResponse,
+  UpdateWhatsappAutomationBody,
+  UpdateWhatsappAutomationResponse,
+  ListWhatsappMessagesQueryParams,
+  ListWhatsappMessagesResponse,
+  SendWhatsappAppointmentConfirmationResponse,
+  ReceiveEvolutionWebhookBody,
+  ReceiveEvolutionWebhookResponse,
   GetProfessionalCommissionConfigParams,
   GetProfessionalCommissionConfigResponse,
   UpdateProfessionalCommissionConfigParams,
@@ -112,12 +121,18 @@ import {
 import { openai } from "@workspace/integrations-openai-ai-server";
 import backup from "../data/spa-backup.json";
 import { requireSession } from "../lib/auth";
+import {
+  getEvolutionConfig,
+  getEvolutionConnection,
+  normalizeWhatsappPhone,
+  sendEvolutionText,
+} from "../lib/evolution";
 
 const router: IRouter = Router();
 
 // All operational data is private; quote links remain public by design.
 router.use((req, res, next) => {
-  if (req.path.startsWith("/public/")) return next();
+  if (req.path.startsWith("/public/") || req.path === "/integrations/evolution/webhook") return next();
   return requireSession(req, res, next);
 });
 
@@ -146,6 +161,9 @@ type Appointment = {
   status: AppointmentStatus;
   avatar: string;
 };
+
+type WhatsappMessage = ReturnType<typeof ListWhatsappMessagesResponse.parse>[number];
+type WhatsappAutomation = ReturnType<typeof GetWhatsappAutomationResponse.parse>;
 
 type Lead = {
   id: number;
@@ -349,10 +367,155 @@ const clients = backup.clients.map((client) => ({
   service: client.service,
   status: client.status as "active" | "at_risk" | "new",
   source: client.source,
-  phone: "",
-  email: "",
-  notes: "",
+  phone: String((client as { phone?: unknown }).phone ?? ""),
+  email: String((client as { email?: unknown }).email ?? ""),
+  notes: String((client as { notes?: unknown }).notes ?? ""),
 }));
+
+let whatsappAutomation: WhatsappAutomation = {
+  enabled: false,
+  confirmations: true,
+  reminder24h: true,
+  reminder2h: true,
+  timezone: process.env["EVOLUTION_TIMEZONE"] ?? "America/Belem",
+};
+const whatsappMessages: WhatsappMessage[] = [];
+
+const normalizeName = (value: string) => value.trim().toLocaleLowerCase("pt-BR");
+const findClientForAppointment = (appointment: Appointment) =>
+  clients.find((client) => normalizeName(client.name) === normalizeName(appointment.client));
+
+const appointmentDateTime = (start: string): Date | null => {
+  if (/^\d{4}-\d{2}-\d{2}(?:T|\s)/.test(start)) {
+    const parsed = new Date(start);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+};
+
+const formatAppointmentDate = (appointment: Appointment) => {
+  const date = appointmentDateTime(appointment.start);
+  if (!date) return null;
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: whatsappAutomation.timezone,
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(date);
+};
+
+const nextWhatsappMessageId = () =>
+  whatsappMessages.length ? Math.max(...whatsappMessages.map((message) => message.id)) + 1 : 1;
+
+const addWhatsappMessage = (message: Omit<WhatsappMessage, "id" | "createdAt">) => {
+  const item: WhatsappMessage = {
+    ...message,
+    id: nextWhatsappMessageId(),
+    createdAt: new Date().toISOString(),
+  };
+  whatsappMessages.unshift(item);
+  return item;
+};
+
+const appointmentMessageText = (
+  appointment: Appointment,
+  kind: WhatsappMessage["kind"],
+) => {
+  const formattedDate = formatAppointmentDate(appointment);
+  if (!formattedDate) return null;
+  if (kind === "confirmation") {
+    return `Olá, ${appointment.client}! Seu atendimento no Spa e Bronze Belém está reservado para ${formattedDate}, com ${appointment.professional}, para ${appointment.service}. Responda CONFIRMAR para confirmar, REMARCAR para escolher outro horário ou CANCELAR para cancelar.`;
+  }
+  if (kind === "reminder24h") {
+    return `Olá, ${appointment.client}! Lembrando que seu atendimento será amanhã: ${formattedDate}, com ${appointment.professional}, para ${appointment.service}. Responda CONFIRMAR para confirmar sua presença.`;
+  }
+  return `Olá, ${appointment.client}! Seu atendimento começa em aproximadamente 2 horas: ${formattedDate}, com ${appointment.professional}, para ${appointment.service}. Estamos esperando você.`;
+};
+
+const sendAppointmentMessage = async (
+  appointment: Appointment,
+  kind: Extract<WhatsappMessage["kind"], "confirmation" | "reminder24h" | "reminder2h">,
+) => {
+  const client = findClientForAppointment(appointment);
+  const phone = client ? normalizeWhatsappPhone(client.phone) : "";
+  const text = appointmentMessageText(appointment, kind);
+  const existing = whatsappMessages.find(
+    (message) => message.appointmentId === appointment.id && message.kind === kind && ["sent", "delivered"].includes(message.status),
+  );
+  if (existing) return existing;
+
+  if (!client || !phone || !text) {
+    return addWhatsappMessage({
+      direction: "outbound",
+      phone,
+      clientName: appointment.client,
+      appointmentId: appointment.id,
+      text: text ?? "Mensagem não enviada porque o agendamento não possui data completa.",
+      status: "skipped",
+      kind,
+      providerMessageId: null,
+      error: !client || !phone ? "Cliente sem telefone cadastrado" : "Agendamento sem data completa",
+    });
+  }
+
+  const pending = addWhatsappMessage({
+    direction: "outbound",
+    phone,
+    clientName: appointment.client,
+    appointmentId: appointment.id,
+    text,
+    status: "pending",
+    kind,
+    providerMessageId: null,
+    error: null,
+  });
+  const result = await sendEvolutionText(phone, text);
+  pending.status = result.ok ? "sent" : "failed";
+  pending.providerMessageId = result.providerMessageId;
+  pending.error = result.error;
+  return pending;
+};
+
+const sendWhatsappReply = async (
+  phone: string,
+  clientName: string,
+  appointmentId: number | null,
+  text: string,
+  kind: Extract<WhatsappMessage["kind"], "reply" | "handoff"> = "reply",
+) => {
+  const item = addWhatsappMessage({
+    direction: "outbound",
+    phone: normalizeWhatsappPhone(phone),
+    clientName,
+    appointmentId,
+    text,
+    status: "pending",
+    kind,
+    providerMessageId: null,
+    error: null,
+  });
+  const result = await sendEvolutionText(phone, text);
+  item.status = result.ok ? "sent" : "failed";
+  item.providerMessageId = result.providerMessageId;
+  item.error = result.error;
+  return item;
+};
+
+export const runWhatsappReminders = async () => {
+  if (!whatsappAutomation.enabled) return;
+  const now = Date.now();
+  for (const appointment of appointments) {
+    if (appointment.status !== "confirmed") continue;
+    const date = appointmentDateTime(appointment.start);
+    if (!date) continue;
+    const hours = (date.getTime() - now) / 3_600_000;
+    if (whatsappAutomation.reminder24h && hours > 23 && hours <= 25) {
+      await sendAppointmentMessage(appointment, "reminder24h");
+    }
+    if (whatsappAutomation.reminder2h && hours > 1 && hours <= 3) {
+      await sendAppointmentMessage(appointment, "reminder2h");
+    }
+  }
+};
 
 const leads: Lead[] = [
   {
@@ -737,6 +900,9 @@ router.post("/appointments", (req, res) => {
       .join(""),
   };
   appointments.push(appointment);
+  if (whatsappAutomation.enabled && whatsappAutomation.confirmations) {
+    void sendAppointmentMessage(appointment, "confirmation");
+  }
   res.status(201).json(CreateAppointmentResponse.parse(appointment));
 });
 
@@ -746,6 +912,14 @@ router.patch("/appointments/:id", (req, res) => {
   const appointment = appointments.find((item) => item.id === id);
   if (!appointment) return void res.status(404).json({ error: "Agendamento não encontrado" });
   Object.assign(appointment, input, input.client ? { avatar: getInitials(input.client) } : {});
+  if (
+    whatsappAutomation.enabled &&
+    whatsappAutomation.confirmations &&
+    appointment.status === "confirmed" &&
+    (input.start || input.client || input.service || input.professional)
+  ) {
+    void sendAppointmentMessage(appointment, "confirmation");
+  }
   res.json(UpdateAppointmentResponse.parse(appointment));
 });
 
@@ -755,6 +929,90 @@ router.delete("/appointments/:id", (req, res) => {
   if (index < 0) return void res.status(404).json({ error: "Agendamento não encontrado" });
   appointments.splice(index, 1);
   res.status(204).end();
+});
+
+router.get("/whatsapp/connection", async (_req, res) => {
+  res.json(GetWhatsappConnectionResponse.parse(await getEvolutionConnection()));
+});
+
+router.get("/whatsapp/automation", (_req, res) => {
+  res.json(GetWhatsappAutomationResponse.parse(whatsappAutomation));
+});
+
+router.put("/whatsapp/automation", (req, res) => {
+  whatsappAutomation = UpdateWhatsappAutomationBody.parse(req.body);
+  res.json(UpdateWhatsappAutomationResponse.parse(whatsappAutomation));
+});
+
+router.get("/whatsapp/messages", (req, res) => {
+  const { limit = 50 } = ListWhatsappMessagesQueryParams.parse(req.query);
+  res.json(ListWhatsappMessagesResponse.parse(whatsappMessages.slice(0, limit)));
+});
+
+router.post("/whatsapp/appointments/:id/confirmation", async (req, res) => {
+  const id = Number(req.params.id);
+  const appointment = appointments.find((item) => item.id === id);
+  if (!appointment) return void res.status(404).json({ error: "Agendamento não encontrado" });
+  const message = await sendAppointmentMessage(appointment, "confirmation");
+  res.json(SendWhatsappAppointmentConfirmationResponse.parse({
+    sent: message.status === "sent" || message.status === "delivered",
+    message,
+  }));
+});
+
+router.post("/integrations/evolution/webhook", async (req, res) => {
+  const body = ReceiveEvolutionWebhookBody.parse(req.body);
+  const data = (body["data"] as Record<string, unknown> | undefined) ?? body;
+  const key = (data["key"] as Record<string, unknown> | undefined) ?? {};
+  if (key["fromMe"] === true) {
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_from_me" }));
+  }
+  const remoteJid = String(key["remoteJid"] ?? "");
+  const phone = remoteJid.split("@")[0];
+  const rawMessage = (data["message"] as Record<string, unknown> | undefined) ?? {};
+  const extended = rawMessage["extendedTextMessage"] as Record<string, unknown> | undefined;
+  const text = String(rawMessage["conversation"] ?? extended?.["text"] ?? "").trim();
+  if (!phone || !text) {
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_without_text" }));
+  }
+
+  const client = clients.find((item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone));
+  const appointment = appointments
+    .filter((item) => item.status === "confirmed" && client && normalizeName(item.client) === normalizeName(client.name))
+    .filter((item) => (appointmentDateTime(item.start)?.getTime() ?? Number.MAX_SAFE_INTEGER) > Date.now())
+    .sort((a, b) => (appointmentDateTime(a.start)?.getTime() ?? 0) - (appointmentDateTime(b.start)?.getTime() ?? 0))[0];
+  const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  addWhatsappMessage({
+    direction: "inbound",
+    phone: normalizeWhatsappPhone(phone),
+    clientName: client?.name ?? phone,
+    appointmentId: appointment?.id ?? null,
+    text,
+    status: "received",
+    kind: "reply",
+    providerMessageId: typeof key["id"] === "string" ? key["id"] : null,
+    error: null,
+  });
+
+  if (!appointment) {
+    await sendWhatsappReply(phone, client?.name ?? phone, null, "Recebi sua mensagem. Vou encaminhar para nossa equipe continuar o atendimento.", "handoff");
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
+  }
+  if (normalizedText.includes("confirm")) {
+    await sendWhatsappReply(phone, appointment.client, appointment.id, "Perfeito! Seu atendimento está confirmado. Até lá!");
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "confirmed" }));
+  }
+  if (normalizedText.includes("cancel")) {
+    appointment.status = "cancelled";
+    await sendWhatsappReply(phone, appointment.client, appointment.id, "Tudo bem, seu atendimento foi cancelado. Quando quiser, posso ajudar a encontrar um novo horário.");
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "cancelled" }));
+  }
+  if (normalizedText.includes("remarc")) {
+    await sendWhatsappReply(phone, appointment.client, appointment.id, "Vou encaminhar sua solicitação para uma atendente verificar os próximos horários disponíveis.", "handoff");
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff_reschedule" }));
+  }
+  await sendWhatsappReply(phone, appointment.client, appointment.id, "Para este agendamento, responda CONFIRMAR, REMARCAR ou CANCELAR. Se preferir, posso encaminhar você para uma atendente.", "handoff");
+  return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "unknown_reply" }));
 });
 
 router.get("/clients", (req, res) => {

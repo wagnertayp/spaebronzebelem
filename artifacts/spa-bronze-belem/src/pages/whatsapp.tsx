@@ -8,8 +8,15 @@ import {
   useUpdateService,
   useDeleteService,
   getListServicesQueryKey,
+  useGetWhatsappConnection,
+  getGetWhatsappConnectionQueryKey,
+  useGetWhatsappAutomation,
+  useUpdateWhatsappAutomation,
+  getGetWhatsappAutomationQueryKey,
+  useListWhatsappMessages,
   AiAgentConfig,
-  Service
+  Service,
+  WhatsappAutomation,
 } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -30,7 +37,7 @@ import {
   BrainCircuit, Sparkles, Settings2, Database, 
   Plus, Edit2, Trash2, SendHorizontal, Trash, 
   CheckCircle2, XCircle, Clock, Loader2, Bot, AlertTriangle,
-  Save
+  Save, MessageCircle, CalendarCheck, BellRing, RefreshCw
 } from 'lucide-react';
 
 export function WhatsApp() {
@@ -40,6 +47,12 @@ export function WhatsApp() {
   const { data: config, isLoading: isConfigLoading } = useGetAiAgentConfig();
   const updateConfig = useUpdateAiAgentConfig();
   const testAgent = useTestAiAgent();
+  const { data: whatsappConnection, isLoading: isConnectionLoading } = useGetWhatsappConnection({
+    query: { queryKey: getGetWhatsappConnectionQueryKey(), refetchInterval: 30_000 },
+  });
+  const { data: whatsappAutomation } = useGetWhatsappAutomation();
+  const updateWhatsappAutomation = useUpdateWhatsappAutomation();
+  const { data: whatsappMessages = [] } = useListWhatsappMessages({ limit: 5 });
   
   const { data: services = [], isLoading: isServicesLoading } = useListServices();
   const createService = useCreateService();
@@ -47,6 +60,13 @@ export function WhatsApp() {
   const deleteService = useDeleteService();
 
   const [activeTab, setActiveTab] = useState<'config' | 'services' | 'test'>('config');
+  const [automationForm, setAutomationForm] = useState<WhatsappAutomation>({
+    enabled: false,
+    confirmations: true,
+    reminder24h: true,
+    reminder2h: true,
+    timezone: 'America/Belem',
+  });
 
   // Config Form State
   const [formData, setFormData] = useState<AiAgentConfig>({
@@ -70,6 +90,10 @@ export function WhatsApp() {
     }
   }, [config]);
 
+  useEffect(() => {
+    if (whatsappAutomation) setAutomationForm(whatsappAutomation);
+  }, [whatsappAutomation]);
+
   const handleSaveConfig = () => {
     updateConfig.mutate(
       { data: formData },
@@ -80,6 +104,20 @@ export function WhatsApp() {
         },
         onError: () => toast({ title: 'Erro', description: 'Não foi possível salvar a configuração.', variant: 'destructive' })
       }
+    );
+  };
+
+  const handleSaveAutomation = () => {
+    updateWhatsappAutomation.mutate(
+      { data: automationForm },
+      {
+        onSuccess: (data) => {
+          queryClient.setQueryData(getGetWhatsappAutomationQueryKey(), data);
+          setAutomationForm(data);
+          toast({ title: 'Automação salva', description: 'As confirmações e lembretes foram atualizados.' });
+        },
+        onError: () => toast({ title: 'Erro', description: 'Não foi possível salvar as automações.', variant: 'destructive' }),
+      },
     );
   };
 
@@ -193,7 +231,93 @@ export function WhatsApp() {
             <div className="font-semibold text-text-primary text-lg">{services.length} serviços</div>
           </div>
         </Card>
+
+        <Card className="p-4 flex items-center gap-4">
+          <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", whatsappConnection?.connected ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>
+            <MessageCircle className="w-6 h-6" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[13px] text-text-muted font-medium uppercase tracking-wider mb-1">Evolution API</div>
+            <div className="font-semibold text-text-primary text-lg">
+              {isConnectionLoading ? 'Verificando...' : whatsappConnection?.connected ? 'WhatsApp conectado' : 'Não conectado'}
+            </div>
+            <div className="text-xs text-text-muted truncate">{whatsappConnection?.instance || 'Instância não configurada'}</div>
+          </div>
+        </Card>
       </div>
+
+      <Card className="p-6 space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between border-b border-border pb-5">
+          <div>
+            <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+              <CalendarCheck className="w-5 h-5 text-primary" />
+              Confirmações e lembretes de agenda
+            </h3>
+            <p className="text-sm text-text-muted mt-1">
+              O sistema só envia quando o cliente tem telefone cadastrado e a agenda possui data completa.
+            </p>
+          </div>
+          <Button onClick={handleSaveAutomation} disabled={updateWhatsappAutomation.isPending} className="gap-2 shrink-0">
+            {updateWhatsappAutomation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Salvar automações
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[
+            { key: 'enabled' as const, title: 'Automação ativa', description: 'Permite o envio automático pela Evolution API.', icon: Bot },
+            { key: 'confirmations' as const, title: 'Confirmar agendamento', description: 'Envia a confirmação após criar ou alterar a agenda.', icon: CalendarCheck },
+            { key: 'reminder24h' as const, title: 'Lembrete de 24 horas', description: 'Lembra o cliente no dia anterior.', icon: BellRing },
+            { key: 'reminder2h' as const, title: 'Lembrete de 2 horas', description: 'Lembra o cliente próximo do atendimento.', icon: Clock },
+          ].map((item) => {
+            const Icon = item.icon;
+            const enabled = automationForm[item.key];
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setAutomationForm((current) => ({ ...current, [item.key]: !current[item.key] }))}
+                className={cn("text-left p-4 rounded-xl border transition-colors", enabled ? "border-primary/40 bg-primary/5" : "border-border bg-background")}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <Icon className={cn("w-5 h-5", enabled ? "text-primary" : "text-text-muted")} />
+                  <span className={cn("relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors", enabled ? "bg-primary" : "bg-surface-soft")}>
+                    <span className={cn("pointer-events-none block h-4 w-4 rounded-full bg-white shadow-sm transition-transform", enabled ? "translate-x-5" : "translate-x-1")} />
+                  </span>
+                </div>
+                <div className="font-semibold text-sm text-text-primary mt-3">{item.title}</div>
+                <div className="text-xs text-text-muted mt-1 leading-relaxed">{item.description}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between pt-1">
+          <div className="text-xs text-text-muted">
+            Fuso horário dos lembretes: <span className="font-medium text-text-secondary">{automationForm.timezone}</span>
+          </div>
+          <div className="w-full lg:max-w-xl">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+              <RefreshCw className="w-3.5 h-3.5" /> Últimas mensagens
+            </div>
+            {whatsappMessages.length === 0 ? (
+              <p className="text-sm text-text-muted rounded-lg border border-dashed border-border p-3">Nenhuma mensagem registrada ainda.</p>
+            ) : (
+              <div className="space-y-2">
+                {whatsappMessages.slice(0, 3).map((message) => (
+                  <div key={message.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-xs">
+                    <div className="min-w-0">
+                      <div className="font-medium text-text-primary truncate">{message.clientName || message.phone}</div>
+                      <div className="text-text-muted truncate">{message.text}</div>
+                    </div>
+                    <span className={cn("shrink-0 font-semibold uppercase", message.status === 'sent' ? "text-success" : message.status === 'failed' ? "text-error" : "text-text-muted")}>{message.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
 
       <div className="flex items-center gap-1 border-b border-border">
         <button 

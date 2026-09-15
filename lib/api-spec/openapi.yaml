@@ -134,7 +134,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, additionalProperties: true }
+            schema: { $ref: "#/components/schemas/EvolutionWebhookPayload" }
       responses:
         "200":
           description: Webhook accepted
@@ -967,6 +967,9 @@ components:
         received: { type: boolean }
         action: { type: string }
       required: [received, action]
+    EvolutionWebhookPayload:
+      type: object
+      additionalProperties: true
     HealthStatus:
       type: object
       properties:
