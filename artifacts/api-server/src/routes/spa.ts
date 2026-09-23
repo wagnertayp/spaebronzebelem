@@ -423,7 +423,12 @@ const loadWhatsappSettings = async () => {
   if (!settings) return;
 
   const savedAgentConfig = GetAiAgentConfigResponse.safeParse(settings.aiAgentConfig);
-  if (savedAgentConfig.success) aiAgentConfig = savedAgentConfig.data;
+  if (savedAgentConfig.success) {
+    aiAgentConfig = {
+      ...savedAgentConfig.data,
+      humanHandoff: "Só encaminhe para uma atendente se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
+    };
+  }
 
   const savedAutomation = GetWhatsappAutomationResponse.safeParse(settings.whatsappAutomation);
   if (savedAutomation.success) whatsappAutomation = savedAutomation.data;
@@ -1801,6 +1806,9 @@ Regras de agendamento: ${aiAgentConfig.bookingRules}
 Políticas: ${aiAgentConfig.policies}
 Quando chamar uma pessoa: ${aiAgentConfig.humanHandoff}
 
+BASE DE CONHECIMENTO OPERACIONAL:
+${catalogKnowledge}
+
 TABELA ATUAL DE SERVIÇOS E PREÇOS:
 ${serviceTable}
 
@@ -1809,6 +1817,8 @@ Regras obrigatórias:
 - Use somente os serviços, preços, durações e informações fornecidas acima.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando faltar informação, explique com simpatia que não tem esse dado e faça uma única pergunta curta; não encaminhe para uma atendente.
+- Para agendar, confirme serviço, data, horário exato e nome, um item por vez; “amanhã” sem horário exige uma pergunta sobre o horário. Só considere confirmado quando a cliente disser explicitamente que quer marcar.
+- Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano; reclamações, dúvidas clínicas, negociação e falta de informação continuam na conversa.
  - Seja objetiva e acolhedora, com no máximo duas frases curtas.
  - Use humor leve quando combinar e termine com exatamente um emoji discreto. Não use emojis no meio da resposta.
  - Reassuma o assunto principal da conversa, responda à pergunta atual e não mude de tema sem motivo.
