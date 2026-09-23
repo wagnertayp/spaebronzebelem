@@ -17,6 +17,7 @@ export type EvolutionInstance = {
 };
 
 let selectedInstance = process.env["EVOLUTION_INSTANCE"]?.trim() || null;
+let configuredWebhookInstance: string | null = null;
 
 export type EvolutionSendResult = {
   ok: boolean;
@@ -66,6 +67,44 @@ const pairingCodeFromResponse = (body: Record<string, unknown>): string | null =
   const qr = body.qrcode as Record<string, unknown> | undefined;
   const value = qr?.pairingCode ?? body.pairingCode;
   return typeof value === "string" && value ? value : null;
+};
+
+const getEvolutionWebhookUrl = () => {
+  const configuredUrl = process.env["EVOLUTION_WEBHOOK_URL"]?.trim();
+  if (configuredUrl) return configuredUrl;
+  const devDomain = process.env["REPLIT_DEV_DOMAIN"]?.trim();
+  return devDomain ? `https://${devDomain}/api/integrations/evolution/webhook` : null;
+};
+
+export const configureEvolutionWebhook = async (instance: string) => {
+  const config = getEvolutionConfig();
+  const webhookUrl = getEvolutionWebhookUrl();
+  if (!config || !webhookUrl || configuredWebhookInstance === instance) return false;
+
+  try {
+    const response = await fetch(`${config.baseUrl}/webhook/set/${encodeURIComponent(instance)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: config.apiKey,
+      },
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      body: JSON.stringify({
+        webhook: {
+          enabled: true,
+          url: webhookUrl,
+          webhookByEvents: false,
+          webhookBase64: false,
+          events: ["MESSAGES_UPSERT"],
+        },
+      }),
+    });
+    if (!response.ok) return false;
+    configuredWebhookInstance = instance;
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 export const connectEvolutionInstance = async () => {
@@ -119,6 +158,7 @@ export const connectEvolutionInstance = async () => {
     }
 
     setEvolutionInstance(instance);
+    await configureEvolutionWebhook(instance);
     const qrCode = qrCodeFromResponse(body);
     const pairingCode = pairingCodeFromResponse(body);
     const status = String(
@@ -309,6 +349,7 @@ export const getEvolutionConnection = async () => {
       (response.ok ? "unknown" : `http_${response.status}`),
     );
     const connected = response.ok && ["open", "connected"].includes(state.toLowerCase());
+    if (connected) await configureEvolutionWebhook(config.instance);
     return {
       configured: true,
       connected,

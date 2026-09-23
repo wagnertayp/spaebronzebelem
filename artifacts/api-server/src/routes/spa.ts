@@ -140,6 +140,7 @@ import {
   getEvolutionConfig,
   connectEvolutionInstance,
   getEvolutionConnection,
+  configureEvolutionWebhook,
   normalizeWhatsappPhone,
   sendEvolutionDocument,
   sendEvolutionText,
@@ -1289,7 +1290,11 @@ router.delete("/appointments/:id", (req, res) => {
 });
 
 router.get("/whatsapp/connection", async (_req, res) => {
-  res.json(GetWhatsappConnectionResponse.parse(await getEvolutionConnection()));
+  const connection = await getEvolutionConnection();
+  if (connection.connected && connection.instance) {
+    await configureEvolutionWebhook(connection.instance);
+  }
+  res.json(GetWhatsappConnectionResponse.parse(connection));
 });
 
 router.post("/whatsapp/connect", async (_req, res) => {
