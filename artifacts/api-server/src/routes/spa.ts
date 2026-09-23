@@ -194,6 +194,8 @@ type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.
 type WhatsappConversationStatus = WhatsappConversation["status"];
 const FIRST_WHATSAPP_MESSAGE_DELAY_MS = 8_000;
 const OPENAI_TEXT_MODEL = process.env["OPENAI_API_KEY"] ? "gpt-5.4" : "gpt-5.6-luna";
+const startsWithGreeting = (text: string) =>
+  /^(olá|ola|oi|bom dia|boa tarde|boa noite)\b/i.test(text.trim());
 
 type Lead = {
   id: number;
@@ -804,7 +806,7 @@ const askWhatsappAgent = async (
       {
         role: "system",
         content: `Você é ${aiAgentConfig.name}, atendente do Spa e Bronze Belém.
-Responda em português do Brasil, com tom ${aiAgentConfig.tone}, de forma curta, natural e acolhedora.
+Responda em português do Brasil, com tom ${aiAgentConfig.tone}, de forma muito curta, natural e acolhedora.
 Objetivo: ${aiAgentConfig.objective}
 Saudação: ${aiAgentConfig.greeting}
 Instruções: ${aiAgentConfig.instructions}
@@ -827,6 +829,12 @@ AGENDA ATUAL:
 ${getFutureAgendaContext()}
 
 REGRAS OBRIGATÓRIAS:
+- Responda normalmente em no máximo duas frases curtas no total. Na primeira mensagem, cumprimente e já responda dentro desse limite.
+- Receba bem a cliente e use humor leve quando combinar, sem fazer piadas forçadas ou falar demais.
+- Use exatamente um emoji discreto no final da resposta. Não use emojis no meio do texto.
+- Reassuma sempre o assunto principal da conversa usando o histórico; entenda a pergunta atual antes de responder e não fuja do contexto.
+- Se a cliente fizer uma pergunta de continuação, responda diretamente a ela sem repetir toda a apresentação. Se faltar informação, faça uma única pergunta curta para esclarecer.
+- Mantenha-se simpática, paciente e acolhedora em todas as respostas. Não use respostas genéricas quando houver contexto suficiente.
 - ${isFirstClientMessage ? "Esta é a primeira mensagem do cliente. Comece a resposta usando a saudação configurada, sem trocar por uma mensagem genérica de encaminhamento." : "Não repita a saudação configurada em todas as mensagens."}
 - Não invente preços, promoções, horários, contraindicações ou resultados.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; encaminhe dúvidas clínicas para uma atendente.
@@ -1555,7 +1563,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       phone,
       client?.name ?? decision.appointment?.clientName ?? phone,
       createdAppointment?.id ?? appointment?.id ?? null,
-      isFirstClientMessage && aiAgentConfig.greeting.trim() && !decision.reply.toLocaleLowerCase("pt-BR").includes(aiAgentConfig.greeting.trim().toLocaleLowerCase("pt-BR"))
+      isFirstClientMessage && aiAgentConfig.greeting.trim() && !startsWithGreeting(decision.reply)
         ? `${aiAgentConfig.greeting.trim()}\n\n${decision.reply}`
         : decision.reply,
       decision.handoff ? "handoff" : "reply",
@@ -1795,7 +1803,10 @@ Regras obrigatórias:
 - Use somente os serviços, preços, durações e informações fornecidas acima.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando faltar informação, diga que vai encaminhar para uma atendente.
-- Seja objetiva e acolhedora, sem textos longos.
+ - Seja objetiva e acolhedora, com no máximo duas frases curtas.
+ - Use humor leve quando combinar e termine com exatamente um emoji discreto. Não use emojis no meio da resposta.
+ - Reassuma o assunto principal da conversa, responda à pergunta atual e não mude de tema sem motivo.
+ - Seja sempre simpática e, quando faltar contexto, faça uma única pergunta curta em vez de dar uma resposta genérica.
 - Responda em texto simples, sem Markdown, asteriscos ou títulos.`,
         },
         { role: "user", content: message },
