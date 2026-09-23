@@ -15,4 +15,5 @@ export const WhatsappMessageKind = {
   reminder2h: 'reminder2h',
   reply: 'reply',
   handoff: 'handoff',
+  document: 'document',
 } as const;

@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   CreateAppointmentBody,
   CreateAppointmentResponse,
@@ -85,6 +87,10 @@ import {
   ListWhatsappMessagesQueryParams,
   ListWhatsappMessagesResponse,
   SendWhatsappAppointmentConfirmationResponse,
+  SendWhatsappReplyBody,
+  SendWhatsappReplyResponse,
+  SendWhatsappDocumentBody,
+  SendWhatsappDocumentResponse,
   ReceiveEvolutionWebhookBody,
   ReceiveEvolutionWebhookResponse,
   GetProfessionalCommissionConfigParams,
@@ -127,7 +133,9 @@ import {
   connectEvolutionInstance,
   getEvolutionConnection,
   normalizeWhatsappPhone,
+  sendEvolutionDocument,
   sendEvolutionText,
+  type WhatsappDocument,
 } from "../lib/evolution";
 
 const router: IRouter = Router();
@@ -376,6 +384,8 @@ const clients = backup.clients.map((client) => ({
 
 let whatsappAutomation: WhatsappAutomation = {
   enabled: false,
+  aiReplies: false,
+  humanSupervision: true,
   confirmations: true,
   reminder24h: true,
   reminder2h: true,
@@ -500,6 +510,209 @@ const sendWhatsappReply = async (
   item.providerMessageId = result.providerMessageId;
   item.error = result.error;
   return item;
+};
+
+const sendWhatsappDocumentMessage = async (
+  phone: string,
+  clientName: string,
+  document: WhatsappDocument,
+  caption: string,
+  appointmentId: number | null = null,
+) => {
+  const item = addWhatsappMessage({
+    direction: "outbound",
+    phone: normalizeWhatsappPhone(phone),
+    clientName,
+    appointmentId,
+    text: caption,
+    status: "pending",
+    kind: "document",
+    providerMessageId: null,
+    error: null,
+  });
+  const result = await sendEvolutionDocument(phone, document, caption);
+  item.status = result.ok ? "sent" : "failed";
+  item.providerMessageId = result.providerMessageId;
+  item.error = result.error;
+  return item;
+};
+
+type AgentAppointmentDraft = {
+  clientName: string;
+  service: string;
+  professional: string;
+  start: string;
+  end: string;
+  confirmed: boolean;
+};
+
+type AgentDecision = {
+  reply: string;
+  handoff: boolean;
+  document: WhatsappDocument | null;
+  appointment: AgentAppointmentDraft | null;
+};
+
+const parseAgentDecision = (content: string): AgentDecision => {
+  const cleaned = content
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  try {
+    const value = JSON.parse(cleaned) as Record<string, unknown>;
+    const rawAppointment = value.appointment as Record<string, unknown> | null | undefined;
+    const document = value.document === "menu" || value.document === "advanced"
+      ? value.document
+      : null;
+    const appointment = rawAppointment &&
+      typeof rawAppointment.clientName === "string" &&
+      typeof rawAppointment.service === "string" &&
+      typeof rawAppointment.start === "string" &&
+      typeof rawAppointment.end === "string"
+      ? {
+          clientName: rawAppointment.clientName.trim(),
+          service: rawAppointment.service.trim(),
+          professional: typeof rawAppointment.professional === "string" ? rawAppointment.professional.trim() : "",
+          start: rawAppointment.start.trim(),
+          end: rawAppointment.end.trim(),
+          confirmed: rawAppointment.confirmed === true,
+        }
+      : null;
+    return {
+      reply: typeof value.reply === "string" && value.reply.trim()
+        ? value.reply.replace(/\*\*/g, "").trim()
+        : "Recebi sua mensagem. Vou encaminhar para uma atendente continuar o atendimento.",
+      handoff: value.handoff === true,
+      document,
+      appointment,
+    };
+  } catch {
+    return {
+      reply: "Recebi sua mensagem. Vou encaminhar para uma atendente continuar o atendimento.",
+      handoff: true,
+      document: null,
+      appointment: null,
+    };
+  }
+};
+
+const getConversationHistory = (phone: string) =>
+  whatsappMessages
+    .filter((message) => message.phone === normalizeWhatsappPhone(phone))
+    .slice(0, 12)
+    .reverse()
+    .map((message) => ({
+      role: message.direction === "inbound" ? "user" as const : "assistant" as const,
+      content: message.text,
+    }));
+
+const getFutureAgendaContext = () =>
+  appointments
+    .filter((appointment) => appointment.status === "confirmed")
+    .map((appointment) => `${appointment.start} | ${appointment.end} | ${appointment.service} | ${appointment.professional || "equipe"}`)
+    .join("\n") || "Nenhum agendamento futuro informado.";
+
+const askWhatsappAgent = async (phone: string, clientName: string, text: string): Promise<AgentDecision> => {
+  const serviceTable = services
+    .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
+    .join("\n");
+  const currentDate = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: whatsappAutomation.timezone,
+  }).format(new Date());
+  const response = await openai.chat.completions.create({
+    model: "gpt-5.6-luna",
+    max_completion_tokens: 1600,
+    messages: [
+      {
+        role: "system",
+        content: `Você é ${aiAgentConfig.name}, atendente do Spa e Bronze Belém.
+Responda em português do Brasil, com tom ${aiAgentConfig.tone}, de forma curta, natural e acolhedora.
+Objetivo: ${aiAgentConfig.objective}
+Saudação: ${aiAgentConfig.greeting}
+Instruções: ${aiAgentConfig.instructions}
+Horários: ${aiAgentConfig.businessHours}
+Endereço: ${aiAgentConfig.address}
+Formas de pagamento: ${aiAgentConfig.paymentMethods}
+Regras: ${aiAgentConfig.bookingRules}
+Políticas: ${aiAgentConfig.policies}
+Quando chamar uma pessoa: ${aiAgentConfig.humanHandoff}
+
+BASE DE CONHECIMENTO DOS CATÁLOGOS:
+${catalogKnowledge}
+
+SERVIÇOS CADASTRADOS NO SISTEMA:
+${serviceTable}
+
+DATA LOCAL DE HOJE: ${currentDate}
+FUSO: ${whatsappAutomation.timezone}
+AGENDA ATUAL:
+${getFutureAgendaContext()}
+
+REGRAS OBRIGATÓRIAS:
+- Não invente preços, promoções, horários, contraindicações ou resultados.
+- Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; encaminhe dúvidas clínicas para uma atendente.
+- Use datas ISO locais completas (AAAA-MM-DDTHH:mm) no campo appointment somente quando o cliente tiver informado data e horário exatos e confirmado que deseja agendar.
+- Nunca marque appointment quando faltar serviço, data, horário ou confirmação explícita.
+- Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Caso contrário, document deve ser null.
+- Se o cliente pedir uma pessoa, demonstrar insatisfação, pedir negociação ou houver dúvida fora da base, marque handoff true.
+- Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
+{"reply":"texto curto","handoff":false,"document":null,"appointment":null}
+ou, quando houver agendamento confirmado:
+{"reply":"texto curto","handoff":false,"document":null,"appointment":{"clientName":"nome","service":"serviço","professional":"","start":"AAAA-MM-DDTHH:mm","end":"AAAA-MM-DDTHH:mm","confirmed":true}}`,
+      },
+      ...getConversationHistory(phone).slice(0, -1),
+      { role: "user", content: `Cliente: ${clientName}\nMensagem: ${text}` },
+    ],
+  });
+  return parseAgentDecision(response.choices[0]?.message?.content ?? "");
+};
+
+const isAppointmentConflict = (draft: AgentAppointmentDraft) => {
+  const start = appointmentDateTime(draft.start)?.getTime();
+  const end = appointmentDateTime(draft.end)?.getTime();
+  if (start == null || end == null || end <= start) return true;
+  return appointments.some((appointment) => {
+    const existingStart = appointmentDateTime(appointment.start)?.getTime();
+    const existingEnd = appointmentDateTime(appointment.end)?.getTime();
+    if (existingStart == null || existingEnd == null) return false;
+    const sameProfessional = !draft.professional || !appointment.professional ||
+      normalizeName(draft.professional) === normalizeName(appointment.professional);
+    return sameProfessional && start < existingEnd && end > existingStart;
+  });
+};
+
+const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) => {
+  if (!draft.confirmed || isAppointmentConflict(draft)) return null;
+  const clientName = draft.clientName || phone;
+  let client = clients.find((item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone));
+  if (!client) {
+    client = {
+      id: clients.length ? Math.max(...clients.map((item) => item.id)) + 1 : 1,
+      name: clientName,
+      initials: getInitials(clientName),
+      lastVisit: "",
+      service: draft.service,
+      status: "new",
+      source: "WhatsApp",
+      phone: normalizeWhatsappPhone(phone),
+      email: "",
+      notes: "Cliente cadastrado a partir de conversa no WhatsApp.",
+    };
+    clients.unshift(client);
+  }
+  const appointment: Appointment = {
+    id: appointments.length ? Math.max(...appointments.map((item) => item.id)) + 1 : 1,
+    start: draft.start,
+    end: draft.end,
+    client: client.name,
+    service: draft.service,
+    professional: draft.professional,
+    room: "",
+    status: "confirmed",
+    avatar: getInitials(client.name),
+  };
+  appointments.push(appointment);
+  return appointment;
 };
 
 export const runWhatsappReminders = async () => {
@@ -690,6 +903,17 @@ let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
   policies: "Não prometa horários sem confirmação. Não ofereça diagnóstico médico.",
   humanHandoff: "Encaminhe para uma atendente quando houver reclamação, dúvida clínica, negociação especial ou solicitação fora das informações disponíveis.",
 };
+
+const catalogKnowledge = (() => {
+  try {
+    return readFileSync(
+      resolve(process.cwd(), "artifacts/api-server/src/data/catalog-knowledge.txt"),
+      "utf8",
+    );
+  } catch {
+    return "Os catálogos em PDF estão disponíveis para envio. Quando faltar informação, encaminhe para uma atendente.";
+  }
+})();
 
 const inventory = backup.inventory.map((item) => ({ ...item }));
 
@@ -955,6 +1179,23 @@ router.get("/whatsapp/messages", (req, res) => {
   res.json(ListWhatsappMessagesResponse.parse(whatsappMessages.slice(0, limit)));
 });
 
+router.post("/whatsapp/reply", async (req, res) => {
+  const input = SendWhatsappReplyBody.parse(req.body);
+  const message = await sendWhatsappReply(input.phone, input.clientName, null, input.text);
+  res.json(SendWhatsappReplyResponse.parse(message));
+});
+
+router.post("/whatsapp/documents", async (req, res) => {
+  const input = SendWhatsappDocumentBody.parse(req.body);
+  const message = await sendWhatsappDocumentMessage(
+    input.phone,
+    input.clientName,
+    input.document,
+    input.caption,
+  );
+  res.json(SendWhatsappDocumentResponse.parse(message));
+});
+
 router.post("/whatsapp/appointments/:id/confirmation", async (req, res) => {
   const id = Number(req.params.id);
   const appointment = appointments.find((item) => item.id === id);
@@ -1000,25 +1241,82 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     error: null,
   });
 
-  if (!appointment) {
-    await sendWhatsappReply(phone, client?.name ?? phone, null, "Recebi sua mensagem. Vou encaminhar para nossa equipe continuar o atendimento.", "handoff");
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
-  }
-  if (normalizedText.includes("confirm")) {
+  if (appointment && normalizedText.includes("confirm")) {
     await sendWhatsappReply(phone, appointment.client, appointment.id, "Perfeito! Seu atendimento está confirmado. Até lá!");
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "confirmed" }));
   }
-  if (normalizedText.includes("cancel")) {
+  if (appointment && normalizedText.includes("cancel")) {
     appointment.status = "cancelled";
     await sendWhatsappReply(phone, appointment.client, appointment.id, "Tudo bem, seu atendimento foi cancelado. Quando quiser, posso ajudar a encontrar um novo horário.");
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "cancelled" }));
   }
-  if (normalizedText.includes("remarc")) {
+  if (appointment && normalizedText.includes("remarc")) {
     await sendWhatsappReply(phone, appointment.client, appointment.id, "Vou encaminhar sua solicitação para uma atendente verificar os próximos horários disponíveis.", "handoff");
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff_reschedule" }));
   }
-  await sendWhatsappReply(phone, appointment.client, appointment.id, "Para este agendamento, responda CONFIRMAR, REMARCAR ou CANCELAR. Se preferir, posso encaminhar você para uma atendente.", "handoff");
-  return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "unknown_reply" }));
+
+  const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
+  if (!whatsappAutomation.enabled || !whatsappAutomation.aiReplies || !aiAgentConfig.active || asksForHuman) {
+    await sendWhatsappReply(
+      phone,
+      client?.name ?? phone,
+      appointment?.id ?? null,
+      asksForHuman
+        ? "Claro. Vou encaminhar você para uma atendente continuar o atendimento."
+        : "Recebi sua mensagem. Vou encaminhar para nossa equipe continuar o atendimento.",
+      "handoff",
+    );
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
+  }
+
+  try {
+    const decision = await askWhatsappAgent(phone, client?.name ?? phone, text);
+    let createdAppointment: Appointment | null = null;
+    if (decision.appointment) {
+      createdAppointment = addAppointmentFromAgent(phone, decision.appointment);
+      if (!createdAppointment) {
+        await sendWhatsappReply(
+          phone,
+          client?.name ?? phone,
+          appointment?.id ?? null,
+          "Encontrei os dados do atendimento, mas preciso que uma atendente confirme esse horário antes de colocar na agenda.",
+          "handoff",
+        );
+        return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff_appointment" }));
+      }
+    }
+    if (decision.document) {
+      await sendWhatsappDocumentMessage(
+        phone,
+        client?.name ?? decision.appointment?.clientName ?? phone,
+        decision.document,
+        decision.document === "menu"
+          ? "Segue o nosso cardápio de serviços e bronzeamento."
+          : "Segue o nosso catálogo de serviços de estética avançada.",
+        createdAppointment?.id ?? appointment?.id ?? null,
+      );
+    }
+    await sendWhatsappReply(
+      phone,
+      client?.name ?? decision.appointment?.clientName ?? phone,
+      createdAppointment?.id ?? appointment?.id ?? null,
+      decision.reply,
+      decision.handoff ? "handoff" : "reply",
+    );
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({
+      received: true,
+      action: createdAppointment ? "scheduled" : decision.handoff ? "handoff" : "replied",
+    }));
+  } catch {
+    await sendWhatsappReply(
+      phone,
+      client?.name ?? phone,
+      appointment?.id ?? null,
+      "Recebi sua mensagem. Vou encaminhar para uma atendente continuar o atendimento.",
+      "handoff",
+    );
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff_error" }));
+  }
 });
 
 router.get("/clients", (req, res) => {

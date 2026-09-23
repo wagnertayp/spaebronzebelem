@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 
 import fitz
 
@@ -17,7 +18,22 @@ for pdf_path in pdfs:
         text_file.write(f"Páginas: {document.page_count}\n\n")
         for index, page in enumerate(document):
             text_file.write(f"\n===== PÁGINA {index + 1} =====\n")
-            text_file.write(page.get_text("text"))
+            page_text = page.get_text("text").strip()
+            if page_text:
+                text_file.write(page_text)
+            else:
+                image_path = OUTPUT / f"{stem}-ocr-page-{index + 1}.png"
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                pixmap.save(image_path)
+                ocr = subprocess.run(
+                    ["tesseract", str(image_path), "stdout", "-l", "por+eng"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                text_file.write(ocr.stdout.strip())
+                image_path.unlink(missing_ok=True)
+            text_file.write("\n")
             if index in (0, document.page_count - 1):
                 pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
                 pixmap.save(OUTPUT / f"{stem}-page-{index + 1}.png")

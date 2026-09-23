@@ -123,6 +123,8 @@ export const getWhatsappAutomationResponseTimezoneMin = 3;
 
 export const GetWhatsappAutomationResponse = zod.object({
   "enabled": zod.boolean(),
+  "aiReplies": zod.boolean(),
+  "humanSupervision": zod.boolean(),
   "confirmations": zod.boolean(),
   "reminder24h": zod.boolean(),
   "reminder2h": zod.boolean(),
@@ -139,6 +141,8 @@ export const updateWhatsappAutomationBodyTimezoneMin = 3;
 
 export const UpdateWhatsappAutomationBody = zod.object({
   "enabled": zod.boolean(),
+  "aiReplies": zod.boolean(),
+  "humanSupervision": zod.boolean(),
   "confirmations": zod.boolean(),
   "reminder24h": zod.boolean(),
   "reminder2h": zod.boolean(),
@@ -151,6 +155,8 @@ export const updateWhatsappAutomationResponseTimezoneMin = 3;
 
 export const UpdateWhatsappAutomationResponse = zod.object({
   "enabled": zod.boolean(),
+  "aiReplies": zod.boolean(),
+  "humanSupervision": zod.boolean(),
   "confirmations": zod.boolean(),
   "reminder24h": zod.boolean(),
   "reminder2h": zod.boolean(),
@@ -177,12 +183,72 @@ export const ListWhatsappMessagesResponseItem = zod.object({
   "appointmentId": zod.number().int().nullable(),
   "text": zod.string(),
   "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
-  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document']),
   "providerMessageId": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()
 })
 export const ListWhatsappMessagesResponse = zod.array(ListWhatsappMessagesResponseItem)
+
+
+/**
+ * @summary Envia uma resposta manual para uma conversa do WhatsApp
+ */
+export const sendWhatsappReplyBodyPhoneMin = 8;
+
+
+
+
+
+export const SendWhatsappReplyBody = zod.object({
+  "phone": zod.string().min(sendWhatsappReplyBodyPhoneMin),
+  "clientName": zod.string().min(1),
+  "text": zod.string().min(1)
+})
+
+export const SendWhatsappReplyResponse = zod.object({
+  "id": zod.number().int(),
+  "direction": zod.enum(['inbound', 'outbound']),
+  "phone": zod.string(),
+  "clientName": zod.string(),
+  "appointmentId": zod.number().int().nullable(),
+  "text": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document']),
+  "providerMessageId": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Envia um catálogo em PDF pelo WhatsApp
+ */
+export const sendWhatsappDocumentBodyPhoneMin = 8;
+
+
+
+
+export const SendWhatsappDocumentBody = zod.object({
+  "phone": zod.string().min(sendWhatsappDocumentBodyPhoneMin),
+  "clientName": zod.string().min(1),
+  "document": zod.enum(['menu', 'advanced']),
+  "caption": zod.string()
+})
+
+export const SendWhatsappDocumentResponse = zod.object({
+  "id": zod.number().int(),
+  "direction": zod.enum(['inbound', 'outbound']),
+  "phone": zod.string(),
+  "clientName": zod.string(),
+  "appointmentId": zod.number().int().nullable(),
+  "text": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document']),
+  "providerMessageId": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string()
+})
 
 
 /**
@@ -202,7 +268,7 @@ export const SendWhatsappAppointmentConfirmationResponse = zod.object({
   "appointmentId": zod.number().int().nullable(),
   "text": zod.string(),
   "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
-  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document']),
   "providerMessageId": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()

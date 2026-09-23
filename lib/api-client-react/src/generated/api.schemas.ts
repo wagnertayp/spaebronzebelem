@@ -61,6 +61,8 @@ export interface WhatsappConnectResponse {
 
 export interface WhatsappAutomation {
   enabled: boolean;
+  aiReplies: boolean;
+  humanSupervision: boolean;
   confirmations: boolean;
   reminder24h: boolean;
   reminder2h: boolean;
@@ -97,6 +99,7 @@ export const WhatsappMessageKind = {
   reminder2h: 'reminder2h',
   reply: 'reply',
   handoff: 'handoff',
+  document: 'document',
 } as const;
 
 export interface WhatsappMessage {
@@ -114,6 +117,32 @@ export interface WhatsappMessage {
   /** @nullable */
   error: string | null;
   createdAt: string;
+}
+
+export interface WhatsappReplyInput {
+  /** @minLength 8 */
+  phone: string;
+  /** @minLength 1 */
+  clientName: string;
+  /** @minLength 1 */
+  text: string;
+}
+
+export type WhatsappDocumentInputDocument = typeof WhatsappDocumentInputDocument[keyof typeof WhatsappDocumentInputDocument];
+
+
+export const WhatsappDocumentInputDocument = {
+  menu: 'menu',
+  advanced: 'advanced',
+} as const;
+
+export interface WhatsappDocumentInput {
+  /** @minLength 8 */
+  phone: string;
+  /** @minLength 1 */
+  clientName: string;
+  document: WhatsappDocumentInputDocument;
+  caption: string;
 }
 
 export interface SendAppointmentConfirmationResponse {

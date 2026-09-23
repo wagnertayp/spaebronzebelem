@@ -75,7 +75,9 @@ import type {
   WhatsappAutomation,
   WhatsappConnectResponse,
   WhatsappConnection,
-  WhatsappMessage
+  WhatsappDocumentInput,
+  WhatsappMessage,
+  WhatsappReplyInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -703,6 +705,148 @@ export function useListWhatsappMessages<TData = Awaited<ReturnType<typeof listWh
 
 
 
+
+export const getSendWhatsappReplyUrl = () => {
+
+
+
+
+  return `/api/whatsapp/reply`
+}
+
+/**
+ * @summary Envia uma resposta manual para uma conversa do WhatsApp
+ */
+export const sendWhatsappReply = async (whatsappReplyInput: WhatsappReplyInput, options?: Parameters<typeof customFetch>[1]): Promise<WhatsappMessage> => {
+
+  return customFetch<WhatsappMessage>(getSendWhatsappReplyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(whatsappReplyInput)
+  }
+);}
+
+
+
+
+
+export const getSendWhatsappReplyMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWhatsappReply>>, TError,{data: BodyType<WhatsappReplyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendWhatsappReply>>, TError,{data: BodyType<WhatsappReplyInput>}, TContext> => {
+
+const mutationKey = ['sendWhatsappReply'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendWhatsappReply>>, {data: BodyType<WhatsappReplyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendWhatsappReply(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendWhatsappReplyMutationResult = NonNullable<Awaited<ReturnType<typeof sendWhatsappReply>>>
+    export type SendWhatsappReplyMutationBody = BodyType<WhatsappReplyInput>
+    export type SendWhatsappReplyMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Envia uma resposta manual para uma conversa do WhatsApp
+ */
+export const useSendWhatsappReply = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWhatsappReply>>, TError,{data: BodyType<WhatsappReplyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendWhatsappReply>>,
+        TError,
+        {data: BodyType<WhatsappReplyInput>},
+        TContext
+      > => {
+      return useMutation(getSendWhatsappReplyMutationOptions(options));
+    }
+
+export const getSendWhatsappDocumentUrl = () => {
+
+
+
+
+  return `/api/whatsapp/documents`
+}
+
+/**
+ * @summary Envia um catálogo em PDF pelo WhatsApp
+ */
+export const sendWhatsappDocument = async (whatsappDocumentInput: WhatsappDocumentInput, options?: Parameters<typeof customFetch>[1]): Promise<WhatsappMessage> => {
+
+  return customFetch<WhatsappMessage>(getSendWhatsappDocumentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(whatsappDocumentInput)
+  }
+);}
+
+
+
+
+
+export const getSendWhatsappDocumentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWhatsappDocument>>, TError,{data: BodyType<WhatsappDocumentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendWhatsappDocument>>, TError,{data: BodyType<WhatsappDocumentInput>}, TContext> => {
+
+const mutationKey = ['sendWhatsappDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendWhatsappDocument>>, {data: BodyType<WhatsappDocumentInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendWhatsappDocument(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendWhatsappDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof sendWhatsappDocument>>>
+    export type SendWhatsappDocumentMutationBody = BodyType<WhatsappDocumentInput>
+    export type SendWhatsappDocumentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Envia um catálogo em PDF pelo WhatsApp
+ */
+export const useSendWhatsappDocument = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWhatsappDocument>>, TError,{data: BodyType<WhatsappDocumentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendWhatsappDocument>>,
+        TError,
+        {data: BodyType<WhatsappDocumentInput>},
+        TContext
+      > => {
+      return useMutation(getSendWhatsappDocumentMutationOptions(options));
+    }
 
 export const getSendWhatsappAppointmentConfirmationUrl = (id: number,) => {
 

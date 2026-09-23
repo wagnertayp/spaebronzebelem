@@ -15,6 +15,9 @@ import {
   useUpdateWhatsappAutomation,
   getGetWhatsappAutomationQueryKey,
   useListWhatsappMessages,
+  getListWhatsappMessagesQueryKey,
+  useSendWhatsappReply,
+  useSendWhatsappDocument,
   AiAgentConfig,
   Service,
   WhatsappAutomation,
@@ -54,7 +57,9 @@ export function WhatsApp() {
   const connectWhatsapp = useConnectWhatsapp();
   const { data: whatsappAutomation } = useGetWhatsappAutomation();
   const updateWhatsappAutomation = useUpdateWhatsappAutomation();
-  const { data: whatsappMessages = [] } = useListWhatsappMessages({ limit: 5 });
+  const sendWhatsappReply = useSendWhatsappReply();
+  const sendWhatsappDocument = useSendWhatsappDocument();
+  const { data: whatsappMessages = [] } = useListWhatsappMessages({ limit: 50 });
   
   const { data: services = [], isLoading: isServicesLoading } = useListServices();
   const createService = useCreateService();
@@ -64,12 +69,16 @@ export function WhatsApp() {
   const [activeTab, setActiveTab] = useState<'config' | 'services' | 'test'>('config');
   const [automationForm, setAutomationForm] = useState<WhatsappAutomation>({
     enabled: false,
+    aiReplies: false,
+    humanSupervision: true,
     confirmations: true,
     reminder24h: true,
     reminder2h: true,
     timezone: 'America/Belem',
   });
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [selectedPhone, setSelectedPhone] = useState('');
+  const [manualReply, setManualReply] = useState('');
 
   // Config Form State
   const [formData, setFormData] = useState<AiAgentConfig>({
@@ -138,6 +147,54 @@ export function WhatsApp() {
           });
         },
         onError: () => toast({ title: 'Erro', description: 'Não foi possível gerar o QR Code.', variant: 'destructive' }),
+      },
+    );
+  };
+
+  useEffect(() => {
+    if (!selectedPhone && whatsappMessages[0]?.phone) {
+      setSelectedPhone(whatsappMessages[0].phone);
+    }
+  }, [selectedPhone, whatsappMessages]);
+
+  const selectedWhatsappMessage = whatsappMessages.find((message) => message.phone === selectedPhone);
+  const selectedClientName = selectedWhatsappMessage?.clientName || selectedPhone;
+
+  const handleManualReply = () => {
+    const text = manualReply.trim();
+    if (!selectedPhone || !text) return;
+    sendWhatsappReply.mutate(
+      { data: { phone: selectedPhone, clientName: selectedClientName, text } },
+      {
+        onSuccess: () => {
+          setManualReply('');
+          queryClient.invalidateQueries({ queryKey: getListWhatsappMessagesQueryKey() });
+          toast({ title: 'Mensagem enviada', description: 'A resposta foi enviada pelo WhatsApp.' });
+        },
+        onError: () => toast({ title: 'Erro', description: 'Não foi possível enviar a resposta.', variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleSendCatalog = (document: 'menu' | 'advanced') => {
+    if (!selectedPhone) return;
+    sendWhatsappDocument.mutate(
+      {
+        data: {
+          phone: selectedPhone,
+          clientName: selectedClientName,
+          document,
+          caption: document === 'menu'
+            ? 'Segue o nosso cardápio de serviços e bronzeamento.'
+            : 'Segue o nosso catálogo de serviços de estética avançada.',
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListWhatsappMessagesQueryKey() });
+          toast({ title: 'Catálogo enviado', description: 'O PDF foi enviado pelo WhatsApp.' });
+        },
+        onError: () => toast({ title: 'Erro', description: 'Não foi possível enviar o catálogo.', variant: 'destructive' }),
       },
     );
   };
@@ -291,6 +348,8 @@ export function WhatsApp() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {[
             { key: 'enabled' as const, title: 'Automação ativa', description: 'Permite o envio automático pelo WhatsApp.', icon: Bot },
+            { key: 'aiReplies' as const, title: 'Respostas do agente', description: 'Permite que o agente responda conversas com a base de conhecimento.', icon: Sparkles },
+            { key: 'humanSupervision' as const, title: 'Supervisão humana', description: 'Mantém as conversas visíveis para acompanhamento e resposta manual.', icon: CheckCircle2 },
             { key: 'confirmations' as const, title: 'Confirmar agendamento', description: 'Envia a confirmação após criar ou alterar a agenda.', icon: CalendarCheck },
             { key: 'reminder24h' as const, title: 'Lembrete de 24 horas', description: 'Lembra o cliente no dia anterior.', icon: BellRing },
             { key: 'reminder2h' as const, title: 'Lembrete de 2 horas', description: 'Lembra o cliente próximo do atendimento.', icon: Clock },
@@ -321,23 +380,80 @@ export function WhatsApp() {
           <div className="text-xs text-text-muted">
             Fuso horário dos lembretes: <span className="font-medium text-text-secondary">{automationForm.timezone}</span>
           </div>
-          <div className="w-full lg:max-w-xl">
+          <div className="w-full lg:max-w-3xl">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
-              <RefreshCw className="w-3.5 h-3.5" /> Últimas mensagens
+              <RefreshCw className="w-3.5 h-3.5" /> Supervisão do atendimento
             </div>
             {whatsappMessages.length === 0 ? (
-              <p className="text-sm text-text-muted rounded-lg border border-dashed border-border p-3">Nenhuma mensagem registrada ainda.</p>
+              <p className="text-sm text-text-muted rounded-lg border border-dashed border-border p-3">
+                Nenhuma conversa registrada ainda. Quando chegar uma mensagem, ela aparecerá aqui para a equipe acompanhar.
+              </p>
             ) : (
-              <div className="space-y-2">
-                {whatsappMessages.slice(0, 3).map((message) => (
-                  <div key={message.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-xs">
-                    <div className="min-w-0">
-                      <div className="font-medium text-text-primary truncate">{message.clientName || message.phone}</div>
-                      <div className="text-text-muted truncate">{message.text}</div>
-                    </div>
-                    <span className={cn("shrink-0 font-semibold uppercase", message.status === 'sent' ? "text-success" : message.status === 'failed' ? "text-error" : "text-text-muted")}>{message.status}</span>
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(260px,0.9fr)] gap-3">
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {whatsappMessages.map((message) => (
+                    <button
+                      key={message.id}
+                      type="button"
+                      onClick={() => setSelectedPhone(message.phone)}
+                      className={cn(
+                        "w-full text-left flex items-start justify-between gap-3 rounded-lg border p-3 text-xs transition-colors",
+                        selectedPhone === message.phone ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium text-text-primary truncate">
+                          {message.clientName || message.phone}
+                          <span className="font-normal text-text-muted ml-2">{message.direction === 'inbound' ? 'Cliente' : 'Equipe'}</span>
+                        </div>
+                        <div className="text-text-muted truncate">{message.text}</div>
+                      </div>
+                      <span className={cn("shrink-0 font-semibold uppercase", message.status === 'sent' || message.status === 'received' ? "text-success" : message.status === 'failed' ? "text-error" : "text-text-muted")}>{message.status}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+                  <div className="text-xs font-medium text-text-primary">
+                    {selectedPhone ? `Responder ${selectedClientName}` : 'Selecione uma conversa'}
                   </div>
-                ))}
+                  <textarea
+                    value={manualReply}
+                    onChange={(event) => setManualReply(event.target.value)}
+                    placeholder={selectedPhone ? 'Escreva uma resposta para o cliente...' : 'Selecione uma conversa à esquerda.'}
+                    disabled={!selectedPhone || sendWhatsappReply.isPending}
+                    rows={3}
+                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleManualReply}
+                      disabled={!selectedPhone || !manualReply.trim() || sendWhatsappReply.isPending}
+                      className="gap-1.5"
+                    >
+                      {sendWhatsappReply.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <SendHorizontal className="w-3.5 h-3.5" />}
+                      Responder
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleSendCatalog('menu')}
+                      disabled={!selectedPhone || sendWhatsappDocument.isPending}
+                    >
+                      Enviar cardápio
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleSendCatalog('advanced')}
+                      disabled={!selectedPhone || sendWhatsappDocument.isPending}
+                    >
+                      Enviar catálogo
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 type EvolutionConfig = {
   baseUrl: string;
   instance: string | null;
   apiKey: string;
 };
+
+const PROVIDER_TIMEOUT_MS = 8_000;
 
 export type EvolutionInstance = {
   name: string;
@@ -18,6 +22,25 @@ export type EvolutionSendResult = {
   ok: boolean;
   providerMessageId: string | null;
   error: string | null;
+};
+
+export type WhatsappDocument = "menu" | "advanced";
+
+const documentFiles: Record<WhatsappDocument, { path: string; fileName: string }> = {
+  menu: {
+    path: resolve(
+      process.cwd(),
+      "attached_assets/Cardápio_Spa_&_Bronze_Belém_compressed_1790165039391.pdf",
+    ),
+    fileName: "Cardapio-Spa-e-Bronze-Belem.pdf",
+  },
+  advanced: {
+    path: resolve(
+      process.cwd(),
+      "attached_assets/Catálogo_-_Serviços_estéticos_avançados_compressed_1790165039392.pdf",
+    ),
+    fileName: "Catalogo-Estetica-Avancada-Spa-e-Bronze-Belem.pdf",
+  },
 };
 
 export const getEvolutionConfig = (): EvolutionConfig | null => {
@@ -65,7 +88,7 @@ export const connectEvolutionInstance = async () => {
     if (config.instance) {
       response = await fetch(
         `${config.baseUrl}/instance/connect/${encodeURIComponent(instance)}`,
-        { headers: { apikey: config.apiKey } },
+        { headers: { apikey: config.apiKey }, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) },
       );
     } else {
       response = await fetch(`${config.baseUrl}/instance/create`, {
@@ -74,6 +97,7 @@ export const connectEvolutionInstance = async () => {
           "Content-Type": "application/json",
           apikey: config.apiKey,
         },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
         body: JSON.stringify({
           instanceName: instance,
           integration: "WHATSAPP-BAILEYS",
@@ -150,6 +174,7 @@ export const sendEvolutionText = async (
           "Content-Type": "application/json",
           apikey: config.apiKey,
         },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
         body: JSON.stringify({ number: normalizeWhatsappPhone(phone), text }),
       },
     );
@@ -180,6 +205,57 @@ export const sendEvolutionText = async (
   }
 };
 
+export const sendEvolutionDocument = async (
+  phone: string,
+  document: WhatsappDocument,
+  caption: string,
+): Promise<EvolutionSendResult> => {
+  const config = getEvolutionConfig();
+  if (!config || !config.instance) {
+    return { ok: false, providerMessageId: null, error: "WhatsApp não configurado" };
+  }
+
+  try {
+    const file = documentFiles[document];
+    const media = (await readFile(file.path)).toString("base64");
+    const response = await fetch(
+      `${config.baseUrl}/message/sendMedia/${encodeURIComponent(config.instance)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: config.apiKey,
+        },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        body: JSON.stringify({
+          number: normalizeWhatsappPhone(phone),
+          mediatype: "document",
+          mimetype: "application/pdf",
+          caption,
+          media,
+          fileName: file.fileName,
+        }),
+      },
+    );
+    const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok) {
+      return { ok: false, providerMessageId: null, error: "Não foi possível enviar o documento pelo WhatsApp" };
+    }
+    const key = body.key as Record<string, unknown> | undefined;
+    return {
+      ok: true,
+      providerMessageId: typeof key?.id === "string"
+        ? key.id
+        : typeof body.messageId === "string"
+          ? body.messageId
+          : null,
+      error: null,
+    };
+  } catch {
+    return { ok: false, providerMessageId: null, error: "Não foi possível enviar o documento pelo WhatsApp" };
+  }
+};
+
 export const getEvolutionConnection = async () => {
   const config = getEvolutionConfig();
   if (!config) {
@@ -191,12 +267,13 @@ export const getEvolutionConnection = async () => {
   try {
     const response = await fetch(
       `${config.baseUrl}/instance/connectionState/${encodeURIComponent(config.instance)}`,
-      { headers: { apikey: config.apiKey } },
+      { headers: { apikey: config.apiKey }, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) },
     );
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (response.status === 404) {
       const instancesResponse = await fetch(`${config.baseUrl}/instance/fetchInstances`, {
         headers: { apikey: config.apiKey },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       }).catch(() => null);
       if (instancesResponse?.ok) {
         const instancesBody = await instancesResponse.json().catch(() => []) as unknown;
@@ -274,6 +351,7 @@ export const listEvolutionInstances = async (): Promise<EvolutionInstance[]> => 
   if (!config) return [];
   const response = await fetch(`${config.baseUrl}/instance/fetchInstances`, {
     headers: { apikey: config.apiKey },
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
   const body = await response.json().catch(() => []);
   if (!response.ok) {

@@ -123,6 +123,38 @@ paths:
           content:
             application/json:
               schema: { type: array, items: { $ref: "#/components/schemas/WhatsappMessage" } }
+  /whatsapp/reply:
+    post:
+      operationId: sendWhatsappReply
+      tags: [ai-agent]
+      summary: Envia uma resposta manual para uma conversa do WhatsApp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WhatsappReplyInput" }
+      responses:
+        "200":
+          description: Manual WhatsApp reply
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappMessage" }
+  /whatsapp/documents:
+    post:
+      operationId: sendWhatsappDocument
+      tags: [ai-agent]
+      summary: Envia um catálogo em PDF pelo WhatsApp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WhatsappDocumentInput" }
+      responses:
+        "200":
+          description: WhatsApp document delivery
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappMessage" }
   /whatsapp/appointments/{id}/confirmation:
     post:
       operationId: sendWhatsappAppointmentConfirmation
@@ -957,11 +989,13 @@ components:
       type: object
       properties:
         enabled: { type: boolean }
+        aiReplies: { type: boolean }
+        humanSupervision: { type: boolean }
         confirmations: { type: boolean }
         reminder24h: { type: boolean }
         reminder2h: { type: boolean }
         timezone: { type: string, minLength: 3 }
-      required: [enabled, confirmations, reminder24h, reminder2h, timezone]
+      required: [enabled, aiReplies, humanSupervision, confirmations, reminder24h, reminder2h, timezone]
     WhatsappMessage:
       type: object
       properties:
@@ -972,11 +1006,26 @@ components:
         appointmentId: { type: ["integer", "null"] }
         text: { type: string }
         status: { type: string, enum: [pending, sent, delivered, received, skipped, failed] }
-        kind: { type: string, enum: [confirmation, reminder24h, reminder2h, reply, handoff] }
+        kind: { type: string, enum: [confirmation, reminder24h, reminder2h, reply, handoff, document] }
         providerMessageId: { type: ["string", "null"] }
         error: { type: ["string", "null"] }
         createdAt: { type: string }
       required: [id, direction, phone, clientName, appointmentId, text, status, kind, providerMessageId, error, createdAt]
+    WhatsappReplyInput:
+      type: object
+      properties:
+        phone: { type: string, minLength: 8 }
+        clientName: { type: string, minLength: 1 }
+        text: { type: string, minLength: 1 }
+      required: [phone, clientName, text]
+    WhatsappDocumentInput:
+      type: object
+      properties:
+        phone: { type: string, minLength: 8 }
+        clientName: { type: string, minLength: 1 }
+        document: { type: string, enum: [menu, advanced] }
+        caption: { type: string }
+      required: [phone, clientName, document, caption]
     SendAppointmentConfirmationResponse:
       type: object
       properties:

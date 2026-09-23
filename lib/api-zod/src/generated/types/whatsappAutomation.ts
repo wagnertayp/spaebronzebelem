@@ -8,6 +8,8 @@
 
 export interface WhatsappAutomation {
   enabled: boolean;
+  aiReplies: boolean;
+  humanSupervision: boolean;
   confirmations: boolean;
   reminder24h: boolean;
   reminder2h: boolean;
