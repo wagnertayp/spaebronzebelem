@@ -96,6 +96,7 @@ export * from './whatsappConversation';
 export * from './whatsappConversationStatus';
 export * from './whatsappConversationUpdate';
 export * from './whatsappConversationUpdateStatus';
+export * from './whatsappDisconnectResponse';
 export * from './whatsappDocumentInput';
 export * from './whatsappDocumentInputDocument';
 export * from './whatsappMessage';

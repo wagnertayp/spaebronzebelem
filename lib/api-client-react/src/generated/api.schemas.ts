@@ -59,6 +59,12 @@ export interface WhatsappConnectResponse {
   pairingCode: string | null;
 }
 
+export interface WhatsappDisconnectResponse {
+  disconnected: boolean;
+  instance: string;
+  message: string;
+}
+
 export interface WhatsappAutomation {
   enabled: boolean;
   aiReplies: boolean;

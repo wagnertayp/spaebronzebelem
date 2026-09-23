@@ -115,6 +115,16 @@ export const ConnectWhatsappResponse = zod.object({
 
 
 /**
+ * @summary Desconecta a instância atual do WhatsApp
+ */
+export const DisconnectWhatsappResponse = zod.object({
+  "disconnected": zod.boolean(),
+  "instance": zod.string(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary Retorna as automações de agenda do WhatsApp
  */
 export const getWhatsappAutomationResponseTimezoneMin = 3;

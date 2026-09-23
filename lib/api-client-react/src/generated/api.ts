@@ -78,6 +78,7 @@ import type {
   WhatsappConnection,
   WhatsappConversation,
   WhatsappConversationUpdate,
+  WhatsappDisconnectResponse,
   WhatsappDocumentInput,
   WhatsappMessage,
   WhatsappReplyInput
@@ -475,6 +476,77 @@ export const useConnectWhatsapp = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getConnectWhatsappMutationOptions(options));
+    }
+
+export const getDisconnectWhatsappUrl = () => {
+
+
+
+
+  return `/api/whatsapp/disconnect`
+}
+
+/**
+ * @summary Desconecta a instância atual do WhatsApp
+ */
+export const disconnectWhatsapp = async ( options?: Parameters<typeof customFetch>[1]): Promise<WhatsappDisconnectResponse> => {
+
+  return customFetch<WhatsappDisconnectResponse>(getDisconnectWhatsappUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectWhatsappMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectWhatsapp>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectWhatsapp>>, TError,void, TContext> => {
+
+const mutationKey = ['disconnectWhatsapp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectWhatsapp>>, void> = () => {
+
+
+          return  disconnectWhatsapp(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectWhatsappMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectWhatsapp>>>
+
+    export type DisconnectWhatsappMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Desconecta a instância atual do WhatsApp
+ */
+export const useDisconnectWhatsapp = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectWhatsapp>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectWhatsapp>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDisconnectWhatsappMutationOptions(options));
     }
 
 export const getGetWhatsappAutomationUrl = () => {

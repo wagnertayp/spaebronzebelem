@@ -214,6 +214,50 @@ export const connectEvolutionInstance = async () => {
   }
 };
 
+export const disconnectEvolutionInstance = async () => {
+  const config = getEvolutionConfig();
+  if (!config || !config.instance) {
+    return {
+      disconnected: false,
+      instance: "",
+      message: "Nenhuma conexão do WhatsApp está selecionada",
+    };
+  }
+
+  const instance = config.instance;
+  try {
+    const response = await fetch(
+      `${config.baseUrl}/instance/logout/${encodeURIComponent(instance)}`,
+      {
+        method: "DELETE",
+        headers: { apikey: config.apiKey },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      },
+    );
+    if (!response.ok) {
+      return {
+        disconnected: false,
+        instance,
+        message: `Não foi possível desconectar o WhatsApp (HTTP ${response.status})`,
+      };
+    }
+
+    setEvolutionInstance("");
+    configuredWebhookInstance = null;
+    return {
+      disconnected: true,
+      instance,
+      message: "WhatsApp desconectado. Gere um novo QR Code para conectar outro número.",
+    };
+  } catch {
+    return {
+      disconnected: false,
+      instance,
+      message: "Não foi possível desconectar o WhatsApp",
+    };
+  }
+};
+
 export const normalizeWhatsappPhone = (value: string): string => {
   const digits = value.replace(/\D/g, "");
   if (!digits) return "";

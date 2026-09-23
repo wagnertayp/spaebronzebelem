@@ -81,6 +81,7 @@ import {
   TestAiAgentResponse,
   GetWhatsappConnectionResponse,
   ConnectWhatsappResponse,
+  DisconnectWhatsappResponse,
   GetWhatsappAutomationResponse,
   UpdateWhatsappAutomationBody,
   UpdateWhatsappAutomationResponse,
@@ -146,6 +147,7 @@ import { requireSession } from "../lib/auth";
 import {
   getEvolutionConfig,
   connectEvolutionInstance,
+  disconnectEvolutionInstance,
   getEvolutionConnection,
   configureEvolutionWebhook,
   normalizeWhatsappPhone,
@@ -1404,6 +1406,10 @@ router.get("/whatsapp/connection", async (_req, res) => {
 
 router.post("/whatsapp/connect", async (_req, res) => {
   res.json(ConnectWhatsappResponse.parse(await connectEvolutionInstance()));
+});
+
+router.post("/whatsapp/disconnect", async (_req, res) => {
+  res.json(DisconnectWhatsappResponse.parse(await disconnectEvolutionInstance()));
 });
 
 router.get("/whatsapp/automation", (_req, res) => {

@@ -11,6 +11,7 @@ import {
   useGetWhatsappConnection,
   getGetWhatsappConnectionQueryKey,
   useConnectWhatsapp,
+  useDisconnectWhatsapp,
   useGetWhatsappAutomation,
   useUpdateWhatsappAutomation,
   getGetWhatsappAutomationQueryKey,
@@ -60,6 +61,7 @@ export function WhatsApp() {
     query: { queryKey: getGetWhatsappConnectionQueryKey(), refetchInterval: 30_000 },
   });
   const connectWhatsapp = useConnectWhatsapp();
+  const disconnectWhatsapp = useDisconnectWhatsapp();
   const { data: whatsappAutomation } = useGetWhatsappAutomation();
   const updateWhatsappAutomation = useUpdateWhatsappAutomation();
   const sendWhatsappReply = useSendWhatsappReply();
@@ -157,6 +159,23 @@ export function WhatsApp() {
         onError: () => toast({ title: 'Erro', description: 'Não foi possível gerar o QR Code.', variant: 'destructive' }),
       },
     );
+  };
+
+  const handleDisconnectWhatsapp = () => {
+    if (!whatsappConnection?.connected || disconnectWhatsapp.isPending) return;
+    if (!window.confirm('Desconectar o WhatsApp atual para conectar outro número? As conversas e configurações serão mantidas.')) return;
+    disconnectWhatsapp.mutate(undefined, {
+      onSuccess: (data) => {
+        if (!data.disconnected) {
+          toast({ title: 'Não foi possível desconectar', description: data.message, variant: 'destructive' });
+          return;
+        }
+        setQrCode(null);
+        queryClient.invalidateQueries({ queryKey: getGetWhatsappConnectionQueryKey() });
+        toast({ title: 'WhatsApp desconectado', description: data.message });
+      },
+      onError: () => toast({ title: 'Erro', description: 'Não foi possível desconectar o WhatsApp.', variant: 'destructive' }),
+    });
   };
 
   useEffect(() => {
@@ -377,10 +396,24 @@ export function WhatsApp() {
               {isConnectionLoading ? 'Verificando...' : whatsappConnection?.connected ? 'WhatsApp conectado' : 'Não conectado'}
             </div>
             <div className="text-xs text-text-muted truncate mb-3">{whatsappConnection?.message || 'Gere um QR Code para conectar o WhatsApp'}</div>
-            <Button size="sm" onClick={handleConnectWhatsapp} disabled={connectWhatsapp.isPending} className="gap-2">
-              {connectWhatsapp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
-              Gerar QR Code
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={handleConnectWhatsapp} disabled={connectWhatsapp.isPending || disconnectWhatsapp.isPending} className="gap-2">
+                {connectWhatsapp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+                {whatsappConnection?.connected ? 'Gerar QR Code novamente' : 'Gerar QR Code'}
+              </Button>
+              {whatsappConnection?.connected && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDisconnectWhatsapp}
+                  disabled={disconnectWhatsapp.isPending || connectWhatsapp.isPending}
+                  className="gap-2"
+                >
+                  {disconnectWhatsapp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                  Desconectar e trocar número
+                </Button>
+              )}
+            </div>
           </div>
         </Card>
       </div>

@@ -84,6 +84,17 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WhatsappConnectResponse" }
+  /whatsapp/disconnect:
+    post:
+      operationId: disconnectWhatsapp
+      tags: [ai-agent]
+      summary: Desconecta a instância atual do WhatsApp
+      responses:
+        "200":
+          description: WhatsApp disconnected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappDisconnectResponse" }
   /whatsapp/automation:
     get:
       operationId: getWhatsappAutomation
@@ -1025,6 +1036,13 @@ components:
         qrCode: { type: ["string", "null"] }
         pairingCode: { type: ["string", "null"] }
       required: [created, instance, connected, state, message, qrCode, pairingCode]
+    WhatsappDisconnectResponse:
+      type: object
+      properties:
+        disconnected: { type: boolean }
+        instance: { type: string }
+        message: { type: string }
+      required: [disconnected, instance, message]
     WhatsappAutomation:
       type: object
       properties:
