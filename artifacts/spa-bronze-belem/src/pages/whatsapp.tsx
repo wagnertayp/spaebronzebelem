@@ -258,7 +258,7 @@ export function WhatsApp() {
             <MessageCircle className="w-6 h-6" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[13px] text-text-muted font-medium uppercase tracking-wider mb-1">Evolution API</div>
+            <div className="text-[13px] text-text-muted font-medium uppercase tracking-wider mb-1">WhatsApp</div>
             <div className="font-semibold text-text-primary text-lg">
               {isConnectionLoading ? 'Verificando...' : whatsappConnection?.connected ? 'WhatsApp conectado' : 'Não conectado'}
             </div>
@@ -290,7 +290,7 @@ export function WhatsApp() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {[
-            { key: 'enabled' as const, title: 'Automação ativa', description: 'Permite o envio automático pela Evolution API.', icon: Bot },
+            { key: 'enabled' as const, title: 'Automação ativa', description: 'Permite o envio automático pelo WhatsApp.', icon: Bot },
             { key: 'confirmations' as const, title: 'Confirmar agendamento', description: 'Envia a confirmação após criar ou alterar a agenda.', icon: CalendarCheck },
             { key: 'reminder24h' as const, title: 'Lembrete de 24 horas', description: 'Lembra o cliente no dia anterior.', icon: BellRing },
             { key: 'reminder2h' as const, title: 'Lembrete de 2 horas', description: 'Lembra o cliente próximo do atendimento.', icon: Clock },

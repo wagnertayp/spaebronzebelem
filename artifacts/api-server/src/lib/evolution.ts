@@ -53,7 +53,7 @@ export const connectEvolutionInstance = async () => {
       instance: "",
       connected: false,
       state: "not_configured",
-      message: "Evolution API não configurada",
+      message: "WhatsApp não configurado",
       qrCode: null,
       pairingCode: null,
     };
@@ -88,7 +88,7 @@ export const connectEvolutionInstance = async () => {
         instance,
         connected: false,
         state: `http_${response.status}`,
-        message: `Evolution API ${response.status}: ${String(body.message ?? body.error ?? "não foi possível gerar o QR Code")}`,
+        message: "Não foi possível gerar o QR Code do WhatsApp",
         qrCode: null,
         pairingCode: null,
       };
@@ -119,7 +119,7 @@ export const connectEvolutionInstance = async () => {
       instance,
       connected: false,
       state: "unreachable",
-      message: error instanceof Error ? error.message : "Falha de conexão com a Evolution API",
+      message: "Não foi possível conectar o WhatsApp",
       qrCode: null,
       pairingCode: null,
     };
@@ -183,10 +183,10 @@ export const sendEvolutionText = async (
 export const getEvolutionConnection = async () => {
   const config = getEvolutionConfig();
   if (!config) {
-    return { configured: false, connected: false, instance: "", state: "not_configured", message: "Evolution API não configurada" };
+    return { configured: false, connected: false, instance: "", state: "not_configured", message: "WhatsApp não configurado" };
   }
   if (!config.instance) {
-    return { configured: true, connected: false, instance: "", state: "no_instance_selected", message: "Selecione uma instância conectada" };
+    return { configured: true, connected: false, instance: "", state: "no_instance_selected", message: "Clique em “Gerar QR Code” para conectar o WhatsApp" };
   }
   try {
     const response = await fetch(
@@ -212,7 +212,7 @@ export const getEvolutionConnection = async () => {
             connected: false,
             instance: config.instance,
             state: "instance_not_found",
-            message: "A chave respondeu, mas a instância configurada não foi encontrada",
+            message: "A conexão do WhatsApp não foi encontrada",
           };
         }
         const nested = match.instance as Record<string, unknown> | undefined;
@@ -222,7 +222,7 @@ export const getEvolutionConnection = async () => {
           connected: ["open", "connected"].includes(state.toLowerCase()),
           instance: config.instance,
           state,
-          message: `Instância encontrada: ${state}`,
+          message: `Status do WhatsApp: ${state}`,
         };
       }
     }
@@ -242,8 +242,8 @@ export const getEvolutionConnection = async () => {
         : response.ok && ["connecting", "qr_pending", "created"].includes(state.toLowerCase())
           ? "Aguardando leitura do QR Code"
         : response.status === 401 || response.status === 403
-          ? "A Evolution API recusou a chave ou a instância"
-          : `Evolution API respondeu com HTTP ${response.status}`,
+          ? "Não foi possível autenticar a conexão do WhatsApp"
+          : "Não foi possível consultar o status do WhatsApp",
     };
   } catch {
     return {
@@ -251,7 +251,7 @@ export const getEvolutionConnection = async () => {
       connected: false,
       instance: config.instance,
       state: "unreachable",
-      message: "Não foi possível consultar a Evolution API",
+      message: "Não foi possível consultar o status do WhatsApp",
     };
   }
 };
