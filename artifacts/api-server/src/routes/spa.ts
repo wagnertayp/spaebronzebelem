@@ -142,6 +142,7 @@ import {
   getEvolutionConnection,
   configureEvolutionWebhook,
   normalizeWhatsappPhone,
+  sendEvolutionReaction,
   sendEvolutionDocument,
   sendEvolutionText,
   type WhatsappDocument,
@@ -185,6 +186,7 @@ type WhatsappMessage = ReturnType<typeof ListWhatsappMessagesResponse.parse>[num
 type WhatsappAutomation = ReturnType<typeof GetWhatsappAutomationResponse.parse>;
 type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.parse>[number];
 type WhatsappConversationStatus = WhatsappConversation["status"];
+const FIRST_WHATSAPP_MESSAGE_DELAY_MS = 8_000;
 
 type Lead = {
   id: number;
@@ -744,7 +746,12 @@ const getFutureAgendaContext = () =>
     .map((appointment) => `${appointment.start} | ${appointment.end} | ${appointment.service} | ${appointment.professional || "equipe"}`)
     .join("\n") || "Nenhum agendamento futuro informado.";
 
-const askWhatsappAgent = async (phone: string, clientName: string, text: string): Promise<AgentDecision> => {
+const askWhatsappAgent = async (
+  phone: string,
+  clientName: string,
+  text: string,
+  isFirstClientMessage = false,
+): Promise<AgentDecision> => {
   const serviceTable = services
     .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
     .join("\n");
@@ -781,6 +788,7 @@ AGENDA ATUAL:
 ${getFutureAgendaContext()}
 
 REGRAS OBRIGATÓRIAS:
+- ${isFirstClientMessage ? "Esta é a primeira mensagem do cliente. Comece a resposta usando a saudação configurada, sem trocar por uma mensagem genérica de encaminhamento." : "Não repita a saudação configurada em todas as mensagens."}
 - Não invente preços, promoções, horários, contraindicações ou resultados.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; encaminhe dúvidas clínicas para uma atendente.
 - Use datas ISO locais completas (AAAA-MM-DDTHH:mm) no campo appointment somente quando o cliente tiver informado data e horário exatos e confirmado que deseja agendar.
@@ -1399,6 +1407,16 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     .filter((item) => (appointmentDateTime(item.start)?.getTime() ?? Number.MAX_SAFE_INTEGER) > Date.now())
     .sort((a, b) => (appointmentDateTime(a.start)?.getTime() ?? 0) - (appointmentDateTime(b.start)?.getTime() ?? 0))[0];
   const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const [previousInboundMessage] = await db
+    .select({ id: whatsappMessagesTable.id })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+      eq(whatsappMessagesTable.direction, "inbound"),
+    ))
+    .limit(1);
+  const isFirstClientMessage = !previousInboundMessage;
+  const providerMessageId = typeof key["id"] === "string" ? key["id"] : null;
   await addWhatsappMessage({
     direction: "inbound",
     phone: normalizeWhatsappPhone(phone),
@@ -1407,9 +1425,12 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     text,
     status: "received",
     kind: "reply",
-    providerMessageId: typeof key["id"] === "string" ? key["id"] : null,
+    providerMessageId,
     error: null,
   });
+  if (isFirstClientMessage && providerMessageId) {
+    void sendEvolutionReaction(phone, providerMessageId);
+  }
 
   const conversation = await getWhatsappConversation(phone);
   if (conversation?.status !== "agent") {
@@ -1417,6 +1438,9 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       received: true,
       action: conversation?.status === "closed" ? "closed_conversation" : "human_conversation",
     }));
+  }
+  if (isFirstClientMessage) {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, FIRST_WHATSAPP_MESSAGE_DELAY_MS));
   }
 
   if (appointment && normalizedText.includes("confirm")) {
@@ -1434,22 +1458,33 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   }
 
   const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
-  if (!whatsappAutomation.enabled || !whatsappAutomation.aiReplies || !aiAgentConfig.active || asksForHuman) {
+  if (asksForHuman) {
     await setWhatsappConversationStatus(phone, "human");
     await sendWhatsappReply(
       phone,
       client?.name ?? phone,
       appointment?.id ?? null,
-      asksForHuman
-        ? "Claro. Vou encaminhar você para uma atendente continuar o atendimento."
-        : "Recebi sua mensagem. Vou encaminhar para nossa equipe continuar o atendimento.",
+      "Claro. Vou encaminhar você para uma atendente continuar o atendimento.",
       "handoff",
     );
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
   }
+  if (!whatsappAutomation.enabled || !whatsappAutomation.aiReplies || !aiAgentConfig.active) {
+    const responseText = isFirstClientMessage && aiAgentConfig.greeting.trim()
+      ? aiAgentConfig.greeting.trim()
+      : "O atendimento automático está temporariamente indisponível. Uma atendente continuará a conversa assim que possível.";
+    await sendWhatsappReply(
+      phone,
+      client?.name ?? phone,
+      appointment?.id ?? null,
+      responseText,
+      "reply",
+    );
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
+  }
 
   try {
-    const decision = await askWhatsappAgent(phone, client?.name ?? phone, text);
+    const decision = await askWhatsappAgent(phone, client?.name ?? phone, text, isFirstClientMessage);
     let createdAppointment: Appointment | null = null;
     if (decision.appointment) {
       createdAppointment = addAppointmentFromAgent(phone, decision.appointment);
@@ -1479,7 +1514,9 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       phone,
       client?.name ?? decision.appointment?.clientName ?? phone,
       createdAppointment?.id ?? appointment?.id ?? null,
-      decision.reply,
+      isFirstClientMessage && aiAgentConfig.greeting.trim() && !decision.reply.toLocaleLowerCase("pt-BR").includes(aiAgentConfig.greeting.trim().toLocaleLowerCase("pt-BR"))
+        ? `${aiAgentConfig.greeting.trim()}\n\n${decision.reply}`
+        : decision.reply,
       decision.handoff ? "handoff" : "reply",
     );
     if (decision.handoff) await setWhatsappConversationStatus(phone, "human");

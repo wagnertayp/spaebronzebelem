@@ -249,6 +249,59 @@ export const sendEvolutionText = async (
   }
 };
 
+export const sendEvolutionReaction = async (
+  phone: string,
+  providerMessageId: string,
+  reaction = "❤️",
+): Promise<EvolutionSendResult> => {
+  const config = getEvolutionConfig();
+  if (!config || !config.instance || !providerMessageId) {
+    return { ok: false, providerMessageId: null, error: "Evolution API não configurada" };
+  }
+
+  try {
+    const response = await fetch(
+      `${config.baseUrl}/message/sendReaction/${encodeURIComponent(config.instance)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: config.apiKey,
+        },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        body: JSON.stringify({
+          key: {
+            remoteJid: `${normalizeWhatsappPhone(phone)}@s.whatsapp.net`,
+            fromMe: false,
+            id: providerMessageId,
+          },
+          reaction,
+        }),
+      },
+    );
+    const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok) {
+      return {
+        ok: false,
+        providerMessageId: null,
+        error: `Evolution API ${response.status}: ${String(body.message ?? body.error ?? "erro desconhecido")}`,
+      };
+    }
+    const key = body.key as Record<string, unknown> | undefined;
+    return {
+      ok: true,
+      providerMessageId: typeof key?.id === "string" ? key.id : null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      providerMessageId: null,
+      error: error instanceof Error ? error.message : "Falha de conexão com a Evolution API",
+    };
+  }
+};
+
 export const sendEvolutionDocument = async (
   phone: string,
   document: WhatsappDocument,
