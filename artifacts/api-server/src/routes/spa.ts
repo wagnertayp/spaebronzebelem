@@ -131,10 +131,16 @@ import {
   ListCommissionAuditQueryParams,
   ListCommissionAuditResponse,
 } from "@workspace/api-zod";
-import { db, whatsappConversationsTable, whatsappMessagesTable } from "@workspace/db";
+import {
+  db,
+  whatsappConversationsTable,
+  whatsappMessagesTable,
+  whatsappSettingsTable,
+} from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import backup from "../data/spa-backup.json";
+import { logger } from "../lib/logger";
 import { requireSession } from "../lib/auth";
 import {
   getEvolutionConfig,
@@ -403,6 +409,41 @@ let whatsappAutomation: WhatsappAutomation = {
   reminder24h: true,
   reminder2h: true,
   timezone: process.env["EVOLUTION_TIMEZONE"] ?? "America/Belem",
+};
+
+const WHATSAPP_SETTINGS_ID = 1;
+
+const loadWhatsappSettings = async () => {
+  const [settings] = await db
+    .select()
+    .from(whatsappSettingsTable)
+    .where(eq(whatsappSettingsTable.id, WHATSAPP_SETTINGS_ID))
+    .limit(1);
+  if (!settings) return;
+
+  const savedAgentConfig = GetAiAgentConfigResponse.safeParse(settings.aiAgentConfig);
+  if (savedAgentConfig.success) aiAgentConfig = savedAgentConfig.data;
+
+  const savedAutomation = GetWhatsappAutomationResponse.safeParse(settings.whatsappAutomation);
+  if (savedAutomation.success) whatsappAutomation = savedAutomation.data;
+};
+
+const saveWhatsappSettings = async () => {
+  await db
+    .insert(whatsappSettingsTable)
+    .values({
+      id: WHATSAPP_SETTINGS_ID,
+      aiAgentConfig,
+      whatsappAutomation,
+    })
+    .onConflictDoUpdate({
+      target: whatsappSettingsTable.id,
+      set: {
+        aiAgentConfig,
+        whatsappAutomation,
+        updatedAt: new Date(),
+      },
+    });
 };
 const normalizeName = (value: string) => value.trim().toLocaleLowerCase("pt-BR");
 const findClientForAppointment = (appointment: Appointment) =>
@@ -709,21 +750,18 @@ const parseAgentDecision = (content: string): AgentDecision => {
           confirmed: rawAppointment.confirmed === true,
         }
       : null;
+    const reply = typeof value.reply === "string" ? value.reply.replace(/\*\*/g, "").trim() : "";
+    if (!reply) throw new Error("O agente retornou um JSON sem reply");
     return {
-      reply: typeof value.reply === "string" && value.reply.trim()
-        ? value.reply.replace(/\*\*/g, "").trim()
-        : "Recebi sua mensagem. Vou encaminhar para uma atendente continuar o atendimento.",
+      reply,
       handoff: value.handoff === true,
       document,
       appointment,
     };
-  } catch {
-    return {
-      reply: "Recebi sua mensagem. Vou encaminhar para uma atendente continuar o atendimento.",
-      handoff: true,
-      document: null,
-      appointment: null,
-    };
+  } catch (error) {
+    throw new Error(
+      `Resposta inválida do agente: ${error instanceof Error ? error.message : "JSON inválido"}`,
+    );
   }
 };
 
@@ -856,6 +894,7 @@ const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) =>
 };
 
 export const runWhatsappReminders = async () => {
+  await loadWhatsappSettings();
   if (!whatsappAutomation.enabled) return;
   const now = Date.now();
   for (const appointment of appointments) {
@@ -1310,12 +1349,19 @@ router.post("/whatsapp/connect", async (_req, res) => {
 });
 
 router.get("/whatsapp/automation", (_req, res) => {
-  res.json(GetWhatsappAutomationResponse.parse(whatsappAutomation));
+  void (async () => {
+    await loadWhatsappSettings();
+    res.json(GetWhatsappAutomationResponse.parse(whatsappAutomation));
+  })();
 });
 
 router.put("/whatsapp/automation", (req, res) => {
-  whatsappAutomation = UpdateWhatsappAutomationBody.parse(req.body);
-  res.json(UpdateWhatsappAutomationResponse.parse(whatsappAutomation));
+  void (async () => {
+    await loadWhatsappSettings();
+    whatsappAutomation = UpdateWhatsappAutomationBody.parse(req.body);
+    await saveWhatsappSettings();
+    res.json(UpdateWhatsappAutomationResponse.parse(whatsappAutomation));
+  })();
 });
 
 router.get("/whatsapp/messages", (req, res) => {
@@ -1386,6 +1432,7 @@ router.post("/whatsapp/appointments/:id/confirmation", async (req, res) => {
 });
 
 router.post("/integrations/evolution/webhook", async (req, res) => {
+  await loadWhatsappSettings();
   const body = ReceiveEvolutionWebhookBody.parse(req.body);
   const data = (body["data"] as Record<string, unknown> | undefined) ?? body;
   const key = (data["key"] as Record<string, unknown> | undefined) ?? {};
@@ -1469,18 +1516,11 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     );
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
   }
-  if (!whatsappAutomation.enabled || !whatsappAutomation.aiReplies || !aiAgentConfig.active) {
-    const responseText = isFirstClientMessage && aiAgentConfig.greeting.trim()
-      ? aiAgentConfig.greeting.trim()
-      : "O atendimento automático está temporariamente indisponível. Uma atendente continuará a conversa assim que possível.";
-    await sendWhatsappReply(
-      phone,
-      client?.name ?? phone,
-      appointment?.id ?? null,
-      responseText,
-      "reply",
-    );
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
+  if (!aiAgentConfig.active) {
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({
+      received: true,
+      action: "automation_disabled",
+    }));
   }
 
   try {
@@ -1524,15 +1564,12 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       received: true,
       action: createdAppointment ? "scheduled" : decision.handoff ? "handoff" : "replied",
     }));
-  } catch {
-    await sendWhatsappReply(
-      phone,
-      client?.name ?? phone,
-      appointment?.id ?? null,
-      "Recebi sua mensagem. Vou encaminhar para uma atendente continuar o atendimento.",
-      "handoff",
-    );
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff_error" }));
+  } catch (error) {
+    logger.error({ err: error, phone }, "WhatsApp AI response failed");
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({
+      received: true,
+      action: "agent_error",
+    }));
   }
 });
 
@@ -1709,16 +1746,24 @@ router.delete("/professionals/:id", (req, res) => {
 });
 
 router.get("/ai-agent/config", (_req, res) => {
-  res.json(GetAiAgentConfigResponse.parse(aiAgentConfig));
+  void (async () => {
+    await loadWhatsappSettings();
+    res.json(GetAiAgentConfigResponse.parse(aiAgentConfig));
+  })();
 });
 
 router.put("/ai-agent/config", (req, res) => {
-  aiAgentConfig = UpdateAiAgentConfigBody.parse(req.body);
-  res.json(UpdateAiAgentConfigResponse.parse(aiAgentConfig));
+  void (async () => {
+    await loadWhatsappSettings();
+    aiAgentConfig = UpdateAiAgentConfigBody.parse(req.body);
+    await saveWhatsappSettings();
+    res.json(UpdateAiAgentConfigResponse.parse(aiAgentConfig));
+  })();
 });
 
 router.post("/ai-agent/test", async (req, res, next) => {
   try {
+    await loadWhatsappSettings();
     const { message } = TestAiAgentBody.parse(req.body);
     const serviceTable = services
       .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)

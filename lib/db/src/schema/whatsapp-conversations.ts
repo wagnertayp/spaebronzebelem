@@ -1,5 +1,5 @@
 import { createInsertSchema } from "drizzle-zod";
-import { integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const whatsappConversationsTable = pgTable("whatsapp_conversations", {
@@ -35,6 +35,13 @@ export const whatsappMessagesTable = pgTable("whatsapp_messages", {
   providerMessageId: text("provider_message_id"),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const whatsappSettingsTable = pgTable("whatsapp_settings", {
+  id: integer("id").primaryKey(),
+  aiAgentConfig: jsonb("ai_agent_config").notNull(),
+  whatsappAutomation: jsonb("whatsapp_automation").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
 export const insertWhatsappMessageSchema = createInsertSchema(whatsappMessagesTable).omit({

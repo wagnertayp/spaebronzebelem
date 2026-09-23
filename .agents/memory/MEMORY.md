@@ -1,1 +1,2 @@
 - [Evolution QR connection flow](evolution-qr-flow.md) — connect by creating an instance and showing its QR, not by selecting from shared instances.
+- [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
