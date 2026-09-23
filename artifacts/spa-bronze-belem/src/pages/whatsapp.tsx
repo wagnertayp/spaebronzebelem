@@ -366,7 +366,7 @@ export function WhatsApp() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card className="p-4 flex items-start gap-4">
+        <Card className="p-4 flex items-center gap-4">
           <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", formData.active ? "bg-success/10 text-success" : "bg-text-muted/10 text-text-muted")}>
             <Bot className="w-6 h-6" />
           </div>
