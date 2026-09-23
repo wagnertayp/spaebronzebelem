@@ -237,10 +237,15 @@ export const sendEvolutionText = async (
     );
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) {
+      const providerError = typeof body.message === "string"
+        ? body.message
+        : typeof body.error === "string"
+          ? body.error
+          : JSON.stringify(body).slice(0, 500) || "resposta vazia do provedor";
       return {
         ok: false,
         providerMessageId: null,
-        error: `Evolution API ${response.status}: ${String(body.message ?? body.error ?? "erro desconhecido")}`,
+        error: `Evolution API ${response.status}: ${providerError}`,
       };
     }
     const key = body.key as Record<string, unknown> | undefined;

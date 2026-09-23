@@ -1097,7 +1097,7 @@ const catalogKnowledge = (() => {
       "utf8",
     );
   } catch {
-    return "Os catálogos em PDF estão disponíveis para envio. Quando faltar informação, encaminhe para uma atendente.";
+    return "Os catálogos em PDF estão disponíveis para envio. Quando faltar informação, explique o limite e faça uma pergunta curta.";
   }
 })();
 
@@ -1482,8 +1482,14 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     providerMessageId,
     error: null,
   });
-  if (isFirstClientMessage && providerMessageId) {
-    void sendEvolutionReaction(phone, providerMessageId);
+  if (providerMessageId) {
+    const reactionResult = await sendEvolutionReaction(phone, providerMessageId);
+    if (!reactionResult.ok) {
+      logger.warn(
+        { err: reactionResult.error, phone, providerMessageId },
+        "WhatsApp reaction failed",
+      );
+    }
   }
 
   const conversation = await getWhatsappConversation(phone);
@@ -1792,7 +1798,7 @@ Regras obrigatórias:
 - Responda em português do Brasil.
 - Use somente os serviços, preços, durações e informações fornecidas acima.
 - Nunca invente preço, promoção, disponibilidade ou política.
-- Quando faltar informação, diga que vai encaminhar para uma atendente.
+- Quando faltar informação, explique com simpatia que não tem esse dado e faça uma única pergunta curta; não encaminhe para uma atendente.
  - Seja objetiva e acolhedora, com no máximo duas frases curtas.
  - Use humor leve quando combinar e termine com exatamente um emoji discreto. Não use emojis no meio da resposta.
  - Reassuma o assunto principal da conversa, responda à pergunta atual e não mude de tema sem motivo.

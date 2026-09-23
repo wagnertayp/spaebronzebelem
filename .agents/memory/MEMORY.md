@@ -2,3 +2,4 @@
 - [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
 - [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own the greeting; server-side prefixes can duplicate it.
 - [WhatsApp PDF assets](whatsapp-pdf-assets.md) — API workflow runs below the workspace root, so document lookup needs an asset-path fallback.
+- [Human handoff rule](human-handoff-rule.md) — keep the AI in the conversation unless the client explicitly asks for a human.
