@@ -336,7 +336,18 @@ export const sendEvolutionDocument = async (
     );
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) {
-      return { ok: false, providerMessageId: null, error: "Não foi possível enviar o documento pelo WhatsApp" };
+      const providerError = typeof body.message === "string"
+        ? body.message
+        : typeof body.error === "string"
+          ? body.error
+          : typeof body.response === "string"
+            ? body.response
+            : "resposta inválida do provedor";
+      return {
+        ok: false,
+        providerMessageId: null,
+        error: `Evolution API ${response.status}: ${providerError}`,
+      };
     }
     const key = body.key as Record<string, unknown> | undefined;
     return {
@@ -348,8 +359,12 @@ export const sendEvolutionDocument = async (
           : null,
       error: null,
     };
-  } catch {
-    return { ok: false, providerMessageId: null, error: "Não foi possível enviar o documento pelo WhatsApp" };
+  } catch (error) {
+    return {
+      ok: false,
+      providerMessageId: null,
+      error: error instanceof Error ? error.message : "Falha de conexão com a Evolution API",
+    };
   }
 };
 

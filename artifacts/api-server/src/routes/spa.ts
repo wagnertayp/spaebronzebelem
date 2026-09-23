@@ -194,8 +194,6 @@ type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.
 type WhatsappConversationStatus = WhatsappConversation["status"];
 const FIRST_WHATSAPP_MESSAGE_DELAY_MS = 8_000;
 const OPENAI_TEXT_MODEL = process.env["OPENAI_API_KEY"] ? "gpt-5.4" : "gpt-5.6-luna";
-const startsWithGreeting = (text: string) =>
-  /^(olá|ola|oi|bom dia|boa tarde|boa noite)\b/i.test(text.trim());
 
 type Lead = {
   id: number;
@@ -1563,9 +1561,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       phone,
       client?.name ?? decision.appointment?.clientName ?? phone,
       createdAppointment?.id ?? appointment?.id ?? null,
-      isFirstClientMessage && aiAgentConfig.greeting.trim() && !startsWithGreeting(decision.reply)
-        ? `${aiAgentConfig.greeting.trim()}\n\n${decision.reply}`
-        : decision.reply,
+      decision.reply,
       decision.handoff ? "handoff" : "reply",
     );
     if (decision.handoff) await setWhatsappConversationStatus(phone, "human");
