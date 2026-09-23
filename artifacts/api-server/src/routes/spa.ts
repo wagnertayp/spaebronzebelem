@@ -193,6 +193,7 @@ type WhatsappAutomation = ReturnType<typeof GetWhatsappAutomationResponse.parse>
 type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.parse>[number];
 type WhatsappConversationStatus = WhatsappConversation["status"];
 const FIRST_WHATSAPP_MESSAGE_DELAY_MS = 8_000;
+const OPENAI_TEXT_MODEL = process.env["OPENAI_API_KEY"] ? "gpt-5.4" : "gpt-5.6-luna";
 
 type Lead = {
   id: number;
@@ -797,7 +798,7 @@ const askWhatsappAgent = async (
     timeZone: whatsappAutomation.timezone,
   }).format(new Date());
   const response = await openai.chat.completions.create({
-    model: "gpt-5.6-luna",
+    model: OPENAI_TEXT_MODEL,
     max_completion_tokens: 1600,
     messages: [
       {
@@ -1769,7 +1770,7 @@ router.post("/ai-agent/test", async (req, res, next) => {
       .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
       .join("\n");
     const response = await openai.chat.completions.create({
-      model: "gpt-5.6-luna",
+      model: OPENAI_TEXT_MODEL,
       max_completion_tokens: 1200,
       messages: [
         {
