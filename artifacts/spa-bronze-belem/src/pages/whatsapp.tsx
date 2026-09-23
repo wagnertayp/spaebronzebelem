@@ -433,28 +433,35 @@ export function WhatsApp() {
           })}
         </div>
 
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between pt-1">
-          <div className="text-xs text-text-muted">
-            Fuso horário dos lembretes: <span className="font-medium text-text-secondary">{automationForm.timezone}</span>
-          </div>
-          <div className="w-full lg:max-w-3xl">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
-              <RefreshCw className="w-3.5 h-3.5" /> Supervisão do atendimento
+        <div className="pt-4 border-t border-border">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-3">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+                <RefreshCw className="w-4 h-4 text-primary" /> Supervisão do atendimento
+              </div>
+              <p className="text-xs text-text-muted mt-1">
+                Acompanhe as conversas, assuma um atendimento e responda sem sair desta tela.
+              </p>
             </div>
+            <span className="self-start rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-semibold text-text-secondary">
+              {whatsappConversations.length} {whatsappConversations.length === 1 ? 'conversa' : 'conversas'}
+            </span>
+          </div>
+          <div>
             {whatsappConversations.length === 0 ? (
               <p className="text-sm text-text-muted rounded-lg border border-dashed border-border p-3">
                 Nenhuma conversa registrada ainda. Quando chegar uma mensagem, ela aparecerá aqui para a equipe acompanhar.
               </p>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(260px,0.9fr)] gap-3">
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,0.78fr)_minmax(0,1.5fr)] gap-4">
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {whatsappConversations.map((conversation) => (
                     <button
                       key={conversation.id}
                       type="button"
                       onClick={() => setSelectedPhone(conversation.phone)}
                       className={cn(
-                        "w-full text-left flex items-start justify-between gap-3 rounded-lg border p-3 text-xs transition-colors",
+                        "w-full min-w-0 text-left flex items-start justify-between gap-3 rounded-xl border p-3 text-xs transition-colors",
                         selectedPhone === conversation.phone ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
                       )}
                     >
@@ -475,11 +482,11 @@ export function WhatsApp() {
                     </button>
                   ))}
                 </div>
-                <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+                <div className="min-w-0 rounded-xl border border-border bg-background p-3 sm:p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="text-xs font-medium text-text-primary">
                       {selectedPhone ? `Conversa com ${selectedClientName}` : 'Selecione uma conversa'}
-                      {selectedPhone && <div className="text-[11px] text-text-muted font-normal mt-0.5">{selectedPhone}</div>}
+                      {selectedPhone && <div className="text-[11px] text-text-muted font-normal mt-0.5 break-all">{selectedPhone}</div>}
                     </div>
                     <Button
                       type="button"
@@ -518,13 +525,13 @@ export function WhatsApp() {
                           </Button>
                         )}
                       </div>
-                      <div className="max-h-44 overflow-y-auto rounded-md border border-border bg-surface-soft p-2 space-y-2">
+                      <div className="min-h-40 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-soft p-2.5 space-y-2">
                         {selectedConversationMessages.length === 0 ? (
                           <p className="text-[11px] text-text-muted">Carregando histórico...</p>
                         ) : selectedConversationMessages.map((message) => (
                           <div key={message.id} className={cn("flex", message.direction === 'outbound' ? "justify-end" : "justify-start")}>
                             <div className={cn(
-                              "max-w-[90%] rounded-lg px-2.5 py-1.5 text-[11px]",
+                              "max-w-[92%] break-words rounded-lg px-2.5 py-1.5 text-[11px]",
                               message.direction === 'outbound' ? "bg-primary/10 text-text-primary" : "bg-background border border-border text-text-secondary",
                             )}>
                               <div>{message.text}</div>
@@ -542,15 +549,15 @@ export function WhatsApp() {
                     onChange={(event) => setManualReply(event.target.value)}
                     placeholder={selectedPhone ? 'Escreva uma resposta para o cliente...' : 'Selecione uma conversa à esquerda.'}
                     disabled={!selectedPhone || sendWhatsappReply.isPending}
-                    rows={3}
+                    rows={2}
                     className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                     <Button
                       size="sm"
                       onClick={handleManualReply}
                       disabled={!selectedPhone || !manualReply.trim() || sendWhatsappReply.isPending}
-                      className="gap-1.5"
+                      className="w-full gap-1.5 sm:w-auto"
                     >
                       {sendWhatsappReply.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <SendHorizontal className="w-3.5 h-3.5" />}
                       Responder
@@ -561,6 +568,7 @@ export function WhatsApp() {
                       variant="outline"
                       onClick={() => handleSendCatalog('menu')}
                       disabled={!selectedPhone || sendWhatsappDocument.isPending}
+                      className="w-full sm:w-auto"
                     >
                       Enviar cardápio
                     </Button>
@@ -570,6 +578,7 @@ export function WhatsApp() {
                       variant="outline"
                       onClick={() => handleSendCatalog('advanced')}
                       disabled={!selectedPhone || sendWhatsappDocument.isPending}
+                      className="w-full sm:w-auto"
                     >
                       Enviar catálogo
                     </Button>
@@ -598,24 +607,24 @@ export function WhatsApp() {
         </DialogContent>
       </Dialog>
 
-      <div className="flex items-center gap-1 border-b border-border">
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-border">
         <button 
           onClick={() => setActiveTab('config')} 
-          className={cn("px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2", activeTab === 'config' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary')}
+          className={cn("shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2", activeTab === 'config' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary')}
         >
           <Settings2 className="w-4 h-4" />
           Configuração
         </button>
         <button 
           onClick={() => setActiveTab('services')} 
-          className={cn("px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2", activeTab === 'services' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary')}
+          className={cn("shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2", activeTab === 'services' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary')}
         >
           <Database className="w-4 h-4" />
           Serviços e Preços
         </button>
         <button 
           onClick={() => setActiveTab('test')} 
-          className={cn("px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2", activeTab === 'test' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary')}
+          className={cn("shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2", activeTab === 'test' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary')}
         >
           <Sparkles className="w-4 h-4" />
           Testar Agente
@@ -868,9 +877,9 @@ export function WhatsApp() {
         )}
 
         {activeTab === 'test' && (
-          <div className="flex h-[calc(100vh-250px)] min-h-[500px] gap-6">
+          <div className="flex h-[calc(100vh-250px)] min-h-[500px] flex-col gap-4 lg:flex-row lg:gap-6">
             {/* Chat Simulator */}
-            <Card className="flex-1 flex flex-col overflow-hidden border-border shadow-sm">
+            <Card className="min-h-0 flex-1 flex flex-col overflow-hidden border-border shadow-sm">
               <div className="bg-surface-soft border-b border-border p-4 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <Bot className="w-5 h-5" />
@@ -952,7 +961,7 @@ export function WhatsApp() {
             </Card>
 
             {/* Quick Prompts */}
-            <div className="w-[300px] shrink-0 space-y-4">
+            <div className="w-full shrink-0 space-y-4 lg:w-[300px]">
               <h4 className="font-semibold text-text-primary text-sm uppercase tracking-wider">Testes Rápidos</h4>
               <div className="space-y-2">
                 {samplePrompts.map((prompt, i) => (
