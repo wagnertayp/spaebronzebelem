@@ -836,6 +836,7 @@ REGRAS OBRIGATÓRIAS:
 - ${isFirstClientMessage ? "Esta é a primeira mensagem do cliente. Comece a resposta usando a saudação configurada, sem trocar por uma mensagem genérica de encaminhamento." : "Não repita a saudação configurada em todas as mensagens."}
 - Não invente preços, promoções, horários, contraindicações ou resultados.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
+- Para agendar, conduza a cliente passo a passo: confirme serviço, data, horário exato e nome, perguntando apenas o próximo item que faltar. “Amanhã” sem horário não é confirmação; pergunte qual horário ela prefere. Só crie appointment depois de confirmação explícita e sempre envie uma resposta curta.
 - Use datas ISO locais completas (AAAA-MM-DDTHH:mm) no campo appointment somente quando o cliente tiver informado data e horário exatos e confirmado que deseja agendar.
 - Nunca marque appointment quando faltar serviço, data, horário ou confirmação explícita.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Caso contrário, document deve ser null.
@@ -1090,16 +1091,28 @@ let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
   humanHandoff: "Só encaminhe para uma atendente se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
 };
 
-const catalogKnowledge = (() => {
-  try {
-    return readFileSync(
-      resolve(process.cwd(), "artifacts/api-server/src/data/catalog-knowledge.txt"),
-      "utf8",
-    );
-  } catch {
-    return "Os catálogos em PDF estão disponíveis para envio. Quando faltar informação, explique o limite e faça uma pergunta curta.";
+const readKnowledgeFile = (relativePath: string) => {
+  const candidates = [
+    resolve(process.cwd(), relativePath),
+    resolve(process.cwd(), "../../", relativePath),
+  ];
+  for (const candidate of candidates) {
+    try {
+      return readFileSync(candidate, "utf8").trim();
+    } catch {
+      // Try the next workspace-relative location.
+    }
   }
-})();
+  return "";
+};
+
+const catalogKnowledge = [
+  readKnowledgeFile("artifacts/api-server/src/data/catalog-knowledge.txt"),
+  readKnowledgeFile(
+    "attached_assets/Pasted-BRIEFING-GERAL-CHATBOT-IA-SPA-BRONZE-BEL-M-1-SOBRE-A-EM_1790169702654.txt",
+  ),
+].filter(Boolean).join("\n\n===== BRIEFING OPERACIONAL COMPLETO =====\n\n")
+  || "Os catálogos em PDF estão disponíveis para envio. Quando faltar informação, explique o limite e faça uma pergunta curta.";
 
 const inventory = backup.inventory.map((item) => ({ ...item }));
 
@@ -1492,12 +1505,21 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     }
   }
 
+  const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
   const conversation = await getWhatsappConversation(phone);
+  if (asksForHuman) {
+    await setWhatsappConversationStatus(phone, "human");
+    await sendWhatsappReply(
+      phone,
+      client?.name ?? phone,
+      appointment?.id ?? null,
+      "Claro. Vou encaminhar você para uma atendente continuar o atendimento.",
+      "handoff",
+    );
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
+  }
   if (conversation?.status !== "agent") {
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({
-      received: true,
-      action: conversation?.status === "closed" ? "closed_conversation" : "human_conversation",
-    }));
+    await setWhatsappConversationStatus(phone, "agent");
   }
   if (isFirstClientMessage) {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, FIRST_WHATSAPP_MESSAGE_DELAY_MS));
@@ -1511,18 +1533,6 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     appointment.status = "cancelled";
     await sendWhatsappReply(phone, appointment.client, appointment.id, "Tudo bem, seu atendimento foi cancelado. Quando quiser, posso ajudar a encontrar um novo horário.");
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "cancelled" }));
-  }
-  const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
-  if (asksForHuman) {
-    await setWhatsappConversationStatus(phone, "human");
-    await sendWhatsappReply(
-      phone,
-      client?.name ?? phone,
-      appointment?.id ?? null,
-      "Claro. Vou encaminhar você para uma atendente continuar o atendimento.",
-      "handoff",
-    );
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
   }
   if (!aiAgentConfig.active) {
     return void res.json(ReceiveEvolutionWebhookResponse.parse({
