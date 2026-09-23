@@ -99,10 +99,14 @@ export const configureEvolutionWebhook = async (instance: string) => {
         },
       }),
     });
-    if (!response.ok) return false;
+    if (!response.ok) {
+      console.warn(`[Evolution] Não foi possível configurar o webhook da instância (HTTP ${response.status})`);
+      return false;
+    }
     configuredWebhookInstance = instance;
     return true;
   } catch {
+    console.warn("[Evolution] Não foi possível alcançar o endpoint de configuração do webhook");
     return false;
   }
 };
