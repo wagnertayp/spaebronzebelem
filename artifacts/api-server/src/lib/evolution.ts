@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Buffer } from "node:buffer";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -26,6 +27,12 @@ export type EvolutionSendResult = {
 };
 
 export type WhatsappDocument = "menu" | "advanced";
+export type EvolutionReplyReference = {
+  remoteJid: string;
+  fromMe: boolean;
+  id: string;
+  message: Record<string, unknown>;
+};
 
 const documentFiles: Record<WhatsappDocument, { path: string; fileName: string }> = {
   menu: {
@@ -216,6 +223,7 @@ export const normalizeWhatsappPhone = (value: string): string => {
 export const sendEvolutionText = async (
   phone: string,
   text: string,
+  replyTo?: EvolutionReplyReference,
 ): Promise<EvolutionSendResult> => {
   const config = getEvolutionConfig();
   if (!config || !config.instance) {
@@ -232,7 +240,22 @@ export const sendEvolutionText = async (
           apikey: config.apiKey,
         },
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-        body: JSON.stringify({ number: normalizeWhatsappPhone(phone), text }),
+        body: JSON.stringify({
+          number: normalizeWhatsappPhone(phone),
+          text,
+          ...(replyTo
+            ? {
+                quoted: {
+                  key: {
+                    remoteJid: replyTo.remoteJid,
+                    fromMe: replyTo.fromMe,
+                    id: replyTo.id,
+                  },
+                  message: replyTo.message,
+                },
+              }
+            : {}),
+        }),
       },
     );
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
@@ -324,6 +347,7 @@ export const sendEvolutionDocument = async (
   phone: string,
   document: WhatsappDocument,
   caption: string,
+  replyTo?: EvolutionReplyReference,
 ): Promise<EvolutionSendResult> => {
   const config = getEvolutionConfig();
   if (!config || !config.instance) {
@@ -349,6 +373,18 @@ export const sendEvolutionDocument = async (
           caption,
           media,
           fileName: file.fileName,
+          ...(replyTo
+            ? {
+                quoted: {
+                  key: {
+                    remoteJid: replyTo.remoteJid,
+                    fromMe: replyTo.fromMe,
+                    id: replyTo.id,
+                  },
+                  message: replyTo.message,
+                },
+              }
+            : {}),
         }),
       },
     );
@@ -384,6 +420,75 @@ export const sendEvolutionDocument = async (
       error: error instanceof Error ? error.message : "Falha de conexão com a Evolution API",
     };
   }
+};
+
+export type EvolutionMedia = {
+  buffer: Buffer;
+  mimetype: string;
+};
+
+const decodeBase64Media = (value: string, fallbackMimetype: string) => {
+  const match = value.match(/^data:([^;]+);base64,(.*)$/s);
+  return {
+    buffer: Buffer.from(match?.[2] ?? value, "base64"),
+    mimetype: match?.[1] ?? fallbackMimetype,
+  };
+};
+
+const unwrapEvolutionMessage = (message: Record<string, unknown>) => {
+  let current = message;
+  for (let index = 0; index < 4; index += 1) {
+    const nested = ["ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2"]
+      .map((key) => current[key] as Record<string, unknown> | undefined)
+      .find((value) => value?.message && typeof value.message === "object");
+    if (!nested) break;
+    current = nested.message as Record<string, unknown>;
+  }
+  return current;
+};
+
+export const getEvolutionMedia = async (
+  key: Record<string, unknown>,
+  message: Record<string, unknown>,
+  mediaType: "audio" | "image",
+): Promise<EvolutionMedia> => {
+  const config = getEvolutionConfig();
+  if (!config || !config.instance) throw new Error("Evolution API não configurada");
+
+  const contentMessage = unwrapEvolutionMessage(message);
+  const mediaMessage = contentMessage[`${mediaType}Message`] as Record<string, unknown> | undefined;
+  const mimetype = typeof mediaMessage?.mimetype === "string"
+    ? mediaMessage.mimetype.split(";")[0]
+    : mediaType === "audio" ? "audio/ogg" : "image/jpeg";
+  const inlineBase64 = [mediaMessage?.base64, contentMessage.base64, message.base64]
+    .find((value): value is string => typeof value === "string" && value.length > 0);
+  if (inlineBase64) return decodeBase64Media(inlineBase64, mimetype);
+
+  const response = await fetch(
+    `${config.baseUrl}/chat/getBase64FromMediaMessage/${encodeURIComponent(config.instance)}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: config.apiKey,
+      },
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      body: JSON.stringify({
+        message: { key, message },
+        convertToMp4: false,
+      }),
+    },
+  );
+  const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+  const base64 = typeof body.base64 === "string"
+    ? body.base64
+    : typeof body.data === "string"
+      ? body.data
+      : null;
+  if (!response.ok || !base64) {
+    throw new Error(`Não foi possível baixar a mídia do WhatsApp (HTTP ${response.status})`);
+  }
+  return decodeBase64Media(base64, mimetype);
 };
 
 export const getEvolutionConnection = async () => {

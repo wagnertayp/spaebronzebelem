@@ -139,6 +139,7 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import backup from "../data/spa-backup.json";
 import { logger } from "../lib/logger";
 import { requireSession } from "../lib/auth";
@@ -150,6 +151,8 @@ import {
   normalizeWhatsappPhone,
   sendEvolutionReaction,
   sendEvolutionDocument,
+  getEvolutionMedia,
+  type EvolutionReplyReference,
   sendEvolutionText,
   type WhatsappDocument,
 } from "../lib/evolution";
@@ -200,6 +203,18 @@ const reactionForWhatsappMessage = (providerMessageId: string, text: string) => 
   const source = `${providerMessageId}:${text}`;
   const score = Array.from(source).reduce((total, character) => total + character.codePointAt(0)!, 0);
   return WHATSAPP_REACTIONS[score % WHATSAPP_REACTIONS.length];
+};
+
+const unwrapWhatsappMessage = (message: Record<string, unknown>) => {
+  let current = message;
+  for (let index = 0; index < 4; index += 1) {
+    const nested = ["ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2"]
+      .map((key) => current[key] as Record<string, unknown> | undefined)
+      .find((value) => value?.message && typeof value.message === "object");
+    if (!nested) break;
+    current = nested.message as Record<string, unknown>;
+  }
+  return current;
 };
 
 type Lead = {
@@ -676,6 +691,7 @@ const sendWhatsappReply = async (
   appointmentId: number | null,
   text: string,
   kind: Extract<WhatsappMessage["kind"], "reply" | "handoff"> = "reply",
+  replyTo?: EvolutionReplyReference,
 ) => {
   const item = await addWhatsappMessage({
     direction: "outbound",
@@ -688,7 +704,7 @@ const sendWhatsappReply = async (
     providerMessageId: null,
     error: null,
   });
-  const result = await sendEvolutionText(phone, text);
+  const result = await sendEvolutionText(phone, text, replyTo);
   return (await updateWhatsappMessage(item.id, {
     status: result.ok ? "sent" : "failed",
     providerMessageId: result.providerMessageId,
@@ -702,6 +718,7 @@ const sendWhatsappDocumentMessage = async (
   document: WhatsappDocument,
   caption: string,
   appointmentId: number | null = null,
+  replyTo?: EvolutionReplyReference,
 ) => {
   const item = await addWhatsappMessage({
     direction: "outbound",
@@ -714,7 +731,7 @@ const sendWhatsappDocumentMessage = async (
     providerMessageId: null,
     error: null,
   });
-  const result = await sendEvolutionDocument(phone, document, caption);
+  const result = await sendEvolutionDocument(phone, document, caption, replyTo);
   return (await updateWhatsappMessage(item.id, {
     status: result.ok ? "sent" : "failed",
     providerMessageId: result.providerMessageId,
@@ -737,6 +754,12 @@ type AgentDecision = {
   document: WhatsappDocument | null;
   appointment: AgentAppointmentDraft | null;
 };
+
+type WhatsappAgentImageContent =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+type WhatsappAgentInput = string | WhatsappAgentImageContent[];
 
 const parseAgentDecision = (content: string): AgentDecision => {
   const cleaned = content
@@ -802,6 +825,7 @@ const askWhatsappAgent = async (
   clientName: string,
   text: string,
   isFirstClientMessage = false,
+  currentInput: WhatsappAgentInput = `Cliente: ${clientName}\nMensagem: ${text}`,
 ): Promise<AgentDecision> => {
   const serviceTable = services
     .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
@@ -844,6 +868,7 @@ REGRAS OBRIGATÓRIAS:
 - Use exatamente um emoji discreto no final da resposta. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio do texto.
 - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
 - Reassuma sempre o assunto principal da conversa usando o histórico; entenda a pergunta atual antes de responder e não fuja do contexto.
+- Se a mensagem vier com uma imagem, observe-a antes de responder e use apenas o que estiver visível nela. Se vier de áudio, considere a transcrição como a mensagem da cliente.
 - Se a cliente fizer uma pergunta de continuação, responda diretamente a ela sem repetir toda a apresentação. Se faltar informação, faça uma única pergunta curta para esclarecer.
 - Mantenha-se simpática, paciente e acolhedora em todas as respostas. Não use respostas genéricas quando houver contexto suficiente.
 - ${isFirstClientMessage ? "Esta é a primeira mensagem do cliente. Comece a resposta usando a saudação configurada, sem trocar por uma mensagem genérica de encaminhamento." : "Não repita a saudação configurada em todas as mensagens."}
@@ -860,7 +885,7 @@ ou, quando houver agendamento confirmado:
 {"reply":"texto curto","handoff":false,"document":null,"appointment":{"clientName":"nome","service":"serviço","professional":"","start":"AAAA-MM-DDTHH:mm","end":"AAAA-MM-DDTHH:mm","confirmed":true}}`,
       },
       ...(await getConversationHistory(phone)).slice(0, -1),
-      { role: "user", content: `Cliente: ${clientName}\nMensagem: ${text}` },
+      { role: "user", content: currentInput },
     ],
   });
   return parseAgentDecision(response.choices[0]?.message?.content ?? "");
@@ -1475,11 +1500,62 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   const remoteJid = String(key["remoteJid"] ?? "");
   const phone = remoteJid.split("@")[0];
   const rawMessage = (data["message"] as Record<string, unknown> | undefined) ?? {};
-  const extended = rawMessage["extendedTextMessage"] as Record<string, unknown> | undefined;
-  const text = String(rawMessage["conversation"] ?? extended?.["text"] ?? "").trim();
-  if (!phone || !text) {
+  const contentMessage = unwrapWhatsappMessage(rawMessage);
+  const extended = contentMessage["extendedTextMessage"] as Record<string, unknown> | undefined;
+  const audioMessage = contentMessage["audioMessage"] as Record<string, unknown> | undefined;
+  const imageMessage = contentMessage["imageMessage"] as Record<string, unknown> | undefined;
+  const isAudioMessage = Boolean(audioMessage);
+  const isImageMessage = Boolean(imageMessage);
+  const imageCaption = typeof imageMessage?.caption === "string" ? imageMessage.caption.trim() : "";
+  let text = String(contentMessage["conversation"] ?? extended?.["text"] ?? imageCaption).trim();
+  let currentInput: WhatsappAgentInput = "";
+  let mediaError: string | null = null;
+
+  if (isAudioMessage) {
+    try {
+      const media = await getEvolutionMedia(key, rawMessage, "audio");
+      const compatible = await ensureCompatibleFormat(media.buffer);
+      const transcript = await speechToText(compatible.buffer, compatible.format);
+      text = transcript.trim();
+      if (!text) mediaError = "Não consegui identificar o conteúdo do áudio.";
+    } catch (error) {
+      mediaError = error instanceof Error ? error.message : "Não foi possível entender o áudio.";
+      text = "Áudio recebido";
+    }
+  } else if (isImageMessage) {
+    text = imageCaption ? `[Imagem recebida com legenda: ${imageCaption}]` : "[Imagem recebida]";
+    try {
+      const media = await getEvolutionMedia(key, rawMessage, "image");
+      currentInput = [
+        {
+          type: "text",
+          text: `Cliente: ${phone}\nMensagem: ${text}\nAnalise a imagem recebida e responda de forma útil, sem inventar informações.`,
+        },
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:${media.mimetype};base64,${media.buffer.toString("base64")}`,
+          },
+        },
+      ];
+    } catch (error) {
+      mediaError = error instanceof Error ? error.message : "Não foi possível analisar a imagem.";
+    }
+  }
+
+  if (!phone || (!text && !isAudioMessage && !isImageMessage)) {
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_without_text" }));
   }
+  if (!currentInput) currentInput = `Cliente: ${phone}\nMensagem: ${text}`;
+  const providerMessageId = typeof key["id"] === "string" ? key["id"] : null;
+  const replyReference = providerMessageId
+    ? {
+        remoteJid: remoteJid || `${normalizeWhatsappPhone(phone)}@s.whatsapp.net`,
+        fromMe: false,
+        id: providerMessageId,
+        message: rawMessage,
+      } satisfies EvolutionReplyReference
+    : undefined;
 
   const client = clients.find((item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone));
   const appointment = appointments
@@ -1496,7 +1572,6 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     ))
     .limit(1);
   const isFirstClientMessage = !previousInboundMessage;
-  const providerMessageId = typeof key["id"] === "string" ? key["id"] : null;
   await addWhatsappMessage({
     direction: "inbound",
     phone: normalizeWhatsappPhone(phone),
@@ -1532,6 +1607,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       appointment?.id ?? null,
       "Combinado. Vou encaminhar você para uma atendente continuar o atendimento.",
       "handoff",
+      replyReference,
     );
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
   }
@@ -1542,13 +1618,27 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, FIRST_WHATSAPP_MESSAGE_DELAY_MS));
   }
 
+  if (mediaError) {
+    await sendWhatsappReply(
+      phone,
+      client?.name ?? phone,
+      appointment?.id ?? null,
+      isAudioMessage
+        ? "Não consegui ouvir esse áudio. Pode enviar novamente ou escrever a mensagem, por favor? 🤎"
+        : "Não consegui abrir essa imagem agora. Pode enviar novamente, por favor? 🤎",
+      "reply",
+      replyReference,
+    );
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
+  }
+
   if (appointment && normalizedText.includes("confirm")) {
-    await sendWhatsappReply(phone, appointment.client, appointment.id, "Perfeito! Seu atendimento está confirmado. Até lá!");
+    await sendWhatsappReply(phone, appointment.client, appointment.id, "Perfeito! Seu atendimento está confirmado. Até lá!", "reply", replyReference);
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "confirmed" }));
   }
   if (appointment && normalizedText.includes("cancel")) {
     appointment.status = "cancelled";
-    await sendWhatsappReply(phone, appointment.client, appointment.id, "Tudo bem, seu atendimento foi cancelado. Quando quiser, posso ajudar a encontrar um novo horário.");
+    await sendWhatsappReply(phone, appointment.client, appointment.id, "Tudo bem, seu atendimento foi cancelado. Quando quiser, posso ajudar a encontrar um novo horário.", "reply", replyReference);
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "cancelled" }));
   }
   if (!aiAgentConfig.active) {
@@ -1559,7 +1649,13 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   }
 
   try {
-    const decision = await askWhatsappAgent(phone, client?.name ?? phone, text, isFirstClientMessage);
+    const decision = await askWhatsappAgent(
+      phone,
+      client?.name ?? phone,
+      text,
+      isFirstClientMessage,
+      currentInput,
+    );
     let createdAppointment: Appointment | null = null;
     if (decision.appointment) {
       createdAppointment = addAppointmentFromAgent(phone, decision.appointment);
@@ -1570,6 +1666,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
           appointment?.id ?? null,
           "Esse horário não ficou disponível. Quer tentar outro horário? 🙂",
           "reply",
+          replyReference,
         );
         return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
       }
@@ -1583,6 +1680,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
           ? "Segue o nosso cardápio de serviços e bronzeamento."
           : "Segue o nosso catálogo de serviços de estética avançada.",
         createdAppointment?.id ?? appointment?.id ?? null,
+        replyReference,
       );
     }
     await sendWhatsappReply(
@@ -1591,6 +1689,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       createdAppointment?.id ?? appointment?.id ?? null,
       decision.reply,
       "reply",
+      replyReference,
     );
     return void res.json(ReceiveEvolutionWebhookResponse.parse({
       received: true,
