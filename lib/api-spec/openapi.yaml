@@ -123,6 +123,46 @@ paths:
           content:
             application/json:
               schema: { type: array, items: { $ref: "#/components/schemas/WhatsappMessage" } }
+  /whatsapp/conversations:
+    get:
+      operationId: listWhatsappConversations
+      tags: [ai-agent]
+      summary: Lista as conversas persistidas do WhatsApp
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        "200":
+          description: WhatsApp conversations
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/WhatsappConversation" } }
+  /whatsapp/conversations/{phone}:
+    patch:
+      operationId: updateWhatsappConversation
+      tags: [ai-agent]
+      summary: Altera o status de uma conversa do WhatsApp
+      parameters:
+        - { name: phone, in: path, required: true, schema: { type: string, minLength: 8 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WhatsappConversationUpdate" }
+      responses:
+        "200":
+          description: Updated WhatsApp conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappConversation" }
+    delete:
+      operationId: deleteWhatsappConversation
+      tags: [ai-agent]
+      summary: Exclui permanentemente uma conversa do WhatsApp
+      parameters:
+        - { name: phone, in: path, required: true, schema: { type: string, minLength: 8 } }
+      responses:
+        "204":
+          description: Conversation deleted
   /whatsapp/reply:
     post:
       operationId: sendWhatsappReply
@@ -1011,6 +1051,22 @@ components:
         error: { type: ["string", "null"] }
         createdAt: { type: string }
       required: [id, direction, phone, clientName, appointmentId, text, status, kind, providerMessageId, error, createdAt]
+    WhatsappConversation:
+      type: object
+      properties:
+        id: { type: integer }
+        phone: { type: string }
+        clientName: { type: string }
+        status: { type: string, enum: [agent, human, closed] }
+        lastMessage: { type: string }
+        lastMessageAt: { type: string }
+        messageCount: { type: integer }
+      required: [id, phone, clientName, status, lastMessage, lastMessageAt, messageCount]
+    WhatsappConversationUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [agent, human, closed] }
+      required: [status]
     WhatsappReplyInput:
       type: object
       properties:

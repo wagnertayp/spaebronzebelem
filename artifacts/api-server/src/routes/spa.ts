@@ -86,6 +86,12 @@ import {
   UpdateWhatsappAutomationResponse,
   ListWhatsappMessagesQueryParams,
   ListWhatsappMessagesResponse,
+  ListWhatsappConversationsQueryParams,
+  ListWhatsappConversationsResponse,
+  UpdateWhatsappConversationParams,
+  UpdateWhatsappConversationBody,
+  UpdateWhatsappConversationResponse,
+  DeleteWhatsappConversationParams,
   SendWhatsappAppointmentConfirmationResponse,
   SendWhatsappReplyBody,
   SendWhatsappReplyResponse,
@@ -125,6 +131,8 @@ import {
   ListCommissionAuditQueryParams,
   ListCommissionAuditResponse,
 } from "@workspace/api-zod";
+import { db, whatsappConversationsTable, whatsappMessagesTable } from "@workspace/db";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import backup from "../data/spa-backup.json";
 import { requireSession } from "../lib/auth";
@@ -174,6 +182,8 @@ type Appointment = {
 
 type WhatsappMessage = ReturnType<typeof ListWhatsappMessagesResponse.parse>[number];
 type WhatsappAutomation = ReturnType<typeof GetWhatsappAutomationResponse.parse>;
+type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.parse>[number];
+type WhatsappConversationStatus = WhatsappConversation["status"];
 
 type Lead = {
   id: number;
@@ -391,8 +401,6 @@ let whatsappAutomation: WhatsappAutomation = {
   reminder2h: true,
   timezone: process.env["EVOLUTION_TIMEZONE"] ?? "America/Belem",
 };
-const whatsappMessages: WhatsappMessage[] = [];
-
 const normalizeName = (value: string) => value.trim().toLocaleLowerCase("pt-BR");
 const findClientForAppointment = (appointment: Appointment) =>
   clients.find((client) => normalizeName(client.name) === normalizeName(appointment.client));
@@ -415,17 +423,127 @@ const formatAppointmentDate = (appointment: Appointment) => {
   }).format(date);
 };
 
-const nextWhatsappMessageId = () =>
-  whatsappMessages.length ? Math.max(...whatsappMessages.map((message) => message.id)) + 1 : 1;
+const toWhatsappMessage = (message: typeof whatsappMessagesTable.$inferSelect): WhatsappMessage => ({
+  id: message.id,
+  direction: message.direction as WhatsappMessage["direction"],
+  phone: message.phone,
+  clientName: message.clientName,
+  appointmentId: message.appointmentId,
+  text: message.text,
+  status: message.status as WhatsappMessage["status"],
+  kind: message.kind as WhatsappMessage["kind"],
+  providerMessageId: message.providerMessageId,
+  error: message.error,
+  createdAt: message.createdAt.toISOString(),
+});
 
-const addWhatsappMessage = (message: Omit<WhatsappMessage, "id" | "createdAt">) => {
-  const item: WhatsappMessage = {
-    ...message,
-    id: nextWhatsappMessageId(),
-    createdAt: new Date().toISOString(),
+const getWhatsappConversation = async (phone: string) => {
+  const normalizedPhone = normalizeWhatsappPhone(phone);
+  const [existing] = await db
+    .select()
+    .from(whatsappConversationsTable)
+    .where(eq(whatsappConversationsTable.phone, normalizedPhone))
+    .limit(1);
+  return existing ?? null;
+};
+
+const ensureWhatsappConversation = async (phone: string, clientName: string) => {
+  const normalizedPhone = normalizeWhatsappPhone(phone);
+  const existing = await getWhatsappConversation(normalizedPhone);
+  if (existing) {
+    if (clientName && clientName !== existing.clientName && clientName !== normalizedPhone) {
+      const [updated] = await db
+        .update(whatsappConversationsTable)
+        .set({ clientName, updatedAt: new Date() })
+        .where(eq(whatsappConversationsTable.id, existing.id))
+        .returning();
+      return updated ?? existing;
+    }
+    return existing;
+  }
+  const [created] = await db
+    .insert(whatsappConversationsTable)
+    .values({ phone: normalizedPhone, clientName: clientName || normalizedPhone })
+    .onConflictDoNothing({ target: whatsappConversationsTable.phone })
+    .returning();
+  return created ?? (await getWhatsappConversation(normalizedPhone))!;
+};
+
+const setWhatsappConversationStatus = async (phone: string, status: WhatsappConversationStatus) => {
+  const conversation = await ensureWhatsappConversation(phone, phone);
+  const [updated] = await db
+    .update(whatsappConversationsTable)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(whatsappConversationsTable.id, conversation.id))
+    .returning();
+  return updated ?? conversation;
+};
+
+const addWhatsappMessage = async (message: Omit<WhatsappMessage, "id" | "createdAt">) => {
+  const conversation = await ensureWhatsappConversation(message.phone, message.clientName);
+  const [created] = await db
+    .insert(whatsappMessagesTable)
+    .values({
+      conversationId: conversation.id,
+      direction: message.direction,
+      phone: message.phone,
+      clientName: message.clientName,
+      appointmentId: message.appointmentId,
+      text: message.text,
+      status: message.status,
+      kind: message.kind,
+      providerMessageId: message.providerMessageId,
+      error: message.error,
+    })
+    .returning();
+  if (!created) throw new Error("Não foi possível salvar a mensagem do WhatsApp");
+  await db
+    .update(whatsappConversationsTable)
+    .set({
+      clientName: message.clientName || conversation.clientName,
+      lastMessageAt: created.createdAt,
+      updatedAt: new Date(),
+    })
+    .where(eq(whatsappConversationsTable.id, conversation.id));
+  return toWhatsappMessage(created);
+};
+
+const updateWhatsappMessage = async (id: number, changes: Pick<WhatsappMessage, "status" | "providerMessageId" | "error">) => {
+  const [updated] = await db
+    .update(whatsappMessagesTable)
+    .set(changes)
+    .where(eq(whatsappMessagesTable.id, id))
+    .returning();
+  return updated ? toWhatsappMessage(updated) : null;
+};
+
+const toWhatsappConversation = async (
+  conversation: typeof whatsappConversationsTable.$inferSelect,
+): Promise<WhatsappConversation> => {
+  const [latest] = await db
+    .select({ text: whatsappMessagesTable.text })
+    .from(whatsappMessagesTable)
+    .where(eq(whatsappMessagesTable.conversationId, conversation.id))
+    .orderBy(desc(whatsappMessagesTable.createdAt))
+    .limit(1);
+  const [count] = await db
+    .select({ value: sql<number>`count(*)` })
+    .from(whatsappMessagesTable)
+    .where(eq(whatsappMessagesTable.conversationId, conversation.id));
+  return {
+    id: conversation.id,
+    phone: conversation.phone,
+    clientName: conversation.clientName,
+    status: conversation.status as WhatsappConversationStatus,
+    lastMessage: latest?.text ?? "",
+    lastMessageAt: conversation.lastMessageAt.toISOString(),
+    messageCount: Number(count?.value ?? 0),
   };
-  whatsappMessages.unshift(item);
-  return item;
+};
+
+const getWhatsappConversationSummary = async (phone: string) => {
+  const conversation = await getWhatsappConversation(phone);
+  return conversation ? toWhatsappConversation(conversation) : null;
 };
 
 const appointmentMessageText = (
@@ -450,13 +568,20 @@ const sendAppointmentMessage = async (
   const client = findClientForAppointment(appointment);
   const phone = client ? normalizeWhatsappPhone(client.phone) : "";
   const text = appointmentMessageText(appointment, kind);
-  const existing = whatsappMessages.find(
-    (message) => message.appointmentId === appointment.id && message.kind === kind && ["sent", "delivered"].includes(message.status),
-  );
-  if (existing) return existing;
+  const [existing] = await db
+    .select()
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.appointmentId, appointment.id),
+      eq(whatsappMessagesTable.kind, kind),
+      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
+    ))
+    .orderBy(desc(whatsappMessagesTable.createdAt))
+    .limit(1);
+  if (existing) return toWhatsappMessage(existing);
 
   if (!client || !phone || !text) {
-    return addWhatsappMessage({
+    return await addWhatsappMessage({
       direction: "outbound",
       phone,
       clientName: appointment.client,
@@ -469,7 +594,7 @@ const sendAppointmentMessage = async (
     });
   }
 
-  const pending = addWhatsappMessage({
+  const pending = await addWhatsappMessage({
     direction: "outbound",
     phone,
     clientName: appointment.client,
@@ -481,10 +606,11 @@ const sendAppointmentMessage = async (
     error: null,
   });
   const result = await sendEvolutionText(phone, text);
-  pending.status = result.ok ? "sent" : "failed";
-  pending.providerMessageId = result.providerMessageId;
-  pending.error = result.error;
-  return pending;
+  return (await updateWhatsappMessage(pending.id, {
+    status: result.ok ? "sent" : "failed",
+    providerMessageId: result.providerMessageId,
+    error: result.error,
+  })) ?? pending;
 };
 
 const sendWhatsappReply = async (
@@ -494,7 +620,7 @@ const sendWhatsappReply = async (
   text: string,
   kind: Extract<WhatsappMessage["kind"], "reply" | "handoff"> = "reply",
 ) => {
-  const item = addWhatsappMessage({
+  const item = await addWhatsappMessage({
     direction: "outbound",
     phone: normalizeWhatsappPhone(phone),
     clientName,
@@ -506,10 +632,11 @@ const sendWhatsappReply = async (
     error: null,
   });
   const result = await sendEvolutionText(phone, text);
-  item.status = result.ok ? "sent" : "failed";
-  item.providerMessageId = result.providerMessageId;
-  item.error = result.error;
-  return item;
+  return (await updateWhatsappMessage(item.id, {
+    status: result.ok ? "sent" : "failed",
+    providerMessageId: result.providerMessageId,
+    error: result.error,
+  })) ?? item;
 };
 
 const sendWhatsappDocumentMessage = async (
@@ -519,7 +646,7 @@ const sendWhatsappDocumentMessage = async (
   caption: string,
   appointmentId: number | null = null,
 ) => {
-  const item = addWhatsappMessage({
+  const item = await addWhatsappMessage({
     direction: "outbound",
     phone: normalizeWhatsappPhone(phone),
     clientName,
@@ -531,10 +658,11 @@ const sendWhatsappDocumentMessage = async (
     error: null,
   });
   const result = await sendEvolutionDocument(phone, document, caption);
-  item.status = result.ok ? "sent" : "failed";
-  item.providerMessageId = result.providerMessageId;
-  item.error = result.error;
-  return item;
+  return (await updateWhatsappMessage(item.id, {
+    status: result.ok ? "sent" : "failed",
+    providerMessageId: result.providerMessageId,
+    error: result.error,
+  })) ?? item;
 };
 
 type AgentAppointmentDraft = {
@@ -596,15 +724,18 @@ const parseAgentDecision = (content: string): AgentDecision => {
   }
 };
 
-const getConversationHistory = (phone: string) =>
-  whatsappMessages
-    .filter((message) => message.phone === normalizeWhatsappPhone(phone))
-    .slice(0, 12)
-    .reverse()
-    .map((message) => ({
+const getConversationHistory = async (phone: string) => {
+  const messages = await db
+    .select({ direction: whatsappMessagesTable.direction, text: whatsappMessagesTable.text })
+    .from(whatsappMessagesTable)
+    .where(eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)))
+    .orderBy(desc(whatsappMessagesTable.createdAt))
+    .limit(12);
+  return messages.reverse().map((message) => ({
       role: message.direction === "inbound" ? "user" as const : "assistant" as const,
       content: message.text,
     }));
+};
 
 const getFutureAgendaContext = () =>
   appointments
@@ -660,7 +791,7 @@ REGRAS OBRIGATÓRIAS:
 ou, quando houver agendamento confirmado:
 {"reply":"texto curto","handoff":false,"document":null,"appointment":{"clientName":"nome","service":"serviço","professional":"","start":"AAAA-MM-DDTHH:mm","end":"AAAA-MM-DDTHH:mm","confirmed":true}}`,
       },
-      ...getConversationHistory(phone).slice(0, -1),
+      ...(await getConversationHistory(phone)).slice(0, -1),
       { role: "user", content: `Cliente: ${clientName}\nMensagem: ${text}` },
     ],
   });
@@ -1175,12 +1306,46 @@ router.put("/whatsapp/automation", (req, res) => {
 });
 
 router.get("/whatsapp/messages", (req, res) => {
-  const { limit = 50 } = ListWhatsappMessagesQueryParams.parse(req.query);
-  res.json(ListWhatsappMessagesResponse.parse(whatsappMessages.slice(0, limit)));
+  void (async () => {
+    const { limit = 50 } = ListWhatsappMessagesQueryParams.parse(req.query);
+    const messages = await db
+      .select()
+      .from(whatsappMessagesTable)
+      .orderBy(desc(whatsappMessagesTable.createdAt))
+      .limit(limit);
+    res.json(ListWhatsappMessagesResponse.parse(messages.map(toWhatsappMessage)));
+  })();
+});
+
+router.get("/whatsapp/conversations", async (req, res) => {
+  const { limit = 50 } = ListWhatsappConversationsQueryParams.parse(req.query);
+  const conversations = await db
+    .select()
+    .from(whatsappConversationsTable)
+    .orderBy(desc(whatsappConversationsTable.lastMessageAt))
+    .limit(limit);
+  res.json(ListWhatsappConversationsResponse.parse(await Promise.all(conversations.map(toWhatsappConversation))));
+});
+
+router.patch("/whatsapp/conversations/:phone", async (req, res) => {
+  const { phone } = UpdateWhatsappConversationParams.parse(req.params);
+  const { status } = UpdateWhatsappConversationBody.parse(req.body);
+  const conversation = await setWhatsappConversationStatus(phone, status);
+  const summary = await toWhatsappConversation(conversation);
+  res.json(UpdateWhatsappConversationResponse.parse(summary));
+});
+
+router.delete("/whatsapp/conversations/:phone", async (req, res) => {
+  const { phone } = DeleteWhatsappConversationParams.parse(req.params);
+  const conversation = await getWhatsappConversation(phone);
+  if (!conversation) return void res.status(404).json({ error: "Conversa não encontrada" });
+  await db.delete(whatsappConversationsTable).where(eq(whatsappConversationsTable.id, conversation.id));
+  res.status(204).end();
 });
 
 router.post("/whatsapp/reply", async (req, res) => {
   const input = SendWhatsappReplyBody.parse(req.body);
+  await setWhatsappConversationStatus(input.phone, "human");
   const message = await sendWhatsappReply(input.phone, input.clientName, null, input.text);
   res.json(SendWhatsappReplyResponse.parse(message));
 });
@@ -1229,7 +1394,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     .filter((item) => (appointmentDateTime(item.start)?.getTime() ?? Number.MAX_SAFE_INTEGER) > Date.now())
     .sort((a, b) => (appointmentDateTime(a.start)?.getTime() ?? 0) - (appointmentDateTime(b.start)?.getTime() ?? 0))[0];
   const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  addWhatsappMessage({
+  await addWhatsappMessage({
     direction: "inbound",
     phone: normalizeWhatsappPhone(phone),
     clientName: client?.name ?? phone,
@@ -1240,6 +1405,14 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     providerMessageId: typeof key["id"] === "string" ? key["id"] : null,
     error: null,
   });
+
+  const conversation = await getWhatsappConversation(phone);
+  if (conversation?.status !== "agent") {
+    return void res.json(ReceiveEvolutionWebhookResponse.parse({
+      received: true,
+      action: conversation?.status === "closed" ? "closed_conversation" : "human_conversation",
+    }));
+  }
 
   if (appointment && normalizedText.includes("confirm")) {
     await sendWhatsappReply(phone, appointment.client, appointment.id, "Perfeito! Seu atendimento está confirmado. Até lá!");
@@ -1257,6 +1430,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
 
   const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
   if (!whatsappAutomation.enabled || !whatsappAutomation.aiReplies || !aiAgentConfig.active || asksForHuman) {
+    await setWhatsappConversationStatus(phone, "human");
     await sendWhatsappReply(
       phone,
       client?.name ?? phone,
@@ -1303,6 +1477,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       decision.reply,
       decision.handoff ? "handoff" : "reply",
     );
+    if (decision.handoff) await setWhatsappConversationStatus(phone, "human");
     return void res.json(ReceiveEvolutionWebhookResponse.parse({
       received: true,
       action: createdAppointment ? "scheduled" : decision.handoff ? "handoff" : "replied",

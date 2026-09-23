@@ -16,11 +16,16 @@ import {
   getGetWhatsappAutomationQueryKey,
   useListWhatsappMessages,
   getListWhatsappMessagesQueryKey,
+  useListWhatsappConversations,
+  getListWhatsappConversationsQueryKey,
+  useUpdateWhatsappConversation,
+  useDeleteWhatsappConversation,
   useSendWhatsappReply,
   useSendWhatsappDocument,
   AiAgentConfig,
   Service,
   WhatsappAutomation,
+  WhatsappConversation,
 } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -60,6 +65,9 @@ export function WhatsApp() {
   const sendWhatsappReply = useSendWhatsappReply();
   const sendWhatsappDocument = useSendWhatsappDocument();
   const { data: whatsappMessages = [] } = useListWhatsappMessages({ limit: 50 });
+  const { data: whatsappConversations = [] } = useListWhatsappConversations({ limit: 50 });
+  const updateWhatsappConversation = useUpdateWhatsappConversation();
+  const deleteWhatsappConversation = useDeleteWhatsappConversation();
   
   const { data: services = [], isLoading: isServicesLoading } = useListServices();
   const createService = useCreateService();
@@ -152,13 +160,62 @@ export function WhatsApp() {
   };
 
   useEffect(() => {
-    if (!selectedPhone && whatsappMessages[0]?.phone) {
-      setSelectedPhone(whatsappMessages[0].phone);
+    if (!selectedPhone && whatsappConversations[0]?.phone) {
+      setSelectedPhone(whatsappConversations[0].phone);
+    } else if (selectedPhone && !whatsappConversations.some((conversation) => conversation.phone === selectedPhone)) {
+      setSelectedPhone(whatsappConversations[0]?.phone ?? '');
     }
-  }, [selectedPhone, whatsappMessages]);
+  }, [selectedPhone, whatsappConversations]);
 
-  const selectedWhatsappMessage = whatsappMessages.find((message) => message.phone === selectedPhone);
-  const selectedClientName = selectedWhatsappMessage?.clientName || selectedPhone;
+  const selectedConversation = whatsappConversations.find((conversation) => conversation.phone === selectedPhone);
+  const selectedClientName = selectedConversation?.clientName || selectedPhone;
+  const selectedConversationMessages = whatsappMessages
+    .filter((message) => message.phone === selectedPhone)
+    .slice()
+    .reverse();
+  const conversationStatusLabel: Record<WhatsappConversation['status'], string> = {
+    agent: 'Agente',
+    human: 'Atendimento humano',
+    closed: 'Encerrada',
+  };
+
+  const invalidateWhatsapp = () => {
+    void queryClient.invalidateQueries({ queryKey: getListWhatsappMessagesQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getListWhatsappConversationsQueryKey() });
+  };
+
+  const handleConversationStatus = (status: WhatsappConversation['status']) => {
+    if (!selectedPhone) return;
+    updateWhatsappConversation.mutate(
+      { phone: selectedPhone, data: { status } },
+      {
+        onSuccess: () => {
+          invalidateWhatsapp();
+          toast({
+            title: status === 'human' ? 'Atendimento assumido' : status === 'agent' ? 'Conversa devolvida ao agente' : 'Conversa encerrada',
+            description: `O status de ${selectedClientName} foi atualizado.`,
+          });
+        },
+        onError: () => toast({ title: 'Erro', description: 'Não foi possível alterar o status da conversa.', variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleDeleteConversation = () => {
+    if (!selectedPhone || !window.confirm(`Excluir permanentemente a conversa com ${selectedClientName}? Todas as mensagens serão removidas.`)) return;
+    const phoneToDelete = selectedPhone;
+    deleteWhatsappConversation.mutate(
+      { phone: phoneToDelete },
+      {
+        onSuccess: () => {
+          setSelectedPhone('');
+          invalidateWhatsapp();
+          toast({ title: 'Conversa excluída', description: 'O histórico foi removido permanentemente.' });
+        },
+        onError: () => toast({ title: 'Erro', description: 'Não foi possível excluir a conversa.', variant: 'destructive' }),
+      },
+    );
+  };
 
   const handleManualReply = () => {
     const text = manualReply.trim();
@@ -168,7 +225,7 @@ export function WhatsApp() {
       {
         onSuccess: () => {
           setManualReply('');
-          queryClient.invalidateQueries({ queryKey: getListWhatsappMessagesQueryKey() });
+          invalidateWhatsapp();
           toast({ title: 'Mensagem enviada', description: 'A resposta foi enviada pelo WhatsApp.' });
         },
         onError: () => toast({ title: 'Erro', description: 'Não foi possível enviar a resposta.', variant: 'destructive' }),
@@ -191,7 +248,7 @@ export function WhatsApp() {
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListWhatsappMessagesQueryKey() });
+          invalidateWhatsapp();
           toast({ title: 'Catálogo enviado', description: 'O PDF foi enviado pelo WhatsApp.' });
         },
         onError: () => toast({ title: 'Erro', description: 'Não foi possível enviar o catálogo.', variant: 'destructive' }),
@@ -384,38 +441,102 @@ export function WhatsApp() {
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
               <RefreshCw className="w-3.5 h-3.5" /> Supervisão do atendimento
             </div>
-            {whatsappMessages.length === 0 ? (
+            {whatsappConversations.length === 0 ? (
               <p className="text-sm text-text-muted rounded-lg border border-dashed border-border p-3">
                 Nenhuma conversa registrada ainda. Quando chegar uma mensagem, ela aparecerá aqui para a equipe acompanhar.
               </p>
             ) : (
               <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(260px,0.9fr)] gap-3">
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                  {whatsappMessages.map((message) => (
+                  {whatsappConversations.map((conversation) => (
                     <button
-                      key={message.id}
+                      key={conversation.id}
                       type="button"
-                      onClick={() => setSelectedPhone(message.phone)}
+                      onClick={() => setSelectedPhone(conversation.phone)}
                       className={cn(
                         "w-full text-left flex items-start justify-between gap-3 rounded-lg border p-3 text-xs transition-colors",
-                        selectedPhone === message.phone ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
+                        selectedPhone === conversation.phone ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
                       )}
                     >
                       <div className="min-w-0">
                         <div className="font-medium text-text-primary truncate">
-                          {message.clientName || message.phone}
-                          <span className="font-normal text-text-muted ml-2">{message.direction === 'inbound' ? 'Cliente' : 'Equipe'}</span>
+                          {conversation.clientName || conversation.phone}
+                          <span className="font-normal text-text-muted ml-2">{conversation.messageCount} mensagens</span>
                         </div>
-                        <div className="text-text-muted truncate">{message.text}</div>
+                        <div className="text-text-muted truncate">{conversation.lastMessage || 'Sem mensagens'}</div>
                       </div>
-                      <span className={cn("shrink-0 font-semibold uppercase", message.status === 'sent' || message.status === 'received' ? "text-success" : message.status === 'failed' ? "text-error" : "text-text-muted")}>{message.status}</span>
+                      <span className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 font-semibold",
+                        conversation.status === 'human' ? "bg-warning/10 text-warning" :
+                          conversation.status === 'closed' ? "bg-text-muted/10 text-text-muted" : "bg-success/10 text-success",
+                      )}>
+                        {conversationStatusLabel[conversation.status]}
+                      </span>
                     </button>
                   ))}
                 </div>
                 <div className="rounded-lg border border-border bg-background p-3 space-y-2">
-                  <div className="text-xs font-medium text-text-primary">
-                    {selectedPhone ? `Responder ${selectedClientName}` : 'Selecione uma conversa'}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-xs font-medium text-text-primary">
+                      {selectedPhone ? `Conversa com ${selectedClientName}` : 'Selecione uma conversa'}
+                      {selectedPhone && <div className="text-[11px] text-text-muted font-normal mt-0.5">{selectedPhone}</div>}
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleDeleteConversation}
+                      disabled={!selectedPhone || deleteWhatsappConversation.isPending}
+                      className="h-7 w-7 text-error hover:text-error"
+                      title="Excluir conversa"
+                    >
+                      {deleteWhatsappConversation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    </Button>
                   </div>
+                  {selectedConversation && (
+                    <>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <select
+                          value={selectedConversation.status}
+                          onChange={(event) => handleConversationStatus(event.target.value as WhatsappConversation['status'])}
+                          disabled={updateWhatsappConversation.isPending}
+                          className="h-8 flex-1 rounded-md border border-border bg-surface px-2 text-xs"
+                          aria-label="Status da conversa"
+                        >
+                          <option value="agent">Agente</option>
+                          <option value="human">Atendimento humano</option>
+                          <option value="closed">Encerrada</option>
+                        </select>
+                        {selectedConversation.status !== 'human' && (
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleConversationStatus('human')} disabled={updateWhatsappConversation.isPending}>
+                            Assumir atendimento
+                          </Button>
+                        )}
+                        {selectedConversation.status === 'human' && (
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleConversationStatus('agent')} disabled={updateWhatsappConversation.isPending}>
+                            Devolver ao agente
+                          </Button>
+                        )}
+                      </div>
+                      <div className="max-h-44 overflow-y-auto rounded-md border border-border bg-surface-soft p-2 space-y-2">
+                        {selectedConversationMessages.length === 0 ? (
+                          <p className="text-[11px] text-text-muted">Carregando histórico...</p>
+                        ) : selectedConversationMessages.map((message) => (
+                          <div key={message.id} className={cn("flex", message.direction === 'outbound' ? "justify-end" : "justify-start")}>
+                            <div className={cn(
+                              "max-w-[90%] rounded-lg px-2.5 py-1.5 text-[11px]",
+                              message.direction === 'outbound' ? "bg-primary/10 text-text-primary" : "bg-background border border-border text-text-secondary",
+                            )}>
+                              <div>{message.text}</div>
+                              <div className="mt-1 text-[10px] text-text-muted">
+                                {message.direction === 'outbound' ? 'Equipe' : 'Cliente'} · {message.status}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                   <textarea
                     value={manualReply}
                     onChange={(event) => setManualReply(event.target.value)}

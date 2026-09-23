@@ -119,6 +119,38 @@ export interface WhatsappMessage {
   createdAt: string;
 }
 
+export type WhatsappConversationStatus = typeof WhatsappConversationStatus[keyof typeof WhatsappConversationStatus];
+
+
+export const WhatsappConversationStatus = {
+  agent: 'agent',
+  human: 'human',
+  closed: 'closed',
+} as const;
+
+export interface WhatsappConversation {
+  id: number;
+  phone: string;
+  clientName: string;
+  status: WhatsappConversationStatus;
+  lastMessage: string;
+  lastMessageAt: string;
+  messageCount: number;
+}
+
+export type WhatsappConversationUpdateStatus = typeof WhatsappConversationUpdateStatus[keyof typeof WhatsappConversationUpdateStatus];
+
+
+export const WhatsappConversationUpdateStatus = {
+  agent: 'agent',
+  human: 'human',
+  closed: 'closed',
+} as const;
+
+export interface WhatsappConversationUpdate {
+  status: WhatsappConversationUpdateStatus;
+}
+
 export interface WhatsappReplyInput {
   /** @minLength 8 */
   phone: string;
@@ -807,6 +839,14 @@ export interface InventoryItemInput {
 }
 
 export type ListWhatsappMessagesParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
+
+export type ListWhatsappConversationsParams = {
 /**
  * @minimum 1
  * @maximum 100

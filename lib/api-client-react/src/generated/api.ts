@@ -59,6 +59,7 @@ import type {
   ListFinancialMovementsParams,
   ListInventoryParams,
   ListQuotesParams,
+  ListWhatsappConversationsParams,
   ListWhatsappMessagesParams,
   Package,
   Professional,
@@ -75,6 +76,8 @@ import type {
   WhatsappAutomation,
   WhatsappConnectResponse,
   WhatsappConnection,
+  WhatsappConversation,
+  WhatsappConversationUpdate,
   WhatsappDocumentInput,
   WhatsappMessage,
   WhatsappReplyInput
@@ -705,6 +708,233 @@ export function useListWhatsappMessages<TData = Awaited<ReturnType<typeof listWh
 
 
 
+
+export const getListWhatsappConversationsUrl = (params?: ListWhatsappConversationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/whatsapp/conversations?${stringifiedParams}` : `/api/whatsapp/conversations`
+}
+
+/**
+ * @summary Lista as conversas persistidas do WhatsApp
+ */
+export const listWhatsappConversations = async (params?: ListWhatsappConversationsParams, options?: Parameters<typeof customFetch>[1]): Promise<WhatsappConversation[]> => {
+
+  return customFetch<WhatsappConversation[]>(getListWhatsappConversationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWhatsappConversationsQueryKey = (params?: ListWhatsappConversationsParams,) => {
+    return [
+    `/api/whatsapp/conversations`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListWhatsappConversationsQueryOptions = <TData = Awaited<ReturnType<typeof listWhatsappConversations>>, TError = ErrorType<unknown>>(params?: ListWhatsappConversationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhatsappConversations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWhatsappConversationsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWhatsappConversations>>> = ({ signal }) => listWhatsappConversations(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWhatsappConversations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWhatsappConversationsQueryResult = NonNullable<Awaited<ReturnType<typeof listWhatsappConversations>>>
+export type ListWhatsappConversationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Lista as conversas persistidas do WhatsApp
+ */
+
+export function useListWhatsappConversations<TData = Awaited<ReturnType<typeof listWhatsappConversations>>, TError = ErrorType<unknown>>(
+ params?: ListWhatsappConversationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhatsappConversations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWhatsappConversationsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateWhatsappConversationUrl = (phone: string,) => {
+
+
+
+
+  return `/api/whatsapp/conversations/${phone}`
+}
+
+/**
+ * @summary Altera o status de uma conversa do WhatsApp
+ */
+export const updateWhatsappConversation = async (phone: string,
+    whatsappConversationUpdate: WhatsappConversationUpdate, options?: Parameters<typeof customFetch>[1]): Promise<WhatsappConversation> => {
+
+  return customFetch<WhatsappConversation>(getUpdateWhatsappConversationUrl(phone),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(whatsappConversationUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateWhatsappConversationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWhatsappConversation>>, TError,{phone: string;data: BodyType<WhatsappConversationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWhatsappConversation>>, TError,{phone: string;data: BodyType<WhatsappConversationUpdate>}, TContext> => {
+
+const mutationKey = ['updateWhatsappConversation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWhatsappConversation>>, {phone: string;data: BodyType<WhatsappConversationUpdate>}> = (props) => {
+          const {phone,data} = props ?? {};
+
+          return  updateWhatsappConversation(phone,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWhatsappConversationMutationResult = NonNullable<Awaited<ReturnType<typeof updateWhatsappConversation>>>
+    export type UpdateWhatsappConversationMutationBody = BodyType<WhatsappConversationUpdate>
+    export type UpdateWhatsappConversationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Altera o status de uma conversa do WhatsApp
+ */
+export const useUpdateWhatsappConversation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWhatsappConversation>>, TError,{phone: string;data: BodyType<WhatsappConversationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateWhatsappConversation>>,
+        TError,
+        {phone: string;data: BodyType<WhatsappConversationUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateWhatsappConversationMutationOptions(options));
+    }
+
+export const getDeleteWhatsappConversationUrl = (phone: string,) => {
+
+
+
+
+  return `/api/whatsapp/conversations/${phone}`
+}
+
+/**
+ * @summary Exclui permanentemente uma conversa do WhatsApp
+ */
+export const deleteWhatsappConversation = async (phone: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteWhatsappConversationUrl(phone),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteWhatsappConversationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteWhatsappConversation>>, TError,{phone: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteWhatsappConversation>>, TError,{phone: string}, TContext> => {
+
+const mutationKey = ['deleteWhatsappConversation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteWhatsappConversation>>, {phone: string}> = (props) => {
+          const {phone} = props ?? {};
+
+          return  deleteWhatsappConversation(phone,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteWhatsappConversationMutationResult = NonNullable<Awaited<ReturnType<typeof deleteWhatsappConversation>>>
+
+    export type DeleteWhatsappConversationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Exclui permanentemente uma conversa do WhatsApp
+ */
+export const useDeleteWhatsappConversation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteWhatsappConversation>>, TError,{phone: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteWhatsappConversation>>,
+        TError,
+        {phone: string},
+        TContext
+      > => {
+      return useMutation(getDeleteWhatsappConversationMutationOptions(options));
+    }
 
 export const getSendWhatsappReplyUrl = () => {
 

@@ -192,6 +192,69 @@ export const ListWhatsappMessagesResponse = zod.array(ListWhatsappMessagesRespon
 
 
 /**
+ * @summary Lista as conversas persistidas do WhatsApp
+ */
+export const listWhatsappConversationsQueryLimitMax = 100;
+
+
+
+export const ListWhatsappConversationsQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(listWhatsappConversationsQueryLimitMax).optional()
+})
+
+export const ListWhatsappConversationsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "phone": zod.string(),
+  "clientName": zod.string(),
+  "status": zod.enum(['agent', 'human', 'closed']),
+  "lastMessage": zod.string(),
+  "lastMessageAt": zod.string(),
+  "messageCount": zod.number().int()
+})
+export const ListWhatsappConversationsResponse = zod.array(ListWhatsappConversationsResponseItem)
+
+
+/**
+ * @summary Altera o status de uma conversa do WhatsApp
+ */
+export const updateWhatsappConversationPathPhoneMin = 8;
+
+
+
+export const UpdateWhatsappConversationParams = zod.object({
+  "phone": zod.coerce.string().min(updateWhatsappConversationPathPhoneMin)
+})
+
+export const UpdateWhatsappConversationBody = zod.object({
+  "status": zod.enum(['agent', 'human', 'closed'])
+})
+
+export const UpdateWhatsappConversationResponse = zod.object({
+  "id": zod.number().int(),
+  "phone": zod.string(),
+  "clientName": zod.string(),
+  "status": zod.enum(['agent', 'human', 'closed']),
+  "lastMessage": zod.string(),
+  "lastMessageAt": zod.string(),
+  "messageCount": zod.number().int()
+})
+
+
+/**
+ * @summary Exclui permanentemente uma conversa do WhatsApp
+ */
+export const deleteWhatsappConversationPathPhoneMin = 8;
+
+
+
+export const DeleteWhatsappConversationParams = zod.object({
+  "phone": zod.coerce.string().min(deleteWhatsappConversationPathPhoneMin)
+})
+
+export const DeleteWhatsappConversationResponse = zod.void()
+
+
+/**
  * @summary Envia uma resposta manual para uma conversa do WhatsApp
  */
 export const sendWhatsappReplyBodyPhoneMin = 8;
