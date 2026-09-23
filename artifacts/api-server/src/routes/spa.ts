@@ -194,6 +194,13 @@ type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.
 type WhatsappConversationStatus = WhatsappConversation["status"];
 const FIRST_WHATSAPP_MESSAGE_DELAY_MS = 8_000;
 const OPENAI_TEXT_MODEL = process.env["OPENAI_API_KEY"] ? "gpt-5.4" : "gpt-5.6-luna";
+const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
+
+const reactionForWhatsappMessage = (providerMessageId: string, text: string) => {
+  const source = `${providerMessageId}:${text}`;
+  const score = Array.from(source).reduce((total, character) => total + character.codePointAt(0)!, 0);
+  return WHATSAPP_REACTIONS[score % WHATSAPP_REACTIONS.length];
+};
 
 type Lead = {
   id: number;
@@ -834,7 +841,8 @@ ${getFutureAgendaContext()}
 REGRAS OBRIGATÓRIAS:
 - Responda normalmente em no máximo duas frases curtas no total. Na primeira mensagem, cumprimente e já responda dentro desse limite.
 - Receba bem a cliente e use humor leve quando combinar, sem fazer piadas forçadas ou falar demais.
-- Use exatamente um emoji discreto no final da resposta. Não use emojis no meio do texto.
+- Use exatamente um emoji discreto no final da resposta. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio do texto.
+- Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
 - Reassuma sempre o assunto principal da conversa usando o histórico; entenda a pergunta atual antes de responder e não fuja do contexto.
 - Se a cliente fizer uma pergunta de continuação, responda diretamente a ela sem repetir toda a apresentação. Se faltar informação, faça uma única pergunta curta para esclarecer.
 - Mantenha-se simpática, paciente e acolhedora em todas as respostas. Não use respostas genéricas quando houver contexto suficiente.
@@ -1501,7 +1509,11 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     error: null,
   });
   if (providerMessageId) {
-    const reactionResult = await sendEvolutionReaction(phone, providerMessageId);
+    const reactionResult = await sendEvolutionReaction(
+      phone,
+      providerMessageId,
+      reactionForWhatsappMessage(providerMessageId, text),
+    );
     if (!reactionResult.ok) {
       logger.warn(
         { err: reactionResult.error, phone, providerMessageId },
@@ -1518,7 +1530,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       phone,
       client?.name ?? phone,
       appointment?.id ?? null,
-      "Claro. Vou encaminhar você para uma atendente continuar o atendimento.",
+      "Combinado. Vou encaminhar você para uma atendente continuar o atendimento.",
       "handoff",
     );
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
@@ -1820,7 +1832,8 @@ Regras obrigatórias:
 - Para agendar, confirme serviço, data, horário exato e nome, um item por vez; “amanhã” sem horário exige uma pergunta sobre o horário. Só considere confirmado quando a cliente disser explicitamente que quer marcar.
 - Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano; reclamações, dúvidas clínicas, negociação e falta de informação continuam na conversa.
  - Seja objetiva e acolhedora, com no máximo duas frases curtas.
- - Use humor leve quando combinar e termine com exatamente um emoji discreto. Não use emojis no meio da resposta.
+ - Use humor leve quando combinar e termine com exatamente um emoji discreto. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio da resposta.
+ - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
  - Reassuma o assunto principal da conversa, responda à pergunta atual e não mude de tema sem motivo.
  - Seja sempre simpática e, quando faltar contexto, faça uma única pergunta curta em vez de dar uma resposta genérica.
 - Responda em texto simples, sem Markdown, asteriscos ou títulos.`,
