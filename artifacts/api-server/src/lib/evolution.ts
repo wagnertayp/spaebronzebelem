@@ -29,19 +29,32 @@ export type WhatsappDocument = "menu" | "advanced";
 
 const documentFiles: Record<WhatsappDocument, { path: string; fileName: string }> = {
   menu: {
-    path: resolve(
-      process.cwd(),
-      "attached_assets/Cardápio_Spa_&_Bronze_Belém_compressed_1790165039391.pdf",
-    ),
+    path: "Cardápio_Spa_&_Bronze_Belém_compressed_1790165039391.pdf",
     fileName: "Cardapio-Spa-e-Bronze-Belem.pdf",
   },
   advanced: {
-    path: resolve(
-      process.cwd(),
-      "attached_assets/Catálogo_-_Serviços_estéticos_avançados_compressed_1790165039392.pdf",
-    ),
+    path: "Catálogo_-_Serviços_estéticos_avançados_compressed_1790165039392.pdf",
     fileName: "Catalogo-Estetica-Avancada-Spa-e-Bronze-Belem.pdf",
   },
+};
+
+const readDocumentFile = async (fileName: string) => {
+  const candidates = [
+    resolve(process.cwd(), "attached_assets", fileName),
+    resolve(process.cwd(), "../../attached_assets", fileName),
+  ];
+  let lastError: unknown = null;
+  for (const candidate of candidates) {
+    try {
+      return await readFile(candidate);
+    } catch (error) {
+      lastError = error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Arquivo não encontrado: ${fileName}`);
 };
 
 export const getEvolutionConfig = (): EvolutionConfig | null => {
@@ -314,7 +327,7 @@ export const sendEvolutionDocument = async (
 
   try {
     const file = documentFiles[document];
-    const media = (await readFile(file.path)).toString("base64");
+    const media = (await readDocumentFile(file.path)).toString("base64");
     const response = await fetch(
       `${config.baseUrl}/message/sendMedia/${encodeURIComponent(config.instance)}`,
       {
@@ -342,7 +355,7 @@ export const sendEvolutionDocument = async (
           ? body.error
           : typeof body.response === "string"
             ? body.response
-            : "resposta inválida do provedor";
+            : JSON.stringify(body).slice(0, 500) || "resposta vazia do provedor";
       return {
         ok: false,
         providerMessageId: null,

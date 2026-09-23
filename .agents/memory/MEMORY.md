@@ -1,3 +1,4 @@
 - [Evolution QR connection flow](evolution-qr-flow.md) — connect by creating an instance and showing its QR, not by selecting from shared instances.
 - [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
 - [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own the greeting; server-side prefixes can duplicate it.
+- [WhatsApp PDF assets](whatsapp-pdf-assets.md) — API workflow runs below the workspace root, so document lookup needs an asset-path fallback.
