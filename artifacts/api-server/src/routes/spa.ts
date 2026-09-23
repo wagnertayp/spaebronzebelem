@@ -1521,11 +1521,28 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     try {
       const media = await getEvolutionMedia(key, rawMessage, "audio");
       const compatible = await ensureCompatibleFormat(media.buffer);
+      logger.info(
+        {
+          phone,
+          mimetype: media.mimetype,
+          bytes: media.buffer.length,
+          format: compatible.format,
+        },
+        "WhatsApp audio received for transcription",
+      );
       const transcript = await speechToText(compatible.buffer, compatible.format);
       text = transcript.trim();
+      logger.info(
+        { phone, transcriptLength: text.length },
+        "WhatsApp audio transcription completed",
+      );
       if (!text) mediaError = "Não consegui identificar o conteúdo do áudio.";
     } catch (error) {
       mediaError = error instanceof Error ? error.message : "Não foi possível entender o áudio.";
+      logger.warn(
+        { err: error, phone },
+        "WhatsApp audio transcription failed",
+      );
       text = "Áudio recebido";
     }
   } else if (isImageMessage) {

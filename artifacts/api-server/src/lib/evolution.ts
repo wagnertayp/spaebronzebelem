@@ -114,7 +114,7 @@ export const configureEvolutionWebhook = async (instance: string) => {
           enabled: true,
           url: webhookUrl,
           webhookByEvents: false,
-          webhookBase64: false,
+          webhookBase64: true,
           events: ["MESSAGES_UPSERT"],
         },
       }),
@@ -524,15 +524,30 @@ export const getEvolutionMedia = async (
     },
   );
   const body = await response.json().catch(() => ({})) as Record<string, unknown>;
-  const base64 = typeof body.base64 === "string"
-    ? body.base64
-    : typeof body.data === "string"
-      ? body.data
-      : null;
+  const nestedData = body.data as Record<string, unknown> | undefined;
+  const nestedResult = body.result as Record<string, unknown> | undefined;
+  const base64 = [
+    body.base64,
+    body.data,
+    body.media,
+    nestedData?.base64,
+    nestedData?.data,
+    nestedData?.media,
+    nestedResult?.base64,
+    nestedResult?.data,
+  ].find((value): value is string => typeof value === "string" && value.length > 0) ?? null;
+  const responseMimetype = [
+    body.mimetype,
+    body.mimeType,
+    nestedData?.mimetype,
+    nestedData?.mimeType,
+    nestedResult?.mimetype,
+    nestedResult?.mimeType,
+  ].find((value): value is string => typeof value === "string" && value.length > 0);
   if (!response.ok || !base64) {
     throw new Error(`Não foi possível baixar a mídia do WhatsApp (HTTP ${response.status})`);
   }
-  return decodeBase64Media(base64, mimetype);
+  return decodeBase64Media(base64, responseMimetype?.split(";")[0] ?? mimetype);
 };
 
 export const getEvolutionConnection = async () => {
