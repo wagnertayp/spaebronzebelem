@@ -835,11 +835,11 @@ REGRAS OBRIGATÓRIAS:
 - Mantenha-se simpática, paciente e acolhedora em todas as respostas. Não use respostas genéricas quando houver contexto suficiente.
 - ${isFirstClientMessage ? "Esta é a primeira mensagem do cliente. Comece a resposta usando a saudação configurada, sem trocar por uma mensagem genérica de encaminhamento." : "Não repita a saudação configurada em todas as mensagens."}
 - Não invente preços, promoções, horários, contraindicações ou resultados.
-- Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; encaminhe dúvidas clínicas para uma atendente.
+- Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
 - Use datas ISO locais completas (AAAA-MM-DDTHH:mm) no campo appointment somente quando o cliente tiver informado data e horário exatos e confirmado que deseja agendar.
 - Nunca marque appointment quando faltar serviço, data, horário ou confirmação explícita.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Caso contrário, document deve ser null.
-- Se o cliente pedir uma pessoa, demonstrar insatisfação, pedir negociação ou houver dúvida fora da base, marque handoff true.
+- Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano. Reclamações, negociação, dúvidas clínicas, falta de informação e reagendamento continuam na conversa.
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
 {"reply":"texto curto","handoff":false,"document":null,"appointment":null}
 ou, quando houver agendamento confirmado:
@@ -1087,7 +1087,7 @@ let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
   paymentMethods: "Pix, cartão de crédito, cartão de débito e dinheiro.",
   bookingRules: "Confirme serviço, data, horário e nome da cliente antes de encaminhar o agendamento.",
   policies: "Não prometa horários sem confirmação. Não ofereça diagnóstico médico.",
-  humanHandoff: "Encaminhe para uma atendente quando houver reclamação, dúvida clínica, negociação especial ou solicitação fora das informações disponíveis.",
+  humanHandoff: "Só encaminhe para uma atendente se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
 };
 
 const catalogKnowledge = (() => {
@@ -1506,11 +1506,6 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     await sendWhatsappReply(phone, appointment.client, appointment.id, "Tudo bem, seu atendimento foi cancelado. Quando quiser, posso ajudar a encontrar um novo horário.");
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "cancelled" }));
   }
-  if (appointment && normalizedText.includes("remarc")) {
-    await sendWhatsappReply(phone, appointment.client, appointment.id, "Vou encaminhar sua solicitação para uma atendente verificar os próximos horários disponíveis.", "handoff");
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff_reschedule" }));
-  }
-
   const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
   if (asksForHuman) {
     await setWhatsappConversationStatus(phone, "human");
@@ -1540,10 +1535,10 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
           phone,
           client?.name ?? phone,
           appointment?.id ?? null,
-          "Encontrei os dados do atendimento, mas preciso que uma atendente confirme esse horário antes de colocar na agenda.",
-          "handoff",
+          "Esse horário não ficou disponível. Quer tentar outro horário? 🙂",
+          "reply",
         );
-        return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff_appointment" }));
+        return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
       }
     }
     if (decision.document) {
@@ -1562,12 +1557,11 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       client?.name ?? decision.appointment?.clientName ?? phone,
       createdAppointment?.id ?? appointment?.id ?? null,
       decision.reply,
-      decision.handoff ? "handoff" : "reply",
+      "reply",
     );
-    if (decision.handoff) await setWhatsappConversationStatus(phone, "human");
     return void res.json(ReceiveEvolutionWebhookResponse.parse({
       received: true,
-      action: createdAppointment ? "scheduled" : decision.handoff ? "handoff" : "replied",
+      action: createdAppointment ? "scheduled" : "replied",
     }));
   } catch (error) {
     logger.error({ err: error, phone }, "WhatsApp AI response failed");
