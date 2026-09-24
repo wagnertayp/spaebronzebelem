@@ -45,7 +45,18 @@ const documentFiles: Record<WhatsappDocument, { path: string; fileName: string }
   },
 };
 
-const readDocumentFile = async (fileName: string) => {
+export type WhatsappAudioClip = "combos" | "bronze";
+
+const audioFiles: Record<WhatsappAudioClip, { path: string }> = {
+  combos: {
+    path: "0_EXPLICAÇÃO-DOS-COMBOS-DA-SPAEBRONZE_1790253488359.ogg",
+  },
+  bronze: {
+    path: "1_ÁUDIO-BRONZEAMENTO_1790253488369.ogg",
+  },
+};
+
+const readWhatsappAsset = async (fileName: string) => {
   const candidates = [
     resolve(process.cwd(), "attached_assets", fileName),
     resolve(process.cwd(), "../../attached_assets", fileName),
@@ -400,7 +411,7 @@ export const sendEvolutionDocument = async (
 
   try {
     const file = documentFiles[document];
-    const media = (await readDocumentFile(file.path)).toString("base64");
+    const media = (await readWhatsappAsset(file.path)).toString("base64");
     const response = await fetch(
       `${config.baseUrl}/message/sendMedia/${encodeURIComponent(config.instance)}`,
       {
@@ -462,6 +473,65 @@ export const sendEvolutionDocument = async (
       ok: false,
       providerMessageId: null,
       error: error instanceof Error ? error.message : "Falha de conexão com a Evolution API",
+    };
+  }
+};
+
+export const sendEvolutionAudio = async (
+  phone: string,
+  clip: WhatsappAudioClip,
+): Promise<EvolutionSendResult> => {
+  const config = getEvolutionConfig();
+  if (!config || !config.instance) {
+    return { ok: false, providerMessageId: null, error: "WhatsApp não configurado" };
+  }
+
+  try {
+    const audio = (await readWhatsappAsset(audioFiles[clip].path)).toString("base64");
+    const response = await fetch(
+      `${config.baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(config.instance)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: config.apiKey,
+        },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        body: JSON.stringify({
+          number: normalizeWhatsappPhone(phone),
+          audio,
+          encoding: true,
+        }),
+      },
+    );
+    const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok) {
+      const providerError = typeof body.message === "string"
+        ? body.message
+        : typeof body.error === "string"
+          ? body.error
+          : JSON.stringify(body).slice(0, 500) || "resposta vazia do provedor";
+      return {
+        ok: false,
+        providerMessageId: null,
+        error: `Evolution API ${response.status}: ${providerError}`,
+      };
+    }
+    const key = body.key as Record<string, unknown> | undefined;
+    return {
+      ok: true,
+      providerMessageId: typeof key?.id === "string"
+        ? key.id
+        : typeof body.messageId === "string"
+          ? body.messageId
+          : null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      providerMessageId: null,
+      error: error instanceof Error ? error.message : "Falha ao enviar o áudio pelo WhatsApp",
     };
   }
 };

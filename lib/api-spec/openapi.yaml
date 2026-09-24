@@ -1064,7 +1064,7 @@ components:
         appointmentId: { type: ["integer", "null"] }
         text: { type: string }
         status: { type: string, enum: [pending, sent, delivered, received, skipped, failed] }
-        kind: { type: string, enum: [confirmation, reminder24h, reminder2h, reply, handoff, document] }
+        kind: { type: string, enum: [confirmation, reminder24h, reminder2h, reply, handoff, document, audio] }
         providerMessageId: { type: ["string", "null"] }
         error: { type: ["string", "null"] }
         createdAt: { type: string }

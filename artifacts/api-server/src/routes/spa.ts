@@ -154,7 +154,9 @@ import {
   sendEvolutionReaction,
   sendEvolutionDocument,
   getEvolutionMedia,
+  sendEvolutionAudio,
   type EvolutionReplyReference,
+  type WhatsappAudioClip,
   sendEvolutionText,
   type WhatsappDocument,
 } from "../lib/evolution";
@@ -205,6 +207,12 @@ const reactionForWhatsappMessage = (providerMessageId: string, text: string) => 
   const source = `${providerMessageId}:${text}`;
   const score = Array.from(source).reduce((total, character) => total + character.codePointAt(0)!, 0);
   return WHATSAPP_REACTIONS[score % WHATSAPP_REACTIONS.length];
+};
+
+const audioClipForWhatsappMessage = (normalizedText: string): WhatsappAudioClip | null => {
+  if (/\b(combos?|pacotes?|combinacoes?)\b/.test(normalizedText)) return "combos";
+  if (/\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText)) return "bronze";
+  return null;
 };
 
 const unwrapWhatsappMessage = (message: Record<string, unknown>) => {
@@ -741,6 +749,38 @@ const sendWhatsappDocumentMessage = async (
   })) ?? item;
 };
 
+const sendWhatsappAudioMessage = async (
+  phone: string,
+  clientName: string,
+  clip: WhatsappAudioClip,
+  appointmentId: number | null = null,
+) => {
+  const labels: Record<WhatsappAudioClip, string> = {
+    combos: "Áudio pré-gravado enviado: explicação dos combos",
+    bronze: "Áudio pré-gravado enviado: informações sobre bronzeamento",
+  };
+  const item = await addWhatsappMessage({
+    direction: "outbound",
+    phone: normalizeWhatsappPhone(phone),
+    clientName,
+    appointmentId,
+    text: labels[clip],
+    status: "pending",
+    kind: "audio",
+    providerMessageId: null,
+    error: null,
+  });
+  const result = await sendEvolutionAudio(phone, clip);
+  if (!result.ok) {
+    logger.warn({ err: result.error, phone, clip }, "WhatsApp pre-recorded audio send failed");
+  }
+  return (await updateWhatsappMessage(item.id, {
+    status: result.ok ? "sent" : "failed",
+    providerMessageId: result.providerMessageId,
+    error: result.error,
+  })) ?? item;
+};
+
 type AgentAppointmentDraft = {
   clientName: string;
   service: string;
@@ -754,6 +794,7 @@ type AgentDecision = {
   reply: string;
   handoff: boolean;
   document: WhatsappDocument | null;
+  audioClip: WhatsappAudioClip | null;
   appointment: AgentAppointmentDraft | null;
 };
 
@@ -773,6 +814,9 @@ const parseAgentDecision = (content: string): AgentDecision => {
     const rawAppointment = value.appointment as Record<string, unknown> | null | undefined;
     const document = value.document === "menu" || value.document === "advanced"
       ? value.document
+      : null;
+    const audioClip = value.audioClip === "combos" || value.audioClip === "bronze"
+      ? value.audioClip
       : null;
     const appointment = rawAppointment &&
       typeof rawAppointment.clientName === "string" &&
@@ -794,6 +838,7 @@ const parseAgentDecision = (content: string): AgentDecision => {
       reply,
       handoff: value.handoff === true,
       document,
+      audioClip,
       appointment,
     };
   } catch (error) {
@@ -880,11 +925,15 @@ REGRAS OBRIGATÓRIAS:
 - Use datas ISO locais completas (AAAA-MM-DDTHH:mm) no campo appointment somente quando o cliente tiver informado data e horário exatos e confirmado que deseja agendar.
 - Nunca marque appointment quando faltar serviço, data, horário ou confirmação explícita.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Caso contrário, document deve ser null.
+- Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
+  - audioClip "combos": gravação que explica os combos do Spa e Bronze.
+  - audioClip "bronze": gravação sobre bronzeamento.
+  Escolha um somente se o pedido atual da cliente for diretamente sobre esse tema e a gravação for pertinente; nos demais casos use null. Se escolher um áudio, a resposta escrita deve ser apenas uma introdução curta ao áudio, sem inventar preços ou detalhes que não estejam confirmados.
 - Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano. Reclamações, negociação, dúvidas clínicas, falta de informação e reagendamento continuam na conversa.
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
-{"reply":"texto curto","handoff":false,"document":null,"appointment":null}
+{"reply":"texto curto","handoff":false,"document":null,"audioClip":null,"appointment":null}
 ou, quando houver agendamento confirmado:
-{"reply":"texto curto","handoff":false,"document":null,"appointment":{"clientName":"nome","service":"serviço","professional":"","start":"AAAA-MM-DDTHH:mm","end":"AAAA-MM-DDTHH:mm","confirmed":true}}`,
+{"reply":"texto curto","handoff":false,"document":null,"audioClip":null,"appointment":{"clientName":"nome","service":"serviço","professional":"","start":"AAAA-MM-DDTHH:mm","end":"AAAA-MM-DDTHH:mm","confirmed":true}}`,
       },
       ...(await getConversationHistory(phone)).slice(0, -1),
       { role: "user", content: currentInput },
@@ -1706,11 +1755,28 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
         replyReference,
       );
     }
+    const audioClip = createdAppointment || decision.document
+      ? null
+      : decision.audioClip ?? audioClipForWhatsappMessage(normalizedText);
+    let writtenReply = decision.reply;
+    if (audioClip) {
+      const audioMessage = await sendWhatsappAudioMessage(
+        phone,
+        client?.name ?? decision.appointment?.clientName ?? phone,
+        audioClip,
+        appointment?.id ?? null,
+      );
+      if (audioMessage.status === "sent") {
+        writtenReply = audioClip === "combos"
+          ? "Te enviei um áudio com a explicação dos nossos combos. 🤎"
+          : "Te enviei um áudio com informações sobre bronzeamento. 🤎";
+      }
+    }
     await sendWhatsappReply(
       phone,
       client?.name ?? decision.appointment?.clientName ?? phone,
       createdAppointment?.id ?? appointment?.id ?? null,
-      decision.reply,
+      writtenReply,
       "reply",
       replyReference,
     );
