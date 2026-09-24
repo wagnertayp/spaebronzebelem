@@ -13,6 +13,7 @@ import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import type { Appointment } from '@workspace/api-client-react';
+import { ProfessionalScheduleDialog } from '@/components/agenda/ProfessionalScheduleDialog';
 
 const appointmentTime = (value: string) => {
   if (/^\d{2}:\d{2}/.test(value)) return value.slice(0, 5);
@@ -26,7 +27,7 @@ const isAppointmentConflictError = (error: unknown) =>
   'status' in error &&
   error.status === 409;
 
-const TIME_SLOTS = [
+const DEFAULT_TIME_SLOTS = [
   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
   '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
@@ -44,6 +45,8 @@ export function Agenda() {
   const [date, setDate] = useState(new Date());
   const [dialogState, setDialogState] = useState<DialogState>({ type: 'none' });
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [professionalFilter, setProfessionalFilter] = useState('all');
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -72,11 +75,13 @@ export function Agenda() {
     ...professionalUsers
       .filter((professional) => professional.active)
       .map((professional) => ({
-        id: String(professional.id),
+        id: professional.id,
         name: professional.name,
         role: professional.specialty || 'Profissional',
+        weeklySchedule: professional.weeklySchedule,
+        scheduleExceptions: professional.scheduleExceptions,
       })),
-    { id: 'resource-spa', name: 'Spa', role: 'Recurso' },
+    { id: null, name: 'Spa', role: 'Recurso', weeklySchedule: [], scheduleExceptions: [] },
   ];
 
   useEffect(() => {
@@ -91,11 +96,46 @@ export function Agenda() {
   // Format date as YYYY-MM-DD for API
   const dateStr = format(date, 'yyyy-MM-dd');
   const { data: appointments = [], isLoading } = useListAppointments({ date: dateStr });
+  const visibleProfessionals = professionalFilter === 'all'
+    ? professionals
+    : professionals.filter((professional) => String(professional.id) === professionalFilter);
 
-  const getAppointmentsForProfessionalAndSlot = (professionalName: string, timeSlot: string) => {
+  const getIntervalsForProfessional = (professional: typeof professionals[number]) => {
+    if (professional.id === null) return [];
+    const exception = professional.scheduleExceptions.find((item) => item.date === dateStr);
+    if (exception) return exception.type === 'day_off' ? [] : exception.intervals;
+    const weekday = new Date(`${dateStr}T00:00:00Z`).getUTCDay();
+    return professional.weeklySchedule.find((day) => day.weekday === weekday && day.enabled)?.intervals ?? [];
+  };
+
+  const isSlotAvailable = (professional: typeof professionals[number], time: string) =>
+    professional.id === null ||
+    getIntervalsForProfessional(professional).some((interval) => interval.start <= time && time < interval.end);
+
+  const timeSlots = (() => {
+    const intervals = visibleProfessionals.flatMap(getIntervalsForProfessional);
+    const minutes = (time: string) => {
+      const [hours, mins] = time.split(':').map(Number);
+      return hours * 60 + mins;
+    };
+    const firstOpen = intervals.length ? Math.min(...intervals.map((interval) => minutes(interval.start))) : 8 * 60;
+    const lastClose = intervals.length ? Math.max(...intervals.map((interval) => minutes(interval.end))) : 18 * 60;
+    const firstSlot = Math.min(8 * 60, Math.floor(firstOpen / 30) * 30);
+    const lastSlot = Math.max(18 * 60, Math.ceil(lastClose / 30) * 30);
+    const slots: string[] = [];
+    for (let minute = firstSlot; minute <= lastSlot; minute += 30) {
+      slots.push(`${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
+    }
+    return slots.length ? slots : DEFAULT_TIME_SLOTS;
+  })();
+
+  const getAppointmentsForProfessionalAndSlot = (professional: typeof professionals[number], timeSlot: string) => {
     return appointments.filter(app => {
       const appTime = appointmentTime(app.start);
-      const matchesTimeAndProf = app.professional === professionalName && appTime === timeSlot;
+      const matchesProfessional = professional.id !== null
+        ? app.professionalId === professional.id
+        : app.professional === professional.name;
+      const matchesTimeAndProf = matchesProfessional && appTime === timeSlot;
       if (!matchesTimeAndProf) return false;
       if (statusFilter && app.status !== statusFilter) return false;
       return true;
@@ -112,12 +152,22 @@ export function Agenda() {
     }
   };
 
+  const getAttendanceColor = (attendance: Appointment['attendance']) => {
+    if (attendance === 'attended') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (attendance === 'no_show') return 'bg-red-50 text-red-700 border-red-200';
+    return 'bg-surface-soft text-text-muted border-border';
+  };
+
   return (
     <div className="flex flex-col h-full h-full space-y-6 max-w-[1400px] mx-auto">
       <PageHeader 
         title="Agenda de Hoje"
         action={
           <div className="flex items-center gap-3">
+            <Button variant="outline" className="gap-2" onClick={() => setScheduleDialogOpen(true)}>
+              <CalendarIcon className="w-4 h-4" />
+              Grade semanal
+            </Button>
             <Button variant="outline" className="gap-2" onClick={() => setDialogState({ type: 'block' })}>
               <CalendarIcon className="w-4 h-4" />
               Bloquear Horário
@@ -131,7 +181,7 @@ export function Agenda() {
       />
 
       <Card className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-border flex items-center justify-between bg-surface-soft/50">
+        <div className="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3 bg-surface-soft/50">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1 bg-surface border border-border rounded-lg p-1">
               <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => setDate(subDays(date, 1))}>
@@ -149,7 +199,21 @@ export function Agenda() {
             </Button>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="agenda-professional-filter" className="sr-only">Filtrar por profissional</label>
+            <select
+              id="agenda-professional-filter"
+              value={professionalFilter}
+              onChange={(event) => setProfessionalFilter(event.target.value)}
+              className="h-9 rounded-[10px] border border-border bg-surface px-3 text-[12px] font-medium text-text-primary"
+            >
+              <option value="all">Todos os profissionais</option>
+              {professionals.map((professional) => (
+                <option key={professional.id ?? 'resource-spa'} value={String(professional.id)}>
+                  {professional.name}
+                </option>
+              ))}
+            </select>
             <button 
               onClick={() => setStatusFilter(prev => prev === 'confirmed' ? null : 'confirmed')}
               className={cn("flex items-center gap-2 px-3 py-1.5 rounded-[10px] bg-surface border border-border text-[12px] font-medium transition-colors hover:bg-surface-soft", statusFilter === 'confirmed' ? "ring-2 ring-primary" : "text-text-secondary")}
@@ -170,12 +234,22 @@ export function Agenda() {
             {/* Headers */}
             <div className="flex border-b border-border sticky top-0 bg-surface z-20">
               <div className="w-[80px] shrink-0 border-r border-border bg-surface-soft/30" />
-              {professionals.map(prof => (
-                <div key={prof.id} className="flex-1 px-4 py-3 border-r border-border bg-surface text-center">
-                  <div className="text-[13px] font-semibold text-text-primary">{prof.name}</div>
-                  <div className="text-[11px] text-text-muted font-medium mt-0.5">{prof.role}</div>
-                </div>
-              ))}
+              {visibleProfessionals.map(prof => {
+                const intervals = getIntervalsForProfessional(prof);
+                return (
+                  <div key={prof.id ?? 'resource-spa'} className="flex-1 px-4 py-3 border-r border-border bg-surface text-center">
+                    <div className="text-[13px] font-semibold text-text-primary">{prof.name}</div>
+                    <div className="text-[11px] text-text-muted font-medium mt-0.5">{prof.role}</div>
+                    {prof.id !== null && (
+                      <div className={cn("mt-1 text-[10px]", intervals.length ? "text-text-secondary" : "text-amber-700")}>
+                        {intervals.length
+                          ? intervals.map((interval) => `${interval.start}–${interval.end}`).join(' · ')
+                          : "Sem disponibilidade nesta data"}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Grid */}
@@ -183,20 +257,25 @@ export function Agenda() {
               {isLoading ? (
                 <div className="p-8 text-center text-text-muted text-[13px]">Carregando agenda...</div>
               ) : (
-                TIME_SLOTS.map(time => (
+                timeSlots.map(time => (
                   <div key={time} className="flex border-b border-border/50 group hover:bg-surface-soft/30 transition-colors">
                     <div className="w-[80px] shrink-0 border-r border-border p-2 text-right">
                       <span className="text-[12px] font-medium text-text-muted">{time}</span>
                     </div>
-                    {professionals.map(prof => {
-                      const apps = getAppointmentsForProfessionalAndSlot(prof.name, time);
+                    {visibleProfessionals.map(prof => {
+                      const apps = getAppointmentsForProfessionalAndSlot(prof, time);
+                      const slotAvailable = isSlotAvailable(prof, time);
                       
                       return (
                         <div 
-                          key={`${prof.id}-${time}`} 
-                          className="flex-1 border-r border-border p-1 relative min-h-[60px] cursor-pointer"
+                          key={`${prof.id ?? 'resource-spa'}-${time}`}
+                          className={cn(
+                            "flex-1 border-r border-border p-1 relative min-h-[60px]",
+                            slotAvailable ? "cursor-pointer" : "cursor-not-allowed bg-surface-soft/70"
+                          )}
+                          title={slotAvailable ? undefined : "Fora da disponibilidade cadastrada"}
                           onClick={(e) => {
-                            if (e.target === e.currentTarget) {
+                            if (e.target === e.currentTarget && slotAvailable) {
                               setDialogState({ type: 'create', time, professional: prof.name });
                             }
                           }}
@@ -226,6 +305,14 @@ export function Agenda() {
                               {app.client !== 'Horário bloqueado' && (
                                 <div className="text-[11px] opacity-80 leading-tight truncate">{app.service}</div>
                               )}
+                              {app.client !== 'Horário bloqueado' && app.attendance !== 'pending' && (
+                                <div className={cn(
+                                  "w-fit rounded-full border px-1.5 py-0.5 text-[9px] font-semibold leading-tight",
+                                  getAttendanceColor(app.attendance)
+                                )}>
+                                  {app.attendance === 'attended' ? 'Compareceu' : 'Não compareceu'}
+                                </div>
+                              )}
                               <div className="text-[10px] font-medium mt-auto opacity-70 flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
                                 {appointmentTime(app.start)} - {appointmentTime(app.end)}
@@ -242,6 +329,12 @@ export function Agenda() {
           </div>
         </div>
       </Card>
+
+      <ProfessionalScheduleDialog
+        open={scheduleDialogOpen}
+        onOpenChange={setScheduleDialogOpen}
+        professionals={professionalUsers.filter((professional) => professional.active)}
+      />
 
       <Dialog open={dialogState.type !== 'none'} onOpenChange={(open) => !open && setDialogState({ type: 'none' })}>
         <DialogContent className="sm:max-w-[425px]">
@@ -306,6 +399,9 @@ export function Agenda() {
           <form onSubmit={(e) => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
+            const professionalName = formData.get('professional') as string;
+            const selectedProfessional = professionals.find((professional) => professional.name === professionalName);
+            const professionalId = selectedProfessional?.id ?? null;
             
             const startStr = formData.get('start') as string;
             const endStr = formData.get('end') as string;
@@ -325,7 +421,8 @@ export function Agenda() {
                 data: {
                   client: 'Horário bloqueado',
                   service: formData.get('service') as string || 'Bloqueio',
-                  professional: formData.get('professional') as string,
+                  professional: professionalName,
+                  professionalId,
                   room: formData.get('room') as string || 'N/A',
                   start,
                   end
@@ -348,7 +445,8 @@ export function Agenda() {
                 data: {
                   client: formData.get('client') as string,
                   service: formData.get('service') as string,
-                  professional: formData.get('professional') as string,
+                  professional: professionalName,
+                  professionalId,
                   room: formData.get('room') as string,
                   start,
                   end
@@ -368,16 +466,19 @@ export function Agenda() {
 
             if (dialogState.type === 'edit') {
               const status = formData.get('status') as any;
+              const attendance = formData.get('attendance') as Appointment['attendance'];
               updateMutation.mutate({
                 id: dialogState.appointment.id,
                 data: {
                   client: formData.get('client') as string,
                   service: formData.get('service') as string,
-                  professional: formData.get('professional') as string,
+                  professional: professionalName,
+                  professionalId,
                   room: formData.get('room') as string,
                   start,
                   end,
-                  status
+                  status,
+                  attendance,
                 }
               }, {
                 onSuccess: () => {
@@ -441,7 +542,7 @@ export function Agenda() {
                   >
                     <option value="">Selecione...</option>
                     {professionals.map(p => (
-                      <option key={p.id} value={p.name}>{p.name}</option>
+                      <option key={p.id ?? 'resource-spa'} value={p.name}>{p.name}</option>
                     ))}
                   </select>
                 </div>
@@ -501,20 +602,36 @@ export function Agenda() {
               </div>
 
               {dialogState.type === 'edit' && (
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <select 
-                    id="status" 
-                    name="status" 
-                    required 
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                    defaultValue={dialogState.appointment.status}
-                  >
-                    <option value="confirmed">Confirmado</option>
-                    <option value="in_progress">Em atendimento</option>
-                    <option value="completed">Concluído</option>
-                    <option value="cancelled">Cancelado</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status do atendimento</Label>
+                    <select
+                      id="status"
+                      name="status"
+                      required
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      defaultValue={dialogState.appointment.status}
+                    >
+                      <option value="confirmed">Confirmado</option>
+                      <option value="in_progress">Em atendimento</option>
+                      <option value="completed">Concluído</option>
+                      <option value="cancelled">Cancelado</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="attendance">Comparecimento</Label>
+                    <select
+                      id="attendance"
+                      name="attendance"
+                      required
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      defaultValue={dialogState.appointment.attendance}
+                    >
+                      <option value="pending">Ainda não confirmado</option>
+                      <option value="attended">Compareceu</option>
+                      <option value="no_show">Não compareceu</option>
+                    </select>
+                  </div>
                 </div>
               )}
             </div>
@@ -526,12 +643,12 @@ export function Agenda() {
                   variant="destructive" 
                   className="gap-2"
                   onClick={() => {
-                    if (confirm('Tem certeza que deseja excluir?')) {
+                    if (confirm('Remover este agendamento da agenda?')) {
                       deleteMutation.mutate({ id: dialogState.appointment.id }, {
                         onSuccess: () => {
                           queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
                           setDialogState({ type: 'none' });
-                          toast({ title: "Agendamento excluído!" });
+                          toast({ title: "Agendamento removido da agenda" });
                         },
                         onError: () => {
                           toast({ title: "Erro", description: "Não foi possível excluir o agendamento.", variant: "destructive" });
@@ -541,7 +658,7 @@ export function Agenda() {
                   }}
                   disabled={deleteMutation.isPending}
                 >
-                  <Trash className="w-4 h-4" /> Excluir
+                  <Trash className="w-4 h-4" /> Remover da agenda
                 </Button>
               ) : (
                 <div /> // Spacer

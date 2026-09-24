@@ -13,6 +13,7 @@ export interface WhatsappAutomation {
   confirmations: boolean;
   reminder24h: boolean;
   reminder2h: boolean;
+  followUp30m: boolean;
   /** @minLength 3 */
   timezone: string;
 }

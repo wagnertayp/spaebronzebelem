@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -10,6 +10,14 @@ import { Professional, useCreateProfessional, useUpdateProfessional, getListProf
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
+import {
+  createEmptyWeeklySchedule,
+  ProfessionalAvailabilityEditor,
+} from "./ProfessionalAvailabilityEditor";
+import type {
+  ProfessionalScheduleException,
+  WeeklyScheduleDay,
+} from "@workspace/api-client-react";
 
 const professionalSchema = z.object({
   name: z.string().min(2, "Nome é obrigatório"),
@@ -36,6 +44,8 @@ export function ProfessionalDialog({
   
   const createMutation = useCreateProfessional();
   const updateMutation = useUpdateProfessional();
+  const [weeklySchedule, setWeeklySchedule] = useState<WeeklyScheduleDay[]>(createEmptyWeeklySchedule());
+  const [scheduleExceptions, setScheduleExceptions] = useState<ProfessionalScheduleException[]>([]);
 
   const form = useForm<ProfessionalForm>({
     resolver: zodResolver(professionalSchema),
@@ -60,6 +70,8 @@ export function ProfessionalDialog({
           commissionRate: professional.commissionRate,
           active: professional.active,
         });
+        setWeeklySchedule(professional.weeklySchedule);
+        setScheduleExceptions(professional.scheduleExceptions);
       } else {
         form.reset({
           name: "",
@@ -69,25 +81,52 @@ export function ProfessionalDialog({
           commissionRate: 0,
           active: true,
         });
+        setWeeklySchedule(createEmptyWeeklySchedule());
+        setScheduleExceptions([]);
       }
     }
   }, [open, professional, form]);
 
   const onSubmit = (data: ProfessionalForm) => {
+    const incompleteEnabledDay = weeklySchedule.find((day) => day.enabled && day.intervals.length === 0);
+    const invalidInterval = weeklySchedule.some((day) =>
+      day.intervals.some((interval) => !interval.start || !interval.end || interval.start >= interval.end),
+    ) || scheduleExceptions.some((exception) =>
+      exception.intervals.some((interval) => !interval.start || !interval.end || interval.start >= interval.end),
+    );
+    if (incompleteEnabledDay || invalidInterval) {
+      toast({
+        title: "Revise a grade semanal",
+        description: incompleteEnabledDay
+          ? "Adicione ao menos um turno para cada dia marcado como atendimento."
+          : "Confira se o fim de cada turno é posterior ao início.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const payload = {
       ...data,
       specialty: data.specialty || "",
       phone: data.phone || "",
       email: data.email || "",
+      weeklySchedule,
+      scheduleExceptions,
     };
 
     if (professional) {
       updateMutation.mutate({ id: professional.id, data: payload }, {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListProfessionalsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ["listAppointments"] });
           toast({ title: "Profissional atualizado com sucesso" });
           onOpenChange(false);
-        }
+        },
+        onError: () => toast({
+          title: "Não foi possível salvar a grade",
+          description: "Confira os horários e tente novamente.",
+          variant: "destructive",
+        }),
       });
     } else {
       createMutation.mutate({ data: payload }, {
@@ -95,7 +134,12 @@ export function ProfessionalDialog({
           queryClient.invalidateQueries({ queryKey: getListProfessionalsQueryKey() });
           toast({ title: "Profissional criado com sucesso" });
           onOpenChange(false);
-        }
+        },
+        onError: () => toast({
+          title: "Não foi possível cadastrar o profissional",
+          description: "Confira os dados e horários e tente novamente.",
+          variant: "destructive",
+        }),
       });
     }
   };
@@ -104,13 +148,13 @@ export function ProfessionalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md bg-surface border-border">
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden bg-surface border-border">
         <DialogHeader>
           <DialogTitle>{professional ? "Editar Profissional" : "Novo Profissional"}</DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="max-h-[calc(90vh-5rem)] space-y-4 overflow-y-auto pr-2">
             <FormField
               control={form.control}
               name="name"
@@ -183,6 +227,13 @@ export function ProfessionalDialog({
               />
             </div>
 
+            <ProfessionalAvailabilityEditor
+              weeklySchedule={weeklySchedule}
+              onWeeklyScheduleChange={setWeeklySchedule}
+              scheduleExceptions={scheduleExceptions}
+              onScheduleExceptionsChange={setScheduleExceptions}
+            />
+
             <FormField
               control={form.control}
               name="active"
@@ -209,7 +260,7 @@ export function ProfessionalDialog({
                 Cancelar
               </Button>
               <Button type="submit" disabled={isPending}>
-                {professional ? "Salvar" : "Criar"}
+                {professional ? "Salvar profissional e grade" : "Criar profissional e grade"}
               </Button>
             </div>
           </form>

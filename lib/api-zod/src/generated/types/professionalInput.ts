@@ -5,6 +5,8 @@
  * API do sistema operacional do Spa e Bronze Belém
  * OpenAPI spec version: 0.1.0
  */
+import type { ProfessionalScheduleException } from './professionalScheduleException';
+import type { WeeklyScheduleDay } from './weeklyScheduleDay';
 
 export interface ProfessionalInput {
   /** @minLength 2 */
@@ -18,4 +20,6 @@ export interface ProfessionalInput {
      */
   commissionRate: number;
   active: boolean;
+  weeklySchedule: WeeklyScheduleDay[];
+  scheduleExceptions: ProfessionalScheduleException[];
 }

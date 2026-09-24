@@ -127,6 +127,7 @@ export const DisconnectWhatsappResponse = zod.object({
 /**
  * @summary Retorna as automações de agenda do WhatsApp
  */
+export const getWhatsappAutomationResponseFollowUp30mDefault = true;
 export const getWhatsappAutomationResponseTimezoneMin = 3;
 
 
@@ -138,6 +139,7 @@ export const GetWhatsappAutomationResponse = zod.object({
   "confirmations": zod.boolean(),
   "reminder24h": zod.boolean(),
   "reminder2h": zod.boolean(),
+  "followUp30m": zod.boolean().default(getWhatsappAutomationResponseFollowUp30mDefault),
   "timezone": zod.string().min(getWhatsappAutomationResponseTimezoneMin)
 })
 
@@ -145,6 +147,7 @@ export const GetWhatsappAutomationResponse = zod.object({
 /**
  * @summary Atualiza as automações de agenda do WhatsApp
  */
+export const updateWhatsappAutomationBodyFollowUp30mDefault = true;
 export const updateWhatsappAutomationBodyTimezoneMin = 3;
 
 
@@ -156,9 +159,11 @@ export const UpdateWhatsappAutomationBody = zod.object({
   "confirmations": zod.boolean(),
   "reminder24h": zod.boolean(),
   "reminder2h": zod.boolean(),
+  "followUp30m": zod.boolean().default(updateWhatsappAutomationBodyFollowUp30mDefault),
   "timezone": zod.string().min(updateWhatsappAutomationBodyTimezoneMin)
 })
 
+export const updateWhatsappAutomationResponseFollowUp30mDefault = true;
 export const updateWhatsappAutomationResponseTimezoneMin = 3;
 
 
@@ -170,6 +175,7 @@ export const UpdateWhatsappAutomationResponse = zod.object({
   "confirmations": zod.boolean(),
   "reminder24h": zod.boolean(),
   "reminder2h": zod.boolean(),
+  "followUp30m": zod.boolean().default(updateWhatsappAutomationResponseFollowUp30mDefault),
   "timezone": zod.string().min(updateWhatsappAutomationResponseTimezoneMin)
 })
 
@@ -397,8 +403,10 @@ export const GetDashboardResponse = zod.object({
   "client": zod.string(),
   "service": zod.string(),
   "professional": zod.string(),
+  "professionalId": zod.number().int().nullable(),
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
+  "attendance": zod.enum(['pending', 'attended', 'no_show']),
   "avatar": zod.string()
 }),zod.null()])
 })
@@ -418,8 +426,10 @@ export const ListAppointmentsResponseItem = zod.object({
   "client": zod.string(),
   "service": zod.string(),
   "professional": zod.string(),
+  "professionalId": zod.number().int().nullable(),
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
+  "attendance": zod.enum(['pending', 'attended', 'no_show']),
   "avatar": zod.string()
 })
 export const ListAppointmentsResponse = zod.array(ListAppointmentsResponseItem)
@@ -434,7 +444,9 @@ export const CreateAppointmentBody = zod.object({
   "client": zod.string(),
   "service": zod.string(),
   "professional": zod.string(),
-  "room": zod.string()
+  "professionalId": zod.number().int().nullish(),
+  "room": zod.string(),
+  "attendance": zod.enum(['pending', 'attended', 'no_show']).optional()
 })
 
 export const CreateAppointmentResponse = zod.object({
@@ -444,8 +456,10 @@ export const CreateAppointmentResponse = zod.object({
   "client": zod.string(),
   "service": zod.string(),
   "professional": zod.string(),
+  "professionalId": zod.number().int().nullable(),
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
+  "attendance": zod.enum(['pending', 'attended', 'no_show']),
   "avatar": zod.string()
 })
 
@@ -460,8 +474,10 @@ export const UpdateAppointmentBody = zod.object({
   "client": zod.string().optional(),
   "service": zod.string().optional(),
   "professional": zod.string().optional(),
+  "professionalId": zod.number().int().nullish(),
   "room": zod.string().optional(),
-  "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']).optional()
+  "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']).optional(),
+  "attendance": zod.enum(['pending', 'attended', 'no_show']).optional()
 })
 
 export const UpdateAppointmentResponse = zod.object({
@@ -471,8 +487,10 @@ export const UpdateAppointmentResponse = zod.object({
   "client": zod.string(),
   "service": zod.string(),
   "professional": zod.string(),
+  "professionalId": zod.number().int().nullable(),
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
+  "attendance": zod.enum(['pending', 'attended', 'no_show']),
   "avatar": zod.string()
 })
 
@@ -1331,8 +1349,10 @@ export const CreateQuoteAppointmentResponse = zod.object({
   "client": zod.string(),
   "service": zod.string(),
   "professional": zod.string(),
+  "professionalId": zod.number().int().nullable(),
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
+  "attendance": zod.enum(['pending', 'attended', 'no_show']),
   "avatar": zod.string()
 })
 
@@ -1549,6 +1569,9 @@ export const listProfessionalsResponseOneNameMin = 2;
 export const listProfessionalsResponseOneCommissionRateMin = 0;
 export const listProfessionalsResponseOneCommissionRateMax = 100;
 
+export const listProfessionalsResponseOneWeeklyScheduleItemWeekdayMin = 0;
+export const listProfessionalsResponseOneWeeklyScheduleItemWeekdayMax = 6;
+
 
 
 export const ListProfessionalsResponseItem = zod.object({
@@ -1557,7 +1580,24 @@ export const ListProfessionalsResponseItem = zod.object({
   "phone": zod.string(),
   "email": zod.string(),
   "commissionRate": zod.number().min(listProfessionalsResponseOneCommissionRateMin).max(listProfessionalsResponseOneCommissionRateMax),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "weeklySchedule": zod.array(zod.object({
+  "weekday": zod.number().int().min(listProfessionalsResponseOneWeeklyScheduleItemWeekdayMin).max(listProfessionalsResponseOneWeeklyScheduleItemWeekdayMax),
+  "enabled": zod.boolean(),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+}))
+})),
+  "scheduleExceptions": zod.array(zod.object({
+  "date": zod.string(),
+  "type": zod.enum(['day_off', 'custom_hours']),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+})),
+  "reason": zod.string()
+}))
 }).and(zod.object({
   "id": zod.number().int()
 }))
@@ -1572,6 +1612,9 @@ export const createProfessionalBodyNameMin = 2;
 export const createProfessionalBodyCommissionRateMin = 0;
 export const createProfessionalBodyCommissionRateMax = 100;
 
+export const createProfessionalBodyWeeklyScheduleItemWeekdayMin = 0;
+export const createProfessionalBodyWeeklyScheduleItemWeekdayMax = 6;
+
 
 
 export const CreateProfessionalBody = zod.object({
@@ -1580,13 +1623,33 @@ export const CreateProfessionalBody = zod.object({
   "phone": zod.string(),
   "email": zod.string(),
   "commissionRate": zod.number().min(createProfessionalBodyCommissionRateMin).max(createProfessionalBodyCommissionRateMax),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "weeklySchedule": zod.array(zod.object({
+  "weekday": zod.number().int().min(createProfessionalBodyWeeklyScheduleItemWeekdayMin).max(createProfessionalBodyWeeklyScheduleItemWeekdayMax),
+  "enabled": zod.boolean(),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+}))
+})),
+  "scheduleExceptions": zod.array(zod.object({
+  "date": zod.string(),
+  "type": zod.enum(['day_off', 'custom_hours']),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+})),
+  "reason": zod.string()
+}))
 })
 
 export const createProfessionalResponseOneNameMin = 2;
 
 export const createProfessionalResponseOneCommissionRateMin = 0;
 export const createProfessionalResponseOneCommissionRateMax = 100;
+
+export const createProfessionalResponseOneWeeklyScheduleItemWeekdayMin = 0;
+export const createProfessionalResponseOneWeeklyScheduleItemWeekdayMax = 6;
 
 
 
@@ -1596,7 +1659,24 @@ export const CreateProfessionalResponse = zod.object({
   "phone": zod.string(),
   "email": zod.string(),
   "commissionRate": zod.number().min(createProfessionalResponseOneCommissionRateMin).max(createProfessionalResponseOneCommissionRateMax),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "weeklySchedule": zod.array(zod.object({
+  "weekday": zod.number().int().min(createProfessionalResponseOneWeeklyScheduleItemWeekdayMin).max(createProfessionalResponseOneWeeklyScheduleItemWeekdayMax),
+  "enabled": zod.boolean(),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+}))
+})),
+  "scheduleExceptions": zod.array(zod.object({
+  "date": zod.string(),
+  "type": zod.enum(['day_off', 'custom_hours']),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+})),
+  "reason": zod.string()
+}))
 }).and(zod.object({
   "id": zod.number().int()
 }))
@@ -1611,6 +1691,9 @@ export const updateProfessionalBodyNameMin = 2;
 export const updateProfessionalBodyCommissionRateMin = 0;
 export const updateProfessionalBodyCommissionRateMax = 100;
 
+export const updateProfessionalBodyWeeklyScheduleItemWeekdayMin = 0;
+export const updateProfessionalBodyWeeklyScheduleItemWeekdayMax = 6;
+
 
 
 export const UpdateProfessionalBody = zod.object({
@@ -1619,13 +1702,33 @@ export const UpdateProfessionalBody = zod.object({
   "phone": zod.string(),
   "email": zod.string(),
   "commissionRate": zod.number().min(updateProfessionalBodyCommissionRateMin).max(updateProfessionalBodyCommissionRateMax),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "weeklySchedule": zod.array(zod.object({
+  "weekday": zod.number().int().min(updateProfessionalBodyWeeklyScheduleItemWeekdayMin).max(updateProfessionalBodyWeeklyScheduleItemWeekdayMax),
+  "enabled": zod.boolean(),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+}))
+})),
+  "scheduleExceptions": zod.array(zod.object({
+  "date": zod.string(),
+  "type": zod.enum(['day_off', 'custom_hours']),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+})),
+  "reason": zod.string()
+}))
 })
 
 export const updateProfessionalResponseOneNameMin = 2;
 
 export const updateProfessionalResponseOneCommissionRateMin = 0;
 export const updateProfessionalResponseOneCommissionRateMax = 100;
+
+export const updateProfessionalResponseOneWeeklyScheduleItemWeekdayMin = 0;
+export const updateProfessionalResponseOneWeeklyScheduleItemWeekdayMax = 6;
 
 
 
@@ -1635,7 +1738,24 @@ export const UpdateProfessionalResponse = zod.object({
   "phone": zod.string(),
   "email": zod.string(),
   "commissionRate": zod.number().min(updateProfessionalResponseOneCommissionRateMin).max(updateProfessionalResponseOneCommissionRateMax),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "weeklySchedule": zod.array(zod.object({
+  "weekday": zod.number().int().min(updateProfessionalResponseOneWeeklyScheduleItemWeekdayMin).max(updateProfessionalResponseOneWeeklyScheduleItemWeekdayMax),
+  "enabled": zod.boolean(),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+}))
+})),
+  "scheduleExceptions": zod.array(zod.object({
+  "date": zod.string(),
+  "type": zod.enum(['day_off', 'custom_hours']),
+  "intervals": zod.array(zod.object({
+  "start": zod.string(),
+  "end": zod.string()
+})),
+  "reason": zod.string()
+}))
 }).and(zod.object({
   "id": zod.number().int()
 }))

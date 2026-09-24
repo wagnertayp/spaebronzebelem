@@ -5,6 +5,7 @@
  * API do sistema operacional do Spa e Bronze Belém
  * OpenAPI spec version: 0.1.0
  */
+import type { AppointmentInputAttendance } from './appointmentInputAttendance';
 
 export interface AppointmentInput {
   start: string;
@@ -12,5 +13,8 @@ export interface AppointmentInput {
   client: string;
   service: string;
   professional: string;
+  /** @nullable */
+  professionalId?: number | null;
   room: string;
+  attendance?: AppointmentInputAttendance;
 }

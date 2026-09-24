@@ -1102,8 +1102,9 @@ components:
         confirmations: { type: boolean }
         reminder24h: { type: boolean }
         reminder2h: { type: boolean }
+        followUp30m: { type: boolean, default: true }
         timezone: { type: string, minLength: 3 }
-      required: [enabled, aiReplies, humanSupervision, confirmations, reminder24h, reminder2h, timezone]
+      required: [enabled, aiReplies, humanSupervision, confirmations, reminder24h, reminder2h, followUp30m, timezone]
     WhatsappMessage:
       type: object
       properties:
@@ -1221,10 +1222,12 @@ components:
         client: { type: string }
         service: { type: string }
         professional: { type: string }
+        professionalId: { type: ["integer", "null"] }
         room: { type: string }
         status: { type: string, enum: [confirmed, in_progress, completed, cancelled] }
+        attendance: { type: string, enum: [pending, attended, no_show] }
         avatar: { type: string }
-      required: [id, start, end, client, service, professional, room, status, avatar]
+      required: [id, start, end, client, service, professional, professionalId, room, status, attendance, avatar]
     AppointmentInput:
       type: object
       properties:
@@ -1233,7 +1236,9 @@ components:
         client: { type: string }
         service: { type: string }
         professional: { type: string }
+        professionalId: { type: ["integer", "null"] }
         room: { type: string }
+        attendance: { type: string, enum: [pending, attended, no_show] }
       required: [start, end, client, service, professional, room]
     AppointmentUpdate:
       type: object
@@ -1243,8 +1248,10 @@ components:
         client: { type: string }
         service: { type: string }
         professional: { type: string }
+        professionalId: { type: ["integer", "null"] }
         room: { type: string }
         status: { type: string, enum: [confirmed, in_progress, completed, cancelled] }
+        attendance: { type: string, enum: [pending, attended, no_show] }
     Client:
       type: object
       properties:
@@ -1454,7 +1461,13 @@ components:
         email: { type: string }
         commissionRate: { type: number, minimum: 0, maximum: 100 }
         active: { type: boolean }
-      required: [name, specialty, phone, email, commissionRate, active]
+        weeklySchedule:
+          type: array
+          items: { $ref: "#/components/schemas/WeeklyScheduleDay" }
+        scheduleExceptions:
+          type: array
+          items: { $ref: "#/components/schemas/ProfessionalScheduleException" }
+      required: [name, specialty, phone, email, commissionRate, active, weeklySchedule, scheduleExceptions]
     Professional:
       allOf:
         - $ref: "#/components/schemas/ProfessionalInput"
@@ -1462,6 +1475,31 @@ components:
           properties:
             id: { type: integer }
           required: [id]
+    ScheduleInterval:
+      type: object
+      properties:
+        start: { type: string }
+        end: { type: string }
+      required: [start, end]
+    WeeklyScheduleDay:
+      type: object
+      properties:
+        weekday: { type: integer, minimum: 0, maximum: 6 }
+        enabled: { type: boolean }
+        intervals:
+          type: array
+          items: { $ref: "#/components/schemas/ScheduleInterval" }
+      required: [weekday, enabled, intervals]
+    ProfessionalScheduleException:
+      type: object
+      properties:
+        date: { type: string }
+        type: { type: string, enum: [day_off, custom_hours] }
+        intervals:
+          type: array
+          items: { $ref: "#/components/schemas/ScheduleInterval" }
+        reason: { type: string }
+      required: [date, type, intervals, reason]
     CommissionType:
       type: string
       enum: [percent, fixed]

@@ -5,3 +5,4 @@
 - [WhatsApp PDF assets](whatsapp-pdf-assets.md) — API workflow runs below the workspace root, so document lookup needs an asset-path fallback.
 - [Human handoff rule](human-handoff-rule.md) — keep the AI in the conversation unless the client explicitly asks for a human.
 - [WhatsApp booking integrity](whatsapp-webhook-idempotency.md) — dedupe webhook retries, validate AI bookings, derive service end server-side, and parse local agenda times in the configured timezone.
+- [OpenAPI date codegen](openapi-date-codegen.md) — date-formatted strings can become `Date` in generated Zod types but stay strings in the React client.

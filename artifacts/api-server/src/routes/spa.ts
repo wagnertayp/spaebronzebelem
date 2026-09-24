@@ -135,10 +135,11 @@ import {
 import {
   db,
   whatsappConversationsTable,
+  whatsappFollowupsTable,
   whatsappMessagesTable,
   whatsappSettingsTable,
 } from "@workspace/db";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import backup from "../data/spa-backup.json";
@@ -191,8 +192,10 @@ type Appointment = {
   client: string;
   service: string;
   professional: string;
+  professionalId: number | null;
   room: string;
   status: AppointmentStatus;
+  attendance: "pending" | "attended" | "no_show";
   avatar: string;
 };
 
@@ -245,6 +248,47 @@ type Lead = {
 type Professional = ReturnType<typeof ListProfessionalsResponse.parse>[number];
 type FinancialMovement = ReturnType<typeof ListFinancialMovementsResponse.parse>[number];
 
+const emptyWeeklySchedule = (): Professional["weeklySchedule"] =>
+  Array.from({ length: 7 }, (_, weekday) => ({ weekday, enabled: false, intervals: [] }));
+
+const validScheduleIntervals = (intervals: Professional["weeklySchedule"][number]["intervals"]) => {
+  if (intervals.some((interval) =>
+    !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(interval.start) ||
+    !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(interval.end) ||
+    interval.start >= interval.end,
+  )) return false;
+  const sorted = [...intervals].sort((a, b) => a.start.localeCompare(b.start));
+  return sorted.every((interval, index) => index === 0 || sorted[index - 1]!.end <= interval.start);
+};
+
+const professionalScheduleError = (professional: Pick<Professional, "weeklySchedule" | "scheduleExceptions">) => {
+  const weekdays = new Set(professional.weeklySchedule.map((day) => day.weekday));
+  if (professional.weeklySchedule.length !== 7 || weekdays.size !== 7 ||
+      professional.weeklySchedule.some((day) =>
+        day.weekday < 0 || day.weekday > 6 || !validScheduleIntervals(day.intervals),
+      )) {
+    return "A grade semanal precisa ter sete dias e horários válidos, sem turnos sobrepostos.";
+  }
+
+  const dates = new Set<string>();
+  for (const exception of professional.scheduleExceptions) {
+    const parsedDate = new Date(`${exception.date}T00:00:00Z`);
+    const dateIsValid = /^\d{4}-\d{2}-\d{2}$/.test(exception.date) &&
+      !Number.isNaN(parsedDate.getTime()) &&
+      parsedDate.toISOString().slice(0, 10) === exception.date;
+    if (!dateIsValid || dates.has(exception.date)) {
+      return "Cada exceção precisa ter uma data válida e única.";
+    }
+    dates.add(exception.date);
+    if (!validScheduleIntervals(exception.intervals) ||
+        (exception.type === "day_off" && exception.intervals.length > 0) ||
+        (exception.type === "custom_hours" && exception.intervals.length === 0)) {
+      return "Confira os horários das exceções e folgas cadastradas.";
+    }
+  }
+  return null;
+};
+
 const appointments: Appointment[] = [
   {
     id: 1,
@@ -253,8 +297,10 @@ const appointments: Appointment[] = [
     client: "Ana Martins",
     service: "Massagem Relaxante",
     professional: "Marina",
+    professionalId: 1,
     room: "Sala 02",
     status: "in_progress",
+    attendance: "pending",
     avatar: "AM",
   },
   {
@@ -264,8 +310,10 @@ const appointments: Appointment[] = [
     client: "Mariana Costa",
     service: "Drenagem Linfática",
     professional: "Paula",
+    professionalId: 2,
     room: "Sala 01",
     status: "confirmed",
+    attendance: "pending",
     avatar: "MC",
   },
   {
@@ -275,8 +323,10 @@ const appointments: Appointment[] = [
     client: "Juliana Alves",
     service: "Ritual Facial",
     professional: "Rosana",
+    professionalId: 3,
     room: "Sala 03",
     status: "confirmed",
+    attendance: "pending",
     avatar: "JA",
   },
   {
@@ -286,8 +336,10 @@ const appointments: Appointment[] = [
     client: "Carlos Almeida",
     service: "Massagem Terapêutica",
     professional: "Wallace",
+    professionalId: 4,
     room: "Sala 02",
     status: "confirmed",
+    attendance: "pending",
     avatar: "CA",
   },
   {
@@ -297,17 +349,19 @@ const appointments: Appointment[] = [
     client: "Beatriz Lima",
     service: "Bronzeamento em máquina",
     professional: "Paula",
+    professionalId: 2,
     room: "Bronze 01",
     status: "confirmed",
+    attendance: "pending",
     avatar: "BL",
   },
 ];
 
 const professionals: Professional[] = [
-  { id: 1, name: "Marina", specialty: "Massagens e terapias", phone: "", email: "", commissionRate: 20, active: true },
-  { id: 2, name: "Paula", specialty: "Drenagem e tratamentos corporais", phone: "", email: "", commissionRate: 18, active: true },
-  { id: 3, name: "Rosana", specialty: "Estética facial", phone: "", email: "", commissionRate: 20, active: true },
-  { id: 4, name: "Wallace", specialty: "Massoterapia", phone: "", email: "", commissionRate: 15, active: true },
+  { id: 1, name: "Marina", specialty: "Massagens e terapias", phone: "", email: "", commissionRate: 20, active: true, weeklySchedule: emptyWeeklySchedule(), scheduleExceptions: [] },
+  { id: 2, name: "Paula", specialty: "Drenagem e tratamentos corporais", phone: "", email: "", commissionRate: 18, active: true, weeklySchedule: emptyWeeklySchedule(), scheduleExceptions: [] },
+  { id: 3, name: "Rosana", specialty: "Estética facial", phone: "", email: "", commissionRate: 20, active: true, weeklySchedule: emptyWeeklySchedule(), scheduleExceptions: [] },
+  { id: 4, name: "Wallace", specialty: "Massoterapia", phone: "", email: "", commissionRate: 15, active: true, weeklySchedule: emptyWeeklySchedule(), scheduleExceptions: [] },
 ];
 
 type CommissionConfig = {
@@ -443,6 +497,7 @@ let whatsappAutomation: WhatsappAutomation = {
   confirmations: true,
   reminder24h: true,
   reminder2h: true,
+  followUp30m: true,
   timezone: process.env["EVOLUTION_TIMEZONE"] ?? "America/Belem",
 };
 
@@ -662,15 +717,63 @@ const setWhatsappConversationStatus = async (phone: string, status: WhatsappConv
   return updated ?? conversation;
 };
 
+const saveWhatsappClientName = async (phone: string, reportedName: string | null) => {
+  const clientName = reportedName?.trim().replace(/\s+/g, " ") ?? "";
+  if (
+    clientName.length < 2 ||
+    clientName.length > 60 ||
+    !/\p{L}/u.test(clientName) ||
+    /\d/.test(clientName) ||
+    normalizeWhatsappPhone(clientName) === normalizeWhatsappPhone(phone)
+  ) return;
+
+  const conversation = await getWhatsappConversation(phone);
+  if (!conversation) return;
+  const storedNameIsPhone = normalizeWhatsappPhone(conversation.clientName) === conversation.phone;
+  if (!storedNameIsPhone && normalizeName(conversation.clientName) !== normalizeName(clientName)) return;
+  const normalizedReportedName = normalizeCatalogLabel(clientName);
+  const inboundMessages = await db
+    .select({ text: whatsappMessagesTable.text })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.conversationId, conversation.id),
+      eq(whatsappMessagesTable.direction, "inbound"),
+    ))
+    .orderBy(desc(whatsappMessagesTable.createdAt))
+    .limit(12);
+  const escapedName = normalizedReportedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const explicitNamePattern = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapedName}(?:$|[^\\p{L}\\p{N}])`, "u");
+  if (!inboundMessages.some((message) => explicitNamePattern.test(normalizeCatalogLabel(message.text)))) return;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(whatsappConversationsTable)
+      .set({ clientName, updatedAt: new Date() })
+      .where(eq(whatsappConversationsTable.id, conversation.id));
+    await tx
+      .update(whatsappMessagesTable)
+      .set({ clientName })
+      .where(and(
+        eq(whatsappMessagesTable.conversationId, conversation.id),
+        eq(whatsappMessagesTable.clientName, conversation.clientName),
+      ));
+  });
+};
+
 const addWhatsappMessage = async (message: Omit<WhatsappMessage, "id" | "createdAt">) => {
   const conversation = await ensureWhatsappConversation(message.phone, message.clientName);
+  const providedClientName = message.clientName.trim();
+  const providedNameIsPhone = normalizeWhatsappPhone(providedClientName) === conversation.phone;
+  const clientName = !providedClientName || providedNameIsPhone
+    ? conversation.clientName
+    : providedClientName;
   const [created] = await db
     .insert(whatsappMessagesTable)
     .values({
       conversationId: conversation.id,
       direction: message.direction,
       phone: message.phone,
-      clientName: message.clientName,
+      clientName,
       appointmentId: message.appointmentId,
       text: message.text,
       status: message.status,
@@ -683,7 +786,7 @@ const addWhatsappMessage = async (message: Omit<WhatsappMessage, "id" | "created
   await db
     .update(whatsappConversationsTable)
     .set({
-      clientName: message.clientName || conversation.clientName,
+      clientName,
       lastMessageAt: created.createdAt,
       updatedAt: new Date(),
     })
@@ -834,6 +937,56 @@ const sendWhatsappReply = async (
   })) ?? item;
 };
 
+const followUpMessageForAgentQuestion =
+  "Vim só dar um alô antes que a nossa conversa peça férias. Se ainda quiser, me conta como posso te ajudar 😄";
+
+const replyEndsWithQuestion = (text: string) => {
+  const withoutFinalEmoji = text.trim()
+    .replace(/[\s\p{Extended_Pictographic}\uFE0F\u200D]+$/gu, "")
+    .trim();
+  return withoutFinalEmoji.endsWith("?");
+};
+
+const scheduleWhatsappFollowUp = async (phone: string, triggerMessage: WhatsappMessage) => {
+  if (
+    !whatsappAutomation.enabled ||
+    !whatsappAutomation.aiReplies ||
+    !whatsappAutomation.followUp30m ||
+    !aiAgentConfig.active ||
+    triggerMessage.status !== "sent" ||
+    !replyEndsWithQuestion(triggerMessage.text)
+  ) return;
+
+  const conversation = await getWhatsappConversation(phone);
+  if (!conversation || conversation.status !== "agent") return;
+
+  await db
+    .insert(whatsappFollowupsTable)
+    .values({
+      conversationId: conversation.id,
+      triggerMessageId: triggerMessage.id,
+      dueAt: new Date(Date.now() + 30 * 60_000),
+      status: "pending",
+    })
+    .onConflictDoNothing({ target: whatsappFollowupsTable.triggerMessageId });
+};
+
+const sendWhatsappAgentReply = async (
+  phone: string,
+  clientName: string,
+  appointmentId: number | null,
+  text: string,
+  replyTo?: EvolutionReplyReference,
+) => {
+  const message = await sendWhatsappReply(phone, clientName, appointmentId, text, "reply", replyTo);
+  try {
+    await scheduleWhatsappFollowUp(phone, message);
+  } catch (error) {
+    logger.error({ err: error, phone, messageId: message.id }, "WhatsApp follow-up scheduling failed");
+  }
+  return message;
+};
+
 const sendWhatsappDocumentMessage = async (
   phone: string,
   clientName: string,
@@ -950,6 +1103,7 @@ type AgentAppointmentDraft = {
 
 type AgentDecision = {
   reply: string;
+  clientName: string | null;
   handoff: boolean;
   document: WhatsappDocument | null;
   audioClip: WhatsappAudioClip | null;
@@ -976,6 +1130,10 @@ const parseAgentDecision = (content: string): AgentDecision => {
       : null;
     const audioClip = value.audioClip === "combos" || value.audioClip === "bronze"
       ? value.audioClip
+      : null;
+    const parsedClientName = typeof value.clientName === "string" ? value.clientName.trim() : "";
+    const clientName = parsedClientName && parsedClientName.toLocaleLowerCase("pt-BR") !== "null"
+      ? parsedClientName
       : null;
     let appointment: AgentAppointmentDraft | null = null;
     let appointmentDataInvalid = false;
@@ -1012,6 +1170,7 @@ const parseAgentDecision = (content: string): AgentDecision => {
     if (!reply) throw new Error("O agente retornou um JSON sem reply");
     return {
       reply,
+      clientName,
       handoff: value.handoff === true,
       document,
       audioClip,
@@ -1082,6 +1241,7 @@ const askWhatsappAgent = async (
         role: "system",
         content: `Você é ${aiAgentConfig.name}, atendente do Spa e Bronze Belém.
 Responda em português do Brasil, com tom ${aiAgentConfig.tone}, de forma muito curta, natural e acolhedora.
+Nome conhecido do cliente: ${clientName !== phone ? clientName : "ainda não informado"}.
 Objetivo: ${aiAgentConfig.objective}
 Saudação: ${aiAgentConfig.greeting}
 Instruções: ${aiAgentConfig.instructions}
@@ -1116,6 +1276,8 @@ REGRAS OBRIGATÓRIAS:
 - Se a cliente fizer uma pergunta de continuação, responda diretamente a ela sem repetir toda a apresentação. Se faltar informação, faça uma única pergunta curta para esclarecer.
 - Mantenha-se simpática, paciente e acolhedora em todas as respostas. Não use respostas genéricas quando houver contexto suficiente.
 - ${isFirstClientMessage ? "Esta é a primeira mensagem do cliente. Comece a resposta usando a saudação configurada, sem trocar por uma mensagem genérica de encaminhamento." : "Não repita a saudação configurada em todas as mensagens."}
+- Nunca peça o nome na primeira resposta, junto da saudação inicial. Depois que a cliente já recebeu essa resposta e continuar a conversa, se o nome ainda não for conhecido, pergunte-o com naturalidade em uma pergunta curta; não repita o pedido e não deixe de responder à dúvida principal.
+- Ao retornar clientName, use somente o nome que a cliente informou explicitamente na conversa; se ainda não informou, retorne null. Nunca deduza o nome pelo telefone.
 - Não invente preços, promoções, horários, contraindicações ou resultados.
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
@@ -1132,9 +1294,9 @@ REGRAS OBRIGATÓRIAS:
   Escolha um somente se o pedido atual da cliente for diretamente sobre esse tema e a gravação for pertinente; nos demais casos use null. Se escolher um áudio, a resposta escrita deve ser apenas uma introdução curta ao áudio, sem inventar preços ou detalhes que não estejam confirmados.
 - Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano. Reclamações, negociação, dúvidas clínicas, falta de informação e reagendamento continuam na conversa.
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
-{"reply":"texto curto","handoff":false,"document":null,"audioClip":null,"appointment":null}
+{"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null}
 ou, quando houver agendamento confirmado:
- {"reply":"texto curto","handoff":false,"document":null,"audioClip":null,"appointment":{"clientName":"nome","service":"nome exato do serviço","professional":"","start":"AAAA-MM-DDTHH:mm","confirmed":true}}`,
+ {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":{"clientName":"nome informado","service":"nome exato do serviço","professional":"","start":"AAAA-MM-DDTHH:mm","confirmed":true}}. Se a cliente informou o nome, retorne-o como string em clientName; caso contrário, mantenha null.`,
       },
       ...(await getConversationHistory(phone)).slice(0, -1),
       { role: "user", content: currentInput },
@@ -1147,6 +1309,7 @@ type AppointmentSlotCandidate = {
   start: string;
   end: string;
   professional: string;
+  professionalId?: number | null;
 };
 type AppointmentSlotIssue = "invalid" | "conflict";
 type AgentAppointmentFailure =
@@ -1172,6 +1335,27 @@ const appointmentSlotIssue = (
   const end = appointmentDateTimeInAgenda(candidate.end, agendaDate)?.getTime();
   if (start == null || end == null || end <= start) return "invalid";
 
+  const selectedProfessional = candidate.professionalId != null
+    ? professionals.find((professional) => professional.id === candidate.professionalId)
+    : professionals.find((professional) =>
+        normalizeName(professional.name) === normalizeName(candidate.professional),
+      );
+  if (selectedProfessional) {
+    const localStart = formatAgendaDateTime(new Date(start));
+    const localEnd = formatAgendaDateTime(new Date(end));
+    const localDate = localStart.slice(0, 10);
+    const weekday = new Date(`${localDate}T00:00:00Z`).getUTCDay();
+    const exception = selectedProfessional.scheduleExceptions.find((item) => item.date === localDate);
+    const intervals = exception
+      ? exception.type === "day_off" ? [] : exception.intervals
+      : selectedProfessional.weeklySchedule.find((item) => item.weekday === weekday && item.enabled)?.intervals ?? [];
+    const startsAt = localStart.slice(11, 16);
+    const endsAt = localEnd.slice(11, 16);
+    const insideAvailability = localEnd.slice(0, 10) === localDate &&
+      intervals.some((interval) => interval.start <= startsAt && interval.end >= endsAt);
+    if (!insideAvailability) return "conflict";
+  }
+
   const conflict = appointments.some((appointment) => {
     if (
       appointment.id === excludedAppointmentId ||
@@ -1182,8 +1366,12 @@ const appointmentSlotIssue = (
     const existingStart = appointmentDateTimeInAgenda(appointment.start, agendaDate)?.getTime();
     const existingEnd = appointmentDateTimeInAgenda(appointment.end, agendaDate)?.getTime();
     if (existingStart == null || existingEnd == null) return false;
-    const sameProfessional = !candidate.professional || !appointment.professional ||
-      normalizeName(candidate.professional) === normalizeName(appointment.professional);
+    const existingProfessionalId = appointment.professionalId ??
+      professionals.find((professional) => normalizeName(professional.name) === normalizeName(appointment.professional))?.id;
+    const sameProfessional = selectedProfessional
+      ? existingProfessionalId === selectedProfessional.id
+      : !candidate.professional || !appointment.professional ||
+        normalizeName(candidate.professional) === normalizeName(appointment.professional);
     return sameProfessional && start < existingEnd && end > existingStart;
   });
   return conflict ? "conflict" : null;
@@ -1191,7 +1379,7 @@ const appointmentSlotIssue = (
 
 const appointmentSlotError = (issue: AppointmentSlotIssue) =>
   issue === "conflict"
-    ? "Esse horário já está ocupado para o profissional selecionado. Escolha outro horário."
+    ? "Esse horário está ocupado ou fora da grade semanal do profissional. Escolha outro horário."
     : "O horário de término precisa ser posterior ao início.";
 
 const serviceDurationMinutes = (duration: string): number | null => {
@@ -1267,7 +1455,12 @@ const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) =>
   });
   if (existingForClient) return { ok: true, appointment: existingForClient } satisfies AgentAppointmentResult;
 
-  const slotIssue = appointmentSlotIssue({ start, end, professional: assignedProfessional });
+  const slotIssue = appointmentSlotIssue({
+    start,
+    end,
+    professional: assignedProfessional,
+    professionalId: matchedProfessional?.id ?? null,
+  });
   if (slotIssue === "conflict") return { ok: false, reason: "conflict" } satisfies AgentAppointmentResult;
   if (slotIssue === "invalid") return { ok: false, reason: "invalid_datetime" } satisfies AgentAppointmentResult;
 
@@ -1293,8 +1486,10 @@ const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) =>
     client: client.name,
     service: service.name,
     professional: assignedProfessional,
+    professionalId: matchedProfessional?.id ?? null,
     room: "",
     status: "confirmed",
+    attendance: "pending",
     avatar: getInitials(client.name),
   };
   appointments.push(appointment);
@@ -1324,6 +1519,132 @@ export const runWhatsappReminders = async () => {
     }
     if (whatsappAutomation.reminder2h && hours > 1 && hours <= 3) {
       await sendAppointmentMessage(appointment, "reminder2h");
+    }
+  }
+};
+
+const cancelPendingWhatsappFollowUps = async (conversationId: number) => {
+  await db
+    .update(whatsappFollowupsTable)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(and(
+      eq(whatsappFollowupsTable.conversationId, conversationId),
+      eq(whatsappFollowupsTable.status, "pending"),
+    ));
+};
+
+export const runWhatsappFollowUps = async () => {
+  await loadWhatsappSettings();
+  const now = new Date();
+  const followUpsEnabled =
+    whatsappAutomation.enabled &&
+    whatsappAutomation.aiReplies &&
+    whatsappAutomation.followUp30m &&
+    aiAgentConfig.active;
+
+  // A process restart during an outbound request must not leave a candidate permanently locked.
+  await db
+    .update(whatsappFollowupsTable)
+    .set({ status: "failed", error: "Envio interrompido antes da confirmação.", updatedAt: now })
+    .where(and(
+      eq(whatsappFollowupsTable.status, "processing"),
+      lte(whatsappFollowupsTable.claimedAt, new Date(now.getTime() - 5 * 60_000)),
+    ));
+
+  if (!followUpsEnabled) {
+    await db
+      .update(whatsappFollowupsTable)
+      .set({ status: "cancelled", updatedAt: now })
+      .where(eq(whatsappFollowupsTable.status, "pending"));
+    return;
+  }
+
+  const dueFollowUps = await db
+    .select()
+    .from(whatsappFollowupsTable)
+    .where(and(
+      eq(whatsappFollowupsTable.status, "pending"),
+      lte(whatsappFollowupsTable.dueAt, now),
+    ))
+    .orderBy(asc(whatsappFollowupsTable.dueAt))
+    .limit(50);
+
+  for (const followUp of dueFollowUps) {
+    const [claimed] = await db
+      .update(whatsappFollowupsTable)
+      .set({ status: "processing", claimedAt: now, updatedAt: now })
+      .where(and(
+        eq(whatsappFollowupsTable.id, followUp.id),
+        eq(whatsappFollowupsTable.status, "pending"),
+        lte(whatsappFollowupsTable.dueAt, now),
+      ))
+      .returning();
+    if (!claimed) continue;
+
+    try {
+      const [[conversation], [triggerMessage], [newerInboundMessage]] = await Promise.all([
+        db.select().from(whatsappConversationsTable)
+          .where(eq(whatsappConversationsTable.id, followUp.conversationId)).limit(1),
+        db.select().from(whatsappMessagesTable)
+          .where(eq(whatsappMessagesTable.id, followUp.triggerMessageId)).limit(1),
+        db.select({ id: whatsappMessagesTable.id }).from(whatsappMessagesTable)
+          .where(and(
+            eq(whatsappMessagesTable.conversationId, followUp.conversationId),
+            eq(whatsappMessagesTable.direction, "inbound"),
+            gt(whatsappMessagesTable.id, followUp.triggerMessageId),
+          ))
+          .orderBy(asc(whatsappMessagesTable.id))
+          .limit(1),
+      ]);
+
+      if (
+        !conversation ||
+        conversation.status !== "agent" ||
+        !triggerMessage ||
+        triggerMessage.direction !== "outbound" ||
+        triggerMessage.kind !== "reply" ||
+        !["sent", "delivered"].includes(triggerMessage.status) ||
+        newerInboundMessage
+      ) {
+        await db
+          .update(whatsappFollowupsTable)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(eq(whatsappFollowupsTable.id, followUp.id));
+        continue;
+      }
+
+      const sentMessage = await sendWhatsappReply(
+        conversation.phone,
+        conversation.clientName,
+        triggerMessage.appointmentId,
+        followUpMessageForAgentQuestion,
+        "reply",
+      );
+      await db
+        .update(whatsappFollowupsTable)
+        .set({
+          status: sentMessage.status === "sent" ? "sent" : "failed",
+          sentMessageId: sentMessage.id,
+          error: sentMessage.error,
+          updatedAt: new Date(),
+        })
+        .where(eq(whatsappFollowupsTable.id, followUp.id));
+      if (sentMessage.status !== "sent") {
+        logger.warn(
+          { phone: conversation.phone, followUpId: followUp.id, error: sentMessage.error },
+          "WhatsApp inactivity follow-up failed",
+        );
+      }
+    } catch (error) {
+      await db
+        .update(whatsappFollowupsTable)
+        .set({
+          status: "failed",
+          error: error instanceof Error ? error.message.slice(0, 1000) : "Falha no envio.",
+          updatedAt: new Date(),
+        })
+        .where(eq(whatsappFollowupsTable.id, followUp.id));
+      logger.error({ err: error, followUpId: followUp.id }, "WhatsApp inactivity follow-up failed");
     }
   }
 };
@@ -1491,7 +1812,7 @@ let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
   tone: "acolhedor",
   greeting: "Olá! Sou a assistente virtual do Spa e Bronze Belém. Como posso ajudar?",
   objective: "Atender clientes, apresentar serviços e preços e orientar sobre agendamentos.",
-  instructions: "Responda de forma clara, curta e cordial. Faça uma pergunta por vez.",
+  instructions: "Responda de forma clara, curta e cordial. Faça uma pergunta por vez. Não peça o nome na saudação inicial; pergunte-o naturalmente depois da primeira resposta se ainda não souber.",
   businessHours: "Segunda a sábado, das 8h às 19h.",
   address: "Belém - PA",
   paymentMethods: "Pix, cartão de crédito, cartão de débito e dinheiro.",
@@ -1545,9 +1866,8 @@ const appointmentDate = (start: string): string | null => {
   return null;
 };
 const professionalForAppointment = (appointment: Appointment) => {
-  const record = appointment as Appointment & { professionalId?: number };
-  return record.professionalId
-    ? professionals.find((professional) => professional.id === record.professionalId)
+  return appointment.professionalId != null
+    ? professionals.find((professional) => professional.id === appointment.professionalId)
     : professionals.find((professional) => professional.name.toLocaleLowerCase("pt-BR") === appointment.professional.toLocaleLowerCase("pt-BR"));
 };
 const serviceForAppointment = (appointment: Appointment) => {
@@ -1723,7 +2043,27 @@ router.get("/appointments", (req, res) => {
 
 router.post("/appointments", (req, res) => {
   const input = CreateAppointmentBody.parse(req.body);
-  const slotIssue = appointmentSlotIssue(input);
+  const selectedProfessional = input.professionalId != null
+    ? professionals.find((professional) => professional.id === input.professionalId)
+    : professionals.find((professional) =>
+        normalizeName(professional.name) === normalizeName(input.professional),
+      );
+  if (input.professionalId != null && !selectedProfessional) {
+    res.status(400).json({ error: "Profissional não encontrado." });
+    return;
+  }
+  if (selectedProfessional && !selectedProfessional.active) {
+    res.status(400).json({ error: "Não é possível agendar com um profissional inativo." });
+    return;
+  }
+  const professionalName = selectedProfessional?.name ?? input.professional;
+  const professionalId = selectedProfessional?.id ?? null;
+  const slotIssue = appointmentSlotIssue({
+    start: input.start,
+    end: input.end,
+    professional: professionalName,
+    professionalId,
+  });
   if (slotIssue) {
     const status = slotIssue === "conflict" ? 409 : 400;
     res.status(status).json({ error: appointmentSlotError(slotIssue) });
@@ -1732,7 +2072,10 @@ router.post("/appointments", (req, res) => {
   const appointment: Appointment = {
     id: Math.max(...appointments.map((item) => item.id)) + 1,
     ...input,
+    professional: professionalName,
+    professionalId,
     status: "confirmed",
+    attendance: input.attendance ?? "pending",
     avatar: input.client
       .split(/\s+/)
       .slice(0, 2)
@@ -1754,11 +2097,35 @@ router.patch("/appointments/:id", (req, res) => {
     res.status(404).json({ error: "Agendamento não encontrado" });
     return;
   }
+  const professionalWasUpdated =
+    input.professional !== undefined || input.professionalId !== undefined;
+  const selectedProfessional = input.professionalId != null
+    ? professionals.find((professional) => professional.id === input.professionalId)
+    : input.professional !== undefined
+      ? professionals.find((professional) =>
+          normalizeName(professional.name) === normalizeName(input.professional!),
+        )
+      : professionalForAppointment(appointment);
+  if (input.professionalId != null && !selectedProfessional) {
+    res.status(400).json({ error: "Profissional não encontrado." });
+    return;
+  }
+  if (professionalWasUpdated && selectedProfessional && !selectedProfessional.active) {
+    res.status(400).json({ error: "Não é possível agendar com um profissional inativo." });
+    return;
+  }
+  const nextProfessionalName = professionalWasUpdated
+    ? selectedProfessional?.name ?? input.professional ?? appointment.professional
+    : appointment.professional;
+  const nextProfessionalId = professionalWasUpdated
+    ? selectedProfessional?.id ?? null
+    : appointment.professionalId;
   const nextStatus = input.status ?? appointment.status;
   const scheduleChanged =
-    input.start !== undefined ||
-    input.end !== undefined ||
-    input.professional !== undefined ||
+    (input.start ?? appointment.start) !== appointment.start ||
+    (input.end ?? appointment.end) !== appointment.end ||
+    nextProfessionalName !== appointment.professional ||
+    nextProfessionalId !== appointment.professionalId ||
     (input.status !== undefined && input.status !== appointment.status);
   if (
     scheduleChanged &&
@@ -1767,7 +2134,8 @@ router.patch("/appointments/:id", (req, res) => {
     const slotIssue = appointmentSlotIssue({
       start: input.start ?? appointment.start,
       end: input.end ?? appointment.end,
-      professional: input.professional ?? appointment.professional,
+      professional: nextProfessionalName,
+      professionalId: nextProfessionalId,
     }, appointment.id);
     if (slotIssue) {
       const status = slotIssue === "conflict" ? 409 : 400;
@@ -1775,7 +2143,12 @@ router.patch("/appointments/:id", (req, res) => {
       return;
     }
   }
-  Object.assign(appointment, input, input.client ? { avatar: getInitials(input.client) } : {});
+  Object.assign(
+    appointment,
+    input,
+    { professional: nextProfessionalName, professionalId: nextProfessionalId },
+    input.client ? { avatar: getInitials(input.client) } : {},
+  );
   if (
     whatsappAutomation.enabled &&
     whatsappAutomation.confirmations &&
@@ -2031,6 +2404,22 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     providerMessageId,
     error: null,
   });
+  const conversation = await getWhatsappConversation(phone);
+  if (conversation) await cancelPendingWhatsappFollowUps(conversation.id);
+  const knownClientName = client?.name ?? (
+    conversation && normalizeWhatsappPhone(conversation.clientName) !== conversation.phone
+      ? conversation.clientName
+      : phone
+  );
+  if (Array.isArray(currentInput)) {
+    const imagePart = currentInput.find((part) => part.type === "image_url");
+    currentInput = [
+      { type: "text", text: `Cliente: ${knownClientName}\nMensagem: ${text}\nAnalise a imagem recebida e responda de forma útil, sem inventar informações.` },
+      ...(imagePart ? [imagePart] : []),
+    ];
+  } else {
+    currentInput = `Cliente: ${knownClientName}\nMensagem: ${text}`;
+  }
   if (providerMessageId) {
     const reactionResult = await sendEvolutionReaction(
       phone,
@@ -2046,12 +2435,11 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   }
 
   const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
-  const conversation = await getWhatsappConversation(phone);
   if (asksForHuman) {
     await setWhatsappConversationStatus(phone, "human");
     await sendWhatsappReply(
       phone,
-      client?.name ?? phone,
+      knownClientName,
       appointment?.id ?? null,
       "Combinado. Vou encaminhar você para uma atendente continuar o atendimento.",
       "handoff",
@@ -2067,14 +2455,13 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   }
 
   if (mediaError) {
-    await sendWhatsappReply(
+    await sendWhatsappAgentReply(
       phone,
-      client?.name ?? phone,
+      knownClientName,
       appointment?.id ?? null,
       isAudioMessage
         ? "Não consegui ouvir esse áudio. Pode enviar novamente ou escrever a mensagem, por favor? 🤎"
         : "Não consegui abrir essa imagem agora. Pode enviar novamente, por favor? 🤎",
-      "reply",
       replyReference,
     );
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
@@ -2099,30 +2486,33 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   try {
     const decision = await askWhatsappAgent(
       phone,
-      client?.name ?? phone,
+      knownClientName,
       text,
       isFirstClientMessage,
       currentInput,
     );
+    await saveWhatsappClientName(
+      phone,
+      decision.clientName ?? decision.appointment?.clientName ?? null,
+    );
+    const replyClientName = (await getWhatsappConversation(phone))?.clientName ?? knownClientName;
     let createdAppointment: Appointment | null = null;
     if (decision.appointmentDataInvalid) {
-      await sendWhatsappReply(
+      await sendWhatsappAgentReply(
         phone,
-        client?.name ?? phone,
+        replyClientName,
         appointment?.id ?? null,
         "Não consegui ler os dados do agendamento com segurança. Pode me enviar o serviço, dia e horário novamente? 🤎",
-        "reply",
         replyReference,
       );
       return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
     }
     if (decision.appointment && !decision.appointment.confirmed) {
-      await sendWhatsappReply(
+      await sendWhatsappAgentReply(
         phone,
-        client?.name ?? decision.appointment.clientName ?? phone,
+        replyClientName,
         appointment?.id ?? null,
         "Para reservar, preciso da sua confirmação explícita. Você confirma esse serviço, data e horário? 🤎",
-        "reply",
         replyReference,
       );
       return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
@@ -2130,12 +2520,11 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     if (decision.appointment?.confirmed) {
       const result = addAppointmentFromAgent(phone, decision.appointment);
       if (!result.ok) {
-        await sendWhatsappReply(
+        await sendWhatsappAgentReply(
           phone,
-          client?.name ?? decision.appointment.clientName ?? phone,
+          replyClientName,
           appointment?.id ?? null,
           agentAppointmentFailureReply(result.reason),
-          "reply",
           replyReference,
         );
         return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
@@ -2145,7 +2534,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     if (decision.document) {
       await sendWhatsappDocumentMessage(
         phone,
-        client?.name ?? decision.appointment?.clientName ?? phone,
+        replyClientName,
         decision.document,
         decision.document === "menu"
           ? "Segue o nosso cardápio de serviços e bronzeamento."
@@ -2160,18 +2549,16 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     let writtenReply = createdAppointment
       ? appointmentScheduledReply(createdAppointment)
       : decision.reply;
-    const replyClientName = client?.name ?? decision.appointment?.clientName ?? phone;
     const replyAppointmentId = createdAppointment?.id ?? appointment?.id ?? null;
     const shouldReplyBeforeAudio = Boolean(
       audioClip && /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText),
     );
     if (shouldReplyBeforeAudio) {
-      await sendWhatsappReply(
+      await sendWhatsappAgentReply(
         phone,
         replyClientName,
         replyAppointmentId,
         writtenReply,
-        "reply",
         replyReference,
       );
     }
@@ -2189,14 +2576,24 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       }
     }
     if (!shouldReplyBeforeAudio) {
-      await sendWhatsappReply(
-        phone,
-        replyClientName,
-        replyAppointmentId,
-        writtenReply,
-        "reply",
-        replyReference,
-      );
+      if (createdAppointment) {
+        await sendWhatsappReply(
+          phone,
+          replyClientName,
+          replyAppointmentId,
+          writtenReply,
+          "reply",
+          replyReference,
+        );
+      } else {
+        await sendWhatsappAgentReply(
+          phone,
+          replyClientName,
+          replyAppointmentId,
+          writtenReply,
+          replyReference,
+        );
+      }
     }
     if (createdAppointment) {
       await sendWhatsappSessionPreparationImage(
@@ -2343,6 +2740,8 @@ router.delete("/finance/movements/:id", (req, res) => {
 
 router.post("/professionals", (req, res) => {
   const input = CreateProfessionalBody.parse(req.body);
+  const scheduleError = professionalScheduleError(input);
+  if (scheduleError) return void res.status(400).json({ error: scheduleError });
   const id = professionals.length ? Math.max(...professionals.map((professional) => professional.id)) + 1 : 1;
   const professional: Professional = { id, ...input };
   professionals.push(professional);
@@ -2366,7 +2765,19 @@ router.patch("/professionals/:id", (req, res) => {
   const input = UpdateProfessionalBody.parse(req.body);
   const professional = professionals.find((item) => item.id === id);
   if (!professional) return void res.status(404).json({ error: "Profissional não encontrado" });
+  const scheduleError = professionalScheduleError(input);
+  if (scheduleError) return void res.status(400).json({ error: scheduleError });
+  const previousName = professional.name;
   Object.assign(professional, input);
+  for (const appointment of appointments) {
+    if (
+      appointment.professionalId === id ||
+      (appointment.professionalId == null && normalizeName(appointment.professional) === normalizeName(previousName))
+    ) {
+      appointment.professional = professional.name;
+      appointment.professionalId = id;
+    }
+  }
   if (input.commissionRate !== undefined) {
     const config = commissionConfigs.get(id);
     if (config) {
@@ -2439,6 +2850,8 @@ ${serviceTable}
 
 Regras obrigatórias:
 - Responda em português do Brasil.
+- Não peça o nome junto da saudação inicial. Em uma conversa real, se o nome ainda não for conhecido, pergunte-o naturalmente depois da primeira resposta e quando a cliente continuar a conversa.
+- Só informe clientName se a cliente tiver dito o nome explicitamente; não deduza pelo telefone.
 - Use somente os serviços, preços, durações e informações fornecidas acima.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando perguntarem sobre funcionamento, localização ou endereço, use os dados configurados. Não invente endereço nem trate apenas “Belém - PA” como endereço completo.
@@ -2616,6 +3029,7 @@ router.post("/quotes/:id/appointment", (req, res) => {
     start: input.start,
     end: input.end,
     professional: appointmentProfessional,
+    professionalId: professional?.id ?? null,
   });
   if (slotIssue) {
     const status = slotIssue === "conflict" ? 409 : 400;
@@ -2629,8 +3043,10 @@ router.post("/quotes/:id/appointment", (req, res) => {
     client: quote.clientName,
     service: item?.name ?? "Atendimento",
     professional: appointmentProfessional,
+    professionalId: professional?.id ?? null,
     room: "",
     status: "confirmed",
+    attendance: "pending",
     avatar: getInitials(quote.clientName),
   };
   appointments.push(appointment);

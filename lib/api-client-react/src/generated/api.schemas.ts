@@ -76,6 +76,7 @@ export interface WhatsappAutomation {
   confirmations: boolean;
   reminder24h: boolean;
   reminder2h: boolean;
+  followUp30m: boolean;
   /** @minLength 3 */
   timezone: string;
 }
@@ -242,6 +243,15 @@ export const AppointmentStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type AppointmentAttendance = typeof AppointmentAttendance[keyof typeof AppointmentAttendance];
+
+
+export const AppointmentAttendance = {
+  pending: 'pending',
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
 export interface Appointment {
   id: number;
   start: string;
@@ -249,8 +259,11 @@ export interface Appointment {
   client: string;
   service: string;
   professional: string;
+  /** @nullable */
+  professionalId: number | null;
   room: string;
   status: AppointmentStatus;
+  attendance: AppointmentAttendance;
   avatar: string;
 }
 
@@ -264,13 +277,25 @@ export interface Dashboard {
   currentAppointment: Appointment | null;
 }
 
+export type AppointmentInputAttendance = typeof AppointmentInputAttendance[keyof typeof AppointmentInputAttendance];
+
+
+export const AppointmentInputAttendance = {
+  pending: 'pending',
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
 export interface AppointmentInput {
   start: string;
   end: string;
   client: string;
   service: string;
   professional: string;
+  /** @nullable */
+  professionalId?: number | null;
   room: string;
+  attendance?: AppointmentInputAttendance;
 }
 
 export type AppointmentUpdateStatus = typeof AppointmentUpdateStatus[keyof typeof AppointmentUpdateStatus];
@@ -283,14 +308,26 @@ export const AppointmentUpdateStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type AppointmentUpdateAttendance = typeof AppointmentUpdateAttendance[keyof typeof AppointmentUpdateAttendance];
+
+
+export const AppointmentUpdateAttendance = {
+  pending: 'pending',
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
 export interface AppointmentUpdate {
   start?: string;
   end?: string;
   client?: string;
   service?: string;
   professional?: string;
+  /** @nullable */
+  professionalId?: number | null;
   room?: string;
   status?: AppointmentUpdateStatus;
+  attendance?: AppointmentUpdateAttendance;
 }
 
 export type ClientStatus = typeof ClientStatus[keyof typeof ClientStatus];
@@ -600,6 +637,36 @@ export type FinancialMovement = FinancialMovementInput & {
   id: number;
 };
 
+export interface ScheduleInterval {
+  start: string;
+  end: string;
+}
+
+export interface WeeklyScheduleDay {
+  /**
+     * @minimum 0
+     * @maximum 6
+     */
+  weekday: number;
+  enabled: boolean;
+  intervals: ScheduleInterval[];
+}
+
+export type ProfessionalScheduleExceptionType = typeof ProfessionalScheduleExceptionType[keyof typeof ProfessionalScheduleExceptionType];
+
+
+export const ProfessionalScheduleExceptionType = {
+  day_off: 'day_off',
+  custom_hours: 'custom_hours',
+} as const;
+
+export interface ProfessionalScheduleException {
+  date: string;
+  type: ProfessionalScheduleExceptionType;
+  intervals: ScheduleInterval[];
+  reason: string;
+}
+
 export interface ProfessionalInput {
   /** @minLength 2 */
   name: string;
@@ -612,6 +679,8 @@ export interface ProfessionalInput {
      */
   commissionRate: number;
   active: boolean;
+  weeklySchedule: WeeklyScheduleDay[];
+  scheduleExceptions: ProfessionalScheduleException[];
 }
 
 export type Professional = ProfessionalInput & {
