@@ -10,7 +10,7 @@ type EvolutionConfig = {
 };
 
 const PROVIDER_TIMEOUT_MS = 8_000;
-const VOICE_NOTE_RECORDING_DELAY_MS = 1_800;
+const VOICE_NOTE_RECORDING_DELAY_MS = 30_000;
 
 export type EvolutionInstance = {
   name: string;

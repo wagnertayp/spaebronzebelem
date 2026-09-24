@@ -1816,27 +1816,44 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       ? null
       : decision.audioClip ?? audioClipForWhatsappMessage(normalizedText);
     let writtenReply = decision.reply;
+    const replyClientName = client?.name ?? decision.appointment?.clientName ?? phone;
+    const replyAppointmentId = createdAppointment?.id ?? appointment?.id ?? null;
+    const shouldReplyBeforeAudio = Boolean(
+      audioClip && /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText),
+    );
+    if (shouldReplyBeforeAudio) {
+      await sendWhatsappReply(
+        phone,
+        replyClientName,
+        replyAppointmentId,
+        writtenReply,
+        "reply",
+        replyReference,
+      );
+    }
     if (audioClip) {
       const audioMessage = await sendWhatsappAudioMessage(
         phone,
-        client?.name ?? decision.appointment?.clientName ?? phone,
+        replyClientName,
         audioClip,
         appointment?.id ?? null,
       );
-      if (audioMessage.status === "sent") {
+      if (audioMessage.status === "sent" && !shouldReplyBeforeAudio) {
         writtenReply = audioClip === "combos"
           ? "Te enviei um áudio com a explicação dos nossos combos. 🤎"
           : "Te enviei um áudio com informações sobre bronzeamento. 🤎";
       }
     }
-    await sendWhatsappReply(
-      phone,
-      client?.name ?? decision.appointment?.clientName ?? phone,
-      createdAppointment?.id ?? appointment?.id ?? null,
-      writtenReply,
-      "reply",
-      replyReference,
-    );
+    if (!shouldReplyBeforeAudio) {
+      await sendWhatsappReply(
+        phone,
+        replyClientName,
+        replyAppointmentId,
+        writtenReply,
+        "reply",
+        replyReference,
+      );
+    }
     if (createdAppointment) {
       await sendWhatsappSessionPreparationImage(
         createdAppointment,
