@@ -296,6 +296,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Appointment"
+        "400":
+          description: Invalid appointment interval
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Appointment interval conflicts with an active appointment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /appointments/{id}:
     patch:
       operationId: updateAppointment
@@ -313,6 +323,21 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Appointment" }
+        "400":
+          description: Invalid appointment interval
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Appointment not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Appointment interval conflicts with an active appointment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
     delete:
       operationId: deleteAppointment
       tags: [appointments]
@@ -607,7 +632,27 @@ paths:
       tags: [quotes]
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/QuoteAppointmentInput" } } } }
-      responses: { "201": { description: Appointment, content: { application/json: { schema: { $ref: "#/components/schemas/Appointment" } } } } }
+      responses:
+        "201":
+          description: Appointment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "400":
+          description: Invalid interval or quote is not available for scheduling
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Quote not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Appointment interval conflicts with an active appointment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /quotes/{id}/payment:
     post:
       operationId: createQuotePayment
@@ -990,6 +1035,11 @@ paths:
         "204": { description: Deleted inventory item }
 components:
   schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
     AiAgentConfig:
       type: object
       properties:

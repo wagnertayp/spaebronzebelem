@@ -5,6 +5,10 @@
  * API do sistema operacional do Spa e Bronze Belém
  * OpenAPI spec version: 0.1.0
  */
+export interface ErrorResponse {
+  error: string;
+}
+
 export type AiAgentConfigTone = typeof AiAgentConfigTone[keyof typeof AiAgentConfigTone];
 
 

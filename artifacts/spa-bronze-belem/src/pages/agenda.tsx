@@ -20,6 +20,12 @@ const appointmentTime = (value: string) => {
   return Number.isNaN(parsed.getTime()) ? '--:--' : format(parsed, 'HH:mm');
 };
 
+const isAppointmentConflictError = (error: unknown) =>
+  typeof error === 'object' &&
+  error !== null &&
+  'status' in error &&
+  error.status === 409;
+
 const TIME_SLOTS = [
   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
   '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
@@ -45,6 +51,20 @@ export function Agenda() {
   const createMutation = useCreateAppointment();
   const updateMutation = useUpdateAppointment();
   const deleteMutation = useDeleteAppointment();
+
+  const reportAppointmentMutationError = (error: unknown, fallback: string) => {
+    const conflict = isAppointmentConflictError(error);
+    if (conflict) {
+      void queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+    }
+    toast({
+      title: conflict ? 'Horário indisponível' : 'Erro',
+      description: conflict
+        ? 'Esse horário já está ocupado para o profissional selecionado. Escolha outro horário.'
+        : fallback,
+      variant: 'destructive',
+    });
+  };
   
   const { data: services = [] } = useListServices();
   const { data: professionalUsers = [] } = useListProfessionals();
@@ -316,8 +336,8 @@ export function Agenda() {
                   setDialogState({ type: 'none' });
                   toast({ title: "Horário bloqueado com sucesso!" });
                 },
-                onError: () => {
-                  toast({ title: "Erro", description: "Não foi possível bloquear o horário.", variant: "destructive" });
+                onError: (error) => {
+                  reportAppointmentMutationError(error, "Não foi possível bloquear o horário.");
                 }
               });
               return;
@@ -339,8 +359,8 @@ export function Agenda() {
                   setDialogState({ type: 'none' });
                   toast({ title: "Agendamento criado!" });
                 },
-                onError: () => {
-                  toast({ title: "Erro", description: "Não foi possível criar o agendamento.", variant: "destructive" });
+                onError: (error) => {
+                  reportAppointmentMutationError(error, "Não foi possível criar o agendamento.");
                 }
               });
               return;
@@ -365,8 +385,8 @@ export function Agenda() {
                   setDialogState({ type: 'none' });
                   toast({ title: "Agendamento atualizado!" });
                 },
-                onError: () => {
-                  toast({ title: "Erro", description: "Não foi possível atualizar o agendamento.", variant: "destructive" });
+                onError: (error) => {
+                  reportAppointmentMutationError(error, "Não foi possível atualizar o agendamento.");
                 }
               });
             }
@@ -410,6 +430,7 @@ export function Agenda() {
                   <Label htmlFor="professional">Profissional</Label>
                   <select 
                     id="professional" 
+                    data-testid="select-appointment-professional"
                     name="professional" 
                     required 
                     className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -448,6 +469,7 @@ export function Agenda() {
                   <Label htmlFor="start">Início</Label>
                   <Input 
                     id="start" 
+                    data-testid="input-appointment-start"
                     name="start" 
                     type="time" 
                     required 
@@ -462,6 +484,7 @@ export function Agenda() {
                   <Label htmlFor="end">Fim</Label>
                   <Input 
                     id="end" 
+                    data-testid="input-appointment-end"
                     name="end" 
                     type="time" 
                     required 

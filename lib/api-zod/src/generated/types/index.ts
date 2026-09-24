@@ -40,6 +40,7 @@ export * from './commissionSummary';
 export * from './commissionType';
 export * from './dashboard';
 export * from './discountMode';
+export * from './errorResponse';
 export * from './evolutionWebhookPayload';
 export * from './evolutionWebhookResponse';
 export * from './financeSummary';

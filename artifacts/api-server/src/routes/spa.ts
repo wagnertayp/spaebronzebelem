@@ -500,17 +500,73 @@ const appointmentDateTime = (start: string): Date | null => {
 const localAgendaDate = () =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: whatsappAutomation.timezone }).format(new Date());
 
+const agendaLocalDateTime = (value: string): Date | null => {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ]([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
+  if (!match) return null;
+
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText = "00"] = match;
+  const parts = [yearText, monthText, dayText, hourText, minuteText, secondText].map(Number);
+  const [year, month, day, hour, minute, second] = parts;
+  const localTimestamp = Date.UTC(year, month - 1, day, hour, minute, second);
+  const normalized = new Date(localTimestamp);
+  if (
+    normalized.getUTCFullYear() !== year ||
+    normalized.getUTCMonth() !== month - 1 ||
+    normalized.getUTCDate() !== day ||
+    normalized.getUTCHours() !== hour ||
+    normalized.getUTCMinutes() !== minute ||
+    normalized.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: whatsappAutomation.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  let timestamp = localTimestamp;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const formattedParts = Object.fromEntries(
+      formatter
+        .formatToParts(new Date(timestamp))
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, Number(part.value)]),
+    ) as Record<string, number>;
+    const representedLocalTimestamp = Date.UTC(
+      formattedParts["year"],
+      formattedParts["month"] - 1,
+      formattedParts["day"],
+      formattedParts["hour"],
+      formattedParts["minute"],
+      formattedParts["second"],
+    );
+    const correction = localTimestamp - representedLocalTimestamp;
+    if (correction === 0) return new Date(timestamp);
+    timestamp += correction;
+  }
+  return null;
+};
+
 const appointmentDateTimeInAgenda = (start: string, agendaDate = localAgendaDate()): Date | null => {
-  const parsed = appointmentDateTime(start);
-  if (parsed) return parsed;
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(start)) {
+    const zonedDateTime = new Date(start);
+    return Number.isNaN(zonedDateTime.getTime()) ? null : zonedDateTime;
+  }
+  const localDateTime = agendaLocalDateTime(start);
+  if (localDateTime) return localDateTime;
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(start)) return null;
   const time = start.length === 5 ? `${start}:00` : start;
-  const legacyDateTime = new Date(`${agendaDate}T${time}`);
-  return Number.isNaN(legacyDateTime.getTime()) ? null : legacyDateTime;
+  return agendaLocalDateTime(`${agendaDate}T${time}`);
 };
 
 const formatAppointmentDate = (appointment: Appointment) => {
-  const date = appointmentDateTime(appointment.start);
+  const date = appointmentDateTimeInAgenda(appointment.start);
   if (!date) return null;
   return new Intl.DateTimeFormat("pt-BR", {
     timeZone: whatsappAutomation.timezone,
@@ -1025,29 +1081,50 @@ ou, quando houver agendamento confirmado:
   return parseAgentDecision(response.choices[0]?.message?.content ?? "");
 };
 
-const isAppointmentConflict = (draft: AgentAppointmentDraft) => {
-  const start = appointmentDateTime(draft.start)?.getTime();
-  const end = appointmentDateTime(draft.end)?.getTime();
-  if (start == null || end == null || end <= start) return true;
+type AppointmentSlotCandidate = Pick<AgentAppointmentDraft, "start" | "end" | "professional">;
+type AppointmentSlotIssue = "invalid" | "conflict";
+
+const appointmentBlocksTime = (appointment: Appointment) =>
+  appointment.status === "confirmed" || appointment.status === "in_progress";
+
+const appointmentSlotIssue = (
+  candidate: AppointmentSlotCandidate,
+  excludedAppointmentId?: number,
+): AppointmentSlotIssue | null => {
   const agendaDate = localAgendaDate();
-  return appointments.some((appointment) => {
-    if (appointment.status !== "confirmed" && appointment.status !== "in_progress") return false;
+  const start = appointmentDateTimeInAgenda(candidate.start, agendaDate)?.getTime();
+  const end = appointmentDateTimeInAgenda(candidate.end, agendaDate)?.getTime();
+  if (start == null || end == null || end <= start) return "invalid";
+
+  const conflict = appointments.some((appointment) => {
+    if (
+      appointment.id === excludedAppointmentId ||
+      !appointmentBlocksTime(appointment)
+    ) {
+      return false;
+    }
     const existingStart = appointmentDateTimeInAgenda(appointment.start, agendaDate)?.getTime();
     const existingEnd = appointmentDateTimeInAgenda(appointment.end, agendaDate)?.getTime();
     if (existingStart == null || existingEnd == null) return false;
-    const sameProfessional = !draft.professional || !appointment.professional ||
-      normalizeName(draft.professional) === normalizeName(appointment.professional);
+    const sameProfessional = !candidate.professional || !appointment.professional ||
+      normalizeName(candidate.professional) === normalizeName(appointment.professional);
     return sameProfessional && start < existingEnd && end > existingStart;
   });
+  return conflict ? "conflict" : null;
 };
+
+const appointmentSlotError = (issue: AppointmentSlotIssue) =>
+  issue === "conflict"
+    ? "Esse horário já está ocupado para o profissional selecionado. Escolha outro horário."
+    : "O horário de término precisa ser posterior ao início.";
 
 const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) => {
   if (!draft.confirmed) return null;
   const clientName = draft.clientName || phone;
   let client = clients.find((item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone));
   const existingClientName = client?.name ?? clientName;
-  const draftStart = appointmentDateTime(draft.start)?.getTime();
-  const draftEnd = appointmentDateTime(draft.end)?.getTime();
+  const draftStart = appointmentDateTimeInAgenda(draft.start)?.getTime();
+  const draftEnd = appointmentDateTimeInAgenda(draft.end)?.getTime();
   if (draftStart == null || draftEnd == null || draftEnd <= draftStart) return null;
   const existingForClient = client && appointments.find((appointment) => {
     if (
@@ -1064,7 +1141,7 @@ const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) =>
     return sameProfessional && existingStart === draftStart && existingEnd === draftEnd;
   });
   if (existingForClient) return existingForClient;
-  if (isAppointmentConflict(draft)) return null;
+  if (appointmentSlotIssue(draft)) return null;
   if (!client) {
     client = {
       id: clients.length ? Math.max(...clients.map((item) => item.id)) + 1 : 1,
@@ -1508,6 +1585,12 @@ router.get("/appointments", (req, res) => {
 
 router.post("/appointments", (req, res) => {
   const input = CreateAppointmentBody.parse(req.body);
+  const slotIssue = appointmentSlotIssue(input);
+  if (slotIssue) {
+    const status = slotIssue === "conflict" ? 409 : 400;
+    res.status(status).json({ error: appointmentSlotError(slotIssue) });
+    return;
+  }
   const appointment: Appointment = {
     id: Math.max(...appointments.map((item) => item.id)) + 1,
     ...input,
@@ -1529,7 +1612,31 @@ router.patch("/appointments/:id", (req, res) => {
   const { id } = UpdateAppointmentParams.parse(req.params);
   const input = UpdateAppointmentBody.parse(req.body);
   const appointment = appointments.find((item) => item.id === id);
-  if (!appointment) return void res.status(404).json({ error: "Agendamento não encontrado" });
+  if (!appointment) {
+    res.status(404).json({ error: "Agendamento não encontrado" });
+    return;
+  }
+  const nextStatus = input.status ?? appointment.status;
+  const scheduleChanged =
+    input.start !== undefined ||
+    input.end !== undefined ||
+    input.professional !== undefined ||
+    (input.status !== undefined && input.status !== appointment.status);
+  if (
+    scheduleChanged &&
+    (nextStatus === "confirmed" || nextStatus === "in_progress")
+  ) {
+    const slotIssue = appointmentSlotIssue({
+      start: input.start ?? appointment.start,
+      end: input.end ?? appointment.end,
+      professional: input.professional ?? appointment.professional,
+    }, appointment.id);
+    if (slotIssue) {
+      const status = slotIssue === "conflict" ? 409 : 400;
+      res.status(status).json({ error: appointmentSlotError(slotIssue) });
+      return;
+    }
+  }
   Object.assign(appointment, input, input.client ? { avatar: getInitials(input.client) } : {});
   if (
     whatsappAutomation.enabled &&
@@ -2339,10 +2446,31 @@ router.post("/quotes/:id/appointment", (req, res) => {
   if (quote.status !== "approved") return void res.status(400).json({ error: "Apenas orçamentos aprovados podem ser agendados" });
   const professional = input.professionalId ? professionals.find((entry) => entry.id === input.professionalId) : undefined;
   if (input.professionalId && !professional) return void res.status(400).json({ error: "Profissional não encontrado" });
-  if (appointments.some((entry) => entry.start === input.start && (!professional || entry.professional === professional.name))) return void res.status(409).json({ error: "Este horário não está mais disponível" });
   const item = quote.items.find((entry) => entry.type === "service");
-  const appointment: Appointment = { id: Math.max(...appointments.map((entry) => entry.id)) + 1, start: input.start, end: input.end, client: quote.clientName, service: item?.name ?? "Atendimento", professional: professional?.name ?? item?.professionalName ?? "", room: "", status: "confirmed", avatar: getInitials(quote.clientName) };
-  appointments.push(appointment); res.status(201).json(appointment);
+  const appointmentProfessional = professional?.name ?? item?.professionalName ?? "";
+  const slotIssue = appointmentSlotIssue({
+    start: input.start,
+    end: input.end,
+    professional: appointmentProfessional,
+  });
+  if (slotIssue) {
+    const status = slotIssue === "conflict" ? 409 : 400;
+    res.status(status).json({ error: appointmentSlotError(slotIssue) });
+    return;
+  }
+  const appointment: Appointment = {
+    id: Math.max(...appointments.map((entry) => entry.id)) + 1,
+    start: input.start,
+    end: input.end,
+    client: quote.clientName,
+    service: item?.name ?? "Atendimento",
+    professional: appointmentProfessional,
+    room: "",
+    status: "confirmed",
+    avatar: getInitials(quote.clientName),
+  };
+  appointments.push(appointment);
+  res.status(201).json(appointment);
 });
 
 router.post("/quotes/:id/payment", (req, res) => {

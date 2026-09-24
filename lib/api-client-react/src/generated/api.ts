@@ -39,6 +39,7 @@ import type {
   CommissionRuleInput,
   CommissionSummary,
   Dashboard,
+  ErrorResponse,
   EvolutionWebhookPayload,
   EvolutionWebhookResponse,
   FinanceSummary,
@@ -1556,7 +1557,7 @@ export const createAppointment = async (appointmentInput: AppointmentInput, opti
 
 
 
-export const getCreateAppointmentMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateAppointmentMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAppointment>>, TError,{data: BodyType<AppointmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createAppointment>>, TError,{data: BodyType<AppointmentInput>}, TContext> => {
 
@@ -1585,12 +1586,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof createAppointment>>>
     export type CreateAppointmentMutationBody = BodyType<AppointmentInput>
-    export type CreateAppointmentMutationError = ErrorType<unknown>
+    export type CreateAppointmentMutationError = ErrorType<ErrorResponse>
 
     /**
  * @summary Cria um agendamento
  */
-export const useCreateAppointment = <TError = ErrorType<unknown>,
+export const useCreateAppointment = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAppointment>>, TError,{data: BodyType<AppointmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createAppointment>>,
@@ -1625,7 +1626,7 @@ export const updateAppointment = async (id: number,
 
 
 
-export const getUpdateAppointmentMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdateAppointmentMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAppointment>>, TError,{id: number;data: BodyType<AppointmentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateAppointment>>, TError,{id: number;data: BodyType<AppointmentUpdate>}, TContext> => {
 
@@ -1654,9 +1655,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof updateAppointment>>>
     export type UpdateAppointmentMutationBody = BodyType<AppointmentUpdate>
-    export type UpdateAppointmentMutationError = ErrorType<unknown>
+    export type UpdateAppointmentMutationError = ErrorType<ErrorResponse>
 
-    export const useUpdateAppointment = <TError = ErrorType<unknown>,
+    export const useUpdateAppointment = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAppointment>>, TError,{id: number;data: BodyType<AppointmentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateAppointment>>,
@@ -3223,7 +3224,7 @@ export const createQuoteAppointment = async (id: number,
 
 
 
-export const getCreateQuoteAppointmentMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateQuoteAppointmentMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createQuoteAppointment>>, TError,{id: number;data: BodyType<QuoteAppointmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createQuoteAppointment>>, TError,{id: number;data: BodyType<QuoteAppointmentInput>}, TContext> => {
 
@@ -3252,9 +3253,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateQuoteAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof createQuoteAppointment>>>
     export type CreateQuoteAppointmentMutationBody = BodyType<QuoteAppointmentInput>
-    export type CreateQuoteAppointmentMutationError = ErrorType<unknown>
+    export type CreateQuoteAppointmentMutationError = ErrorType<ErrorResponse>
 
-    export const useCreateQuoteAppointment = <TError = ErrorType<unknown>,
+    export const useCreateQuoteAppointment = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createQuoteAppointment>>, TError,{id: number;data: BodyType<QuoteAppointmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createQuoteAppointment>>,

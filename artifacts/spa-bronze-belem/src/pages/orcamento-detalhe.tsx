@@ -30,6 +30,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 
+const isAppointmentConflictError = (error: unknown) =>
+  typeof error === 'object' &&
+  error !== null &&
+  'status' in error &&
+  error.status === 409;
+
 export function OrcamentoDetalhe() {
   const [, params] = useRoute('/orcamentos/:id');
   const [, setLocation] = useLocation();
@@ -175,6 +181,14 @@ export function OrcamentoDetalhe() {
 
   const handleSchedule = () => {
     if (!aptDate || !aptTime || !aptEndTime) return;
+    if (aptEndTime <= aptTime) {
+      toast({
+        title: 'Intervalo inválido',
+        description: 'O horário de término deve ser posterior ao início.',
+        variant: 'destructive',
+      });
+      return;
+    }
     const startStr = `${aptDate}T${aptTime}:00`;
     const endStr = `${aptDate}T${aptEndTime}:00`;
 
@@ -190,6 +204,19 @@ export function OrcamentoDetalhe() {
         queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
         setAppointmentDialog(false);
         toast({ title: 'Agendamento criado', description: 'Atendimento agendado na agenda com sucesso.' });
+      },
+      onError: (error) => {
+        const conflict = isAppointmentConflictError(error);
+        if (conflict) {
+          void queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+        }
+        toast({
+          title: conflict ? 'Horário indisponível' : 'Erro ao agendar',
+          description: conflict
+            ? 'Esse horário já está ocupado para o profissional selecionado. Escolha outro horário.'
+            : 'Não foi possível agendar este atendimento.',
+          variant: 'destructive',
+        });
       }
     });
   };
@@ -442,7 +469,7 @@ export function OrcamentoDetalhe() {
             <div className="space-y-4">
               <div>
                 <label className="block text-[13px] font-semibold text-text-secondary mb-1.5">Profissional</label>
-                <select value={aptProf} onChange={e => setAptProf(parseInt(e.target.value))} className="w-full bg-surface-soft border border-border rounded-xl px-4 py-2.5 text-[14px]">
+                <select data-testid="select-quote-appointment-professional" value={aptProf} onChange={e => setAptProf(parseInt(e.target.value))} className="w-full bg-surface-soft border border-border rounded-xl px-4 py-2.5 text-[14px]">
                   <option value="">Sem preferência</option>
                   {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
@@ -450,21 +477,21 @@ export function OrcamentoDetalhe() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-[13px] font-semibold text-text-secondary mb-1.5">Data</label>
-                  <input type="date" value={aptDate} onChange={e => setAptDate(e.target.value)} className="w-full bg-surface-soft border border-border rounded-xl px-4 py-2.5 text-[14px]" />
+                  <input data-testid="input-quote-appointment-date" type="date" value={aptDate} onChange={e => setAptDate(e.target.value)} className="w-full bg-surface-soft border border-border rounded-xl px-4 py-2.5 text-[14px]" />
                 </div>
                 <div>
                   <label className="block text-[13px] font-semibold text-text-secondary mb-1.5">Início</label>
-                  <input type="time" value={aptTime} onChange={e => setAptTime(e.target.value)} className="w-full bg-surface-soft border border-border rounded-xl px-4 py-2.5 text-[14px]" />
+                  <input data-testid="input-quote-appointment-start" type="time" value={aptTime} onChange={e => setAptTime(e.target.value)} className="w-full bg-surface-soft border border-border rounded-xl px-4 py-2.5 text-[14px]" />
                 </div>
                 <div>
                   <label className="block text-[13px] font-semibold text-text-secondary mb-1.5">Término</label>
-                  <input type="time" value={aptEndTime} onChange={e => setAptEndTime(e.target.value)} className="w-full bg-surface-soft border border-border rounded-xl px-4 py-2.5 text-[14px]" />
+                  <input data-testid="input-quote-appointment-end" type="time" value={aptEndTime} onChange={e => setAptEndTime(e.target.value)} className="w-full bg-surface-soft border border-border rounded-xl px-4 py-2.5 text-[14px]" />
                 </div>
               </div>
             </div>
             <DialogFooter className="mt-8 border-t border-border/40 pt-4 gap-3">
               <button onClick={() => setAppointmentDialog(false)} className="px-4 py-2 rounded-xl font-medium text-text-secondary hover:bg-surface-soft">Cancelar</button>
-              <button onClick={handleSchedule} disabled={createAppointment.isPending} className="px-5 py-2 rounded-xl font-semibold bg-success text-white hover:bg-success/90 shadow-sm">
+              <button data-testid="button-confirm-quote-appointment" onClick={handleSchedule} disabled={createAppointment.isPending} className="px-5 py-2 rounded-xl font-semibold bg-success text-white hover:bg-success/90 shadow-sm">
                 Confirmar Agenda
               </button>
             </DialogFooter>
