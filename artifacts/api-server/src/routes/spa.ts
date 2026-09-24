@@ -203,6 +203,7 @@ type WhatsappConversationStatus = WhatsappConversation["status"];
 const FIRST_WHATSAPP_MESSAGE_DELAY_MS = 8_000;
 const OPENAI_TEXT_MODEL = process.env["OPENAI_API_KEY"] ? "gpt-5.4" : "gpt-5.6-luna";
 const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
+const processingWhatsappWebhookMessageIds = new Set<string>();
 
 const reactionForWhatsappMessage = (providerMessageId: string, text: string) => {
   const source = `${providerMessageId}:${text}`;
@@ -494,6 +495,18 @@ const appointmentDateTime = (start: string): Date | null => {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
   return null;
+};
+
+const localAgendaDate = () =>
+  new Intl.DateTimeFormat("sv-SE", { timeZone: whatsappAutomation.timezone }).format(new Date());
+
+const appointmentDateTimeInAgenda = (start: string, agendaDate = localAgendaDate()): Date | null => {
+  const parsed = appointmentDateTime(start);
+  if (parsed) return parsed;
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(start)) return null;
+  const time = start.length === 5 ? `${start}:00` : start;
+  const legacyDateTime = new Date(`${agendaDate}T${time}`);
+  return Number.isNaN(legacyDateTime.getTime()) ? null : legacyDateTime;
 };
 
 const formatAppointmentDate = (appointment: Appointment) => {
@@ -918,11 +931,23 @@ const getConversationHistory = async (phone: string) => {
     }));
 };
 
-const getFutureAgendaContext = () =>
-  appointments
-    .filter((appointment) => appointment.status === "confirmed")
-    .map((appointment) => `${appointment.start} | ${appointment.end} | ${appointment.service} | ${appointment.professional || "equipe"}`)
+const getFutureAgendaContext = () => {
+  const agendaDate = localAgendaDate();
+  return appointments
+    .filter((appointment) => appointment.status === "confirmed" || appointment.status === "in_progress")
+    .map((appointment) => {
+      const start = appointmentDateTimeInAgenda(appointment.start, agendaDate);
+      const end = appointmentDateTimeInAgenda(appointment.end, agendaDate);
+      const startLabel = start && /^\d{2}:\d{2}(?::\d{2})?$/.test(appointment.start)
+        ? `${agendaDate}T${appointment.start}`
+        : appointment.start;
+      const endLabel = end && /^\d{2}:\d{2}(?::\d{2})?$/.test(appointment.end)
+        ? `${agendaDate}T${appointment.end}`
+        : appointment.end;
+      return `${startLabel} | ${endLabel} | ${appointment.service} | ${appointment.professional || "equipe"}`;
+    })
     .join("\n") || "Nenhum agendamento futuro informado.";
+};
 
 const askWhatsappAgent = async (
   phone: string,
@@ -980,6 +1005,7 @@ REGRAS OBRIGATÓRIAS:
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
 - Para agendar, conduza a cliente passo a passo: confirme serviço, data, horário exato e nome, perguntando apenas o próximo item que faltar. “Amanhã” sem horário não é confirmação; pergunte qual horário ela prefere. Só crie appointment depois de confirmação explícita e sempre envie uma resposta curta.
 - Use datas ISO locais completas (AAAA-MM-DDTHH:mm) no campo appointment somente quando o cliente tiver informado data e horário exatos e confirmado que deseja agendar.
+- Consulte a AGENDA ATUAL antes de propor ou confirmar um horário. Nunca crie appointment em um horário ocupado; se houver conflito, explique que o horário não está disponível e peça outra opção.
 - Nunca marque appointment quando faltar serviço, data, horário ou confirmação explícita.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Caso contrário, document deve ser null.
 - Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
@@ -1003,9 +1029,11 @@ const isAppointmentConflict = (draft: AgentAppointmentDraft) => {
   const start = appointmentDateTime(draft.start)?.getTime();
   const end = appointmentDateTime(draft.end)?.getTime();
   if (start == null || end == null || end <= start) return true;
+  const agendaDate = localAgendaDate();
   return appointments.some((appointment) => {
-    const existingStart = appointmentDateTime(appointment.start)?.getTime();
-    const existingEnd = appointmentDateTime(appointment.end)?.getTime();
+    if (appointment.status !== "confirmed" && appointment.status !== "in_progress") return false;
+    const existingStart = appointmentDateTimeInAgenda(appointment.start, agendaDate)?.getTime();
+    const existingEnd = appointmentDateTimeInAgenda(appointment.end, agendaDate)?.getTime();
     if (existingStart == null || existingEnd == null) return false;
     const sameProfessional = !draft.professional || !appointment.professional ||
       normalizeName(draft.professional) === normalizeName(appointment.professional);
@@ -1014,9 +1042,29 @@ const isAppointmentConflict = (draft: AgentAppointmentDraft) => {
 };
 
 const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) => {
-  if (!draft.confirmed || isAppointmentConflict(draft)) return null;
+  if (!draft.confirmed) return null;
   const clientName = draft.clientName || phone;
   let client = clients.find((item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone));
+  const existingClientName = client?.name ?? clientName;
+  const draftStart = appointmentDateTime(draft.start)?.getTime();
+  const draftEnd = appointmentDateTime(draft.end)?.getTime();
+  if (draftStart == null || draftEnd == null || draftEnd <= draftStart) return null;
+  const existingForClient = client && appointments.find((appointment) => {
+    if (
+      appointment.status !== "confirmed" ||
+      normalizeName(appointment.client) !== normalizeName(existingClientName) ||
+      normalizeName(appointment.service) !== normalizeName(draft.service)
+    ) {
+      return false;
+    }
+    const existingStart = appointmentDateTimeInAgenda(appointment.start)?.getTime();
+    const existingEnd = appointmentDateTimeInAgenda(appointment.end)?.getTime();
+    const sameProfessional = !draft.professional || !appointment.professional ||
+      normalizeName(draft.professional) === normalizeName(appointment.professional);
+    return sameProfessional && existingStart === draftStart && existingEnd === draftEnd;
+  });
+  if (existingForClient) return existingForClient;
+  if (isAppointmentConflict(draft)) return null;
   if (!client) {
     client = {
       id: clients.length ? Math.max(...clients.map((item) => item.id)) + 1 : 1,
@@ -1611,6 +1659,33 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   }
   const remoteJid = String(key["remoteJid"] ?? "");
   const phone = remoteJid.split("@")[0];
+  const providerMessageId = typeof key["id"] === "string" ? key["id"] : null;
+  const normalizedPhone = normalizeWhatsappPhone(phone);
+  const processingKey = providerMessageId && normalizedPhone
+    ? `${normalizedPhone}:${providerMessageId}`
+    : null;
+  if (providerMessageId && normalizedPhone) {
+    const [existingInboundMessage] = await db
+      .select({ id: whatsappMessagesTable.id })
+      .from(whatsappMessagesTable)
+      .where(and(
+        eq(whatsappMessagesTable.providerMessageId, providerMessageId),
+        eq(whatsappMessagesTable.direction, "inbound"),
+      ))
+      .limit(1);
+    if (existingInboundMessage || (processingKey && processingWhatsappWebhookMessageIds.has(processingKey))) {
+      return void res.json(ReceiveEvolutionWebhookResponse.parse({
+        received: true,
+        action: "duplicate_ignored",
+      }));
+    }
+    if (processingKey) {
+      processingWhatsappWebhookMessageIds.add(processingKey);
+      const releaseProcessingKey = () => processingWhatsappWebhookMessageIds.delete(processingKey);
+      res.once("finish", releaseProcessingKey);
+      res.once("close", releaseProcessingKey);
+    }
+  }
   const rawMessage = (data["message"] as Record<string, unknown> | undefined) ?? {};
   const contentMessage = unwrapWhatsappMessage(rawMessage);
   const extended = contentMessage["extendedTextMessage"] as Record<string, unknown> | undefined;
@@ -1676,7 +1751,6 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_without_text" }));
   }
   if (!currentInput) currentInput = `Cliente: ${phone}\nMensagem: ${text}`;
-  const providerMessageId = typeof key["id"] === "string" ? key["id"] : null;
   const replyReference = providerMessageId
     ? {
         remoteJid: remoteJid || `${normalizeWhatsappPhone(phone)}@s.whatsapp.net`,
@@ -1786,7 +1860,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       currentInput,
     );
     let createdAppointment: Appointment | null = null;
-    if (decision.appointment) {
+    if (decision.appointment?.confirmed) {
       createdAppointment = addAppointmentFromAgent(phone, decision.appointment);
       if (!createdAppointment) {
         await sendWhatsappReply(
