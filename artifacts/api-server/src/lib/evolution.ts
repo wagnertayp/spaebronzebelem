@@ -11,6 +11,7 @@ type EvolutionConfig = {
 
 const PROVIDER_TIMEOUT_MS = 8_000;
 const VOICE_NOTE_RECORDING_DELAY_MS = 30_000;
+const VOICE_NOTE_SEND_TIMEOUT_MS = PROVIDER_TIMEOUT_MS + VOICE_NOTE_RECORDING_DELAY_MS;
 
 export type EvolutionInstance = {
   name: string;
@@ -566,7 +567,7 @@ export const sendEvolutionAudio = async (
           "Content-Type": "application/json",
           apikey: config.apiKey,
         },
-        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        signal: AbortSignal.timeout(VOICE_NOTE_SEND_TIMEOUT_MS),
         body: JSON.stringify({
           number: normalizeWhatsappPhone(phone),
           audio,
