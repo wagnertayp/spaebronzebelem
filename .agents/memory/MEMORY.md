@@ -4,4 +4,4 @@
 - [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own the greeting; server-side prefixes can duplicate it.
 - [WhatsApp PDF assets](whatsapp-pdf-assets.md) — API workflow runs below the workspace root, so document lookup needs an asset-path fallback.
 - [Human handoff rule](human-handoff-rule.md) — keep the AI in the conversation unless the client explicitly asks for a human.
-- [WhatsApp webhook idempotency](whatsapp-webhook-idempotency.md) — dedupe Evolution retries by provider message ID before AI or appointment side effects.
+- [WhatsApp booking integrity](whatsapp-webhook-idempotency.md) — dedupe webhook retries and validate AI booking drafts against the catalog and agenda; derive service end server-side.
