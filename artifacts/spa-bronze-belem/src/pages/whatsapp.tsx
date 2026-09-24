@@ -426,7 +426,7 @@ export function WhatsApp() {
               Confirmações e lembretes de agenda
             </h3>
             <p className="text-sm text-text-muted mt-1">
-              O sistema só envia quando o cliente tem telefone cadastrado e a agenda possui data completa.
+              Os lembretes são verificados a cada minuto. Exigem “Automação ativa”, o lembrete correspondente ligado, WhatsApp conectado, telefone cadastrado e data completa. O simulador do agente não envia mensagens nem testa lembretes.
             </p>
           </div>
           <Button onClick={handleSaveAutomation} disabled={updateWhatsappAutomation.isPending} className="gap-2 shrink-0">
@@ -465,6 +465,12 @@ export function WhatsApp() {
             );
           })}
         </div>
+
+        {!automationForm.enabled && (
+          <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            A automação está desligada. Ative “Automação ativa” e salve para permitir o envio dos lembretes.
+          </div>
+        )}
 
         <div className="pt-4 border-t border-border">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-3">
@@ -773,6 +779,7 @@ export function WhatsApp() {
                         rows={3}
                         className="w-full p-3 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm transition-all resize-none"
                       />
+                      <p className="text-xs text-text-muted">Informe o endereço completo. Apenas “Belém - PA” não basta para orientar a cliente.</p>
                     </div>
                   </div>
 
@@ -919,8 +926,8 @@ export function WhatsApp() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-text-primary text-sm">{formData.name || 'Agente IA'}</h3>
-                  <p className="text-[11px] text-success font-medium flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-success inline-block"></span> Online
+                  <p className="text-[11px] text-text-muted font-medium">
+                    Simulador de texto — não cria agendamentos nem envia WhatsApp ou lembretes
                   </p>
                 </div>
                 <div className="ml-auto">
@@ -935,7 +942,7 @@ export function WhatsApp() {
                   <div className="h-full flex flex-col items-center justify-center text-center text-text-muted p-6">
                     <Sparkles className="w-10 h-10 mb-4 opacity-50" />
                     <p className="text-sm font-medium">Simulador do Agente</p>
-                    <p className="text-[13px] mt-1 max-w-xs">As mensagens enviadas aqui usarão a configuração atual para gerar respostas reais da IA.</p>
+                    <p className="text-[13px] mt-1 max-w-xs">Digite mensagens fictícias para avaliar somente as respostas de texto do agente.</p>
                   </div>
                 )}
                 

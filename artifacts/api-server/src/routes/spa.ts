@@ -491,14 +491,6 @@ const normalizeCatalogLabel = (value: string) =>
 const findClientForAppointment = (appointment: Appointment) =>
   clients.find((client) => normalizeName(client.name) === normalizeName(appointment.client));
 
-const appointmentDateTime = (start: string): Date | null => {
-  if (/^\d{4}-\d{2}-\d{2}(?:T|\s)/.test(start)) {
-    const parsed = new Date(start);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-  return null;
-};
-
 const localAgendaDate = () =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: whatsappAutomation.timezone }).format(new Date());
 
@@ -595,10 +587,23 @@ const formatAppointmentDate = (appointment: Appointment) => {
   }).format(date);
 };
 
+const appointmentOperationalDetails = (includeHours: boolean) => {
+  const configuredHours = aiAgentConfig.businessHours.trim();
+  const address = aiAgentConfig.address.trim();
+  const normalizedAddress = normalizeCatalogLabel(address);
+  const isOnlyCityAndState = /^belem(?:\s*[-,]\s*(?:pa|para))?$/.test(normalizedAddress);
+  const details = [
+    includeHours && configuredHours ? `Funcionamos ${configuredHours}.` : null,
+    address && !isOnlyCityAndState ? `Endereço: ${address}.` : null,
+  ].filter((detail): detail is string => Boolean(detail));
+  return details.join(" ");
+};
+
 const appointmentScheduledReply = (appointment: Appointment) => {
   const formattedDate = formatAppointmentDate(appointment) ?? appointment.start;
   const professional = appointment.professional ? `, com ${appointment.professional}` : "";
-  return `Pronto! Seu atendimento de ${appointment.service} ficou agendado para ${formattedDate}${professional}. 🤎`;
+  const details = appointmentOperationalDetails(true);
+  return `Pronto! Seu atendimento de ${appointment.service} ficou agendado para ${formattedDate}${professional}.${details ? ` ${details}` : ""} 🤎`;
 };
 
 const toWhatsappMessage = (message: typeof whatsappMessagesTable.$inferSelect): WhatsappMessage => ({
@@ -730,13 +735,15 @@ const appointmentMessageText = (
 ) => {
   const formattedDate = formatAppointmentDate(appointment);
   if (!formattedDate) return null;
+  const professional = appointment.professional ? `, com ${appointment.professional}` : "";
+  const operationalDetails = appointmentOperationalDetails(kind === "confirmation");
   if (kind === "confirmation") {
-    return `Olá, ${appointment.client}! Seu atendimento no Spa e Bronze Belém está reservado para ${formattedDate}, com ${appointment.professional}, para ${appointment.service}. Responda CONFIRMAR para confirmar, REMARCAR para escolher outro horário ou CANCELAR para cancelar.`;
+    return `Olá, ${appointment.client}! Seu atendimento de ${appointment.service} está reservado para ${formattedDate}${professional}.${operationalDetails ? ` ${operationalDetails}` : ""} Responda CONFIRMAR para confirmar, REMARCAR para escolher outro horário ou CANCELAR para cancelar.`;
   }
   if (kind === "reminder24h") {
-    return `Olá, ${appointment.client}! Lembrando que seu atendimento será amanhã: ${formattedDate}, com ${appointment.professional}, para ${appointment.service}. Responda CONFIRMAR para confirmar sua presença.`;
+    return `Olá, ${appointment.client}! Lembrando que seu atendimento de ${appointment.service} será amanhã: ${formattedDate}${professional}.${operationalDetails ? ` ${operationalDetails}` : ""} Responda CONFIRMAR para confirmar sua presença.`;
   }
-  return `Olá, ${appointment.client}! Seu atendimento começa em aproximadamente 2 horas: ${formattedDate}, com ${appointment.professional}, para ${appointment.service}. Estamos esperando você.`;
+  return `Olá, ${appointment.client}! Seu atendimento de ${appointment.service} começa em aproximadamente 2 horas: ${formattedDate}${professional}.${operationalDetails ? ` ${operationalDetails}` : ""} Estamos esperando você.`;
 };
 
 const sendAppointmentMessage = async (
@@ -1110,6 +1117,7 @@ REGRAS OBRIGATÓRIAS:
 - Mantenha-se simpática, paciente e acolhedora em todas as respostas. Não use respostas genéricas quando houver contexto suficiente.
 - ${isFirstClientMessage ? "Esta é a primeira mensagem do cliente. Comece a resposta usando a saudação configurada, sem trocar por uma mensagem genérica de encaminhamento." : "Não repita a saudação configurada em todas as mensagens."}
 - Não invente preços, promoções, horários, contraindicações ou resultados.
+- Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
 - Para agendar, conduza a cliente passo a passo: confirme serviço, data, horário exato e nome, perguntando apenas o próximo item que faltar. “Amanhã” sem horário não é confirmação; pergunte qual horário ela prefere. Só crie appointment depois de confirmação explícita e sempre envie uma resposta curta.
 - No appointment, use exatamente o nome de um serviço cadastrado e o nome de um profissional ativo; deixe professional vazio se a cliente não tiver preferência. Nunca invente nomes.
@@ -1308,7 +1316,7 @@ export const runWhatsappReminders = async () => {
   const now = Date.now();
   for (const appointment of appointments) {
     if (appointment.status !== "confirmed") continue;
-    const date = appointmentDateTime(appointment.start);
+    const date = appointmentDateTimeInAgenda(appointment.start);
     if (!date) continue;
     const hours = (date.getTime() - now) / 3_600_000;
     if (whatsappAutomation.reminder24h && hours > 23 && hours <= 25) {
@@ -2000,8 +2008,8 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   const client = clients.find((item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone));
   const appointment = appointments
     .filter((item) => item.status === "confirmed" && client && normalizeName(item.client) === normalizeName(client.name))
-    .filter((item) => (appointmentDateTime(item.start)?.getTime() ?? Number.MAX_SAFE_INTEGER) > Date.now())
-    .sort((a, b) => (appointmentDateTime(a.start)?.getTime() ?? 0) - (appointmentDateTime(b.start)?.getTime() ?? 0))[0];
+    .filter((item) => (appointmentDateTimeInAgenda(item.start)?.getTime() ?? Number.MAX_SAFE_INTEGER) > Date.now())
+    .sort((a, b) => (appointmentDateTimeInAgenda(a.start)?.getTime() ?? 0) - (appointmentDateTimeInAgenda(b.start)?.getTime() ?? 0))[0];
   const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const [previousInboundMessage] = await db
     .select({ id: whatsappMessagesTable.id })
@@ -2433,6 +2441,7 @@ Regras obrigatórias:
 - Responda em português do Brasil.
 - Use somente os serviços, preços, durações e informações fornecidas acima.
 - Nunca invente preço, promoção, disponibilidade ou política.
+- Quando perguntarem sobre funcionamento, localização ou endereço, use os dados configurados. Não invente endereço nem trate apenas “Belém - PA” como endereço completo.
 - Quando faltar informação, explique com simpatia que não tem esse dado e faça uma única pergunta curta; não encaminhe para uma atendente.
 - Para agendar, confirme serviço, data, horário exato e nome, um item por vez; “amanhã” sem horário exige uma pergunta sobre o horário. Só considere confirmado quando a cliente disser explicitamente que quer marcar.
 - Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano; reclamações, dúvidas clínicas, negociação e falta de informação continuam na conversa.
