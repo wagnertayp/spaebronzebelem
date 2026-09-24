@@ -17,4 +17,5 @@ export const WhatsappMessageKind = {
   handoff: 'handoff',
   document: 'document',
   audio: 'audio',
+  image: 'image',
 } as const;

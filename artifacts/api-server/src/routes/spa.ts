@@ -155,6 +155,7 @@ import {
   sendEvolutionDocument,
   getEvolutionMedia,
   sendEvolutionAudio,
+  sendEvolutionSessionPreparationImage,
   type EvolutionReplyReference,
   type WhatsappAudioClip,
   sendEvolutionText,
@@ -660,7 +661,12 @@ const sendAppointmentMessage = async (
     ))
     .orderBy(desc(whatsappMessagesTable.createdAt))
     .limit(1);
-  if (existing) return toWhatsappMessage(existing);
+  if (existing) {
+    if (kind === "confirmation" && client && phone) {
+      await sendWhatsappSessionPreparationImage(appointment, phone, client.name);
+    }
+    return toWhatsappMessage(existing);
+  }
 
   if (!client || !phone || !text) {
     return await addWhatsappMessage({
@@ -688,11 +694,15 @@ const sendAppointmentMessage = async (
     error: null,
   });
   const result = await sendEvolutionText(phone, text);
-  return (await updateWhatsappMessage(pending.id, {
+  const updated = (await updateWhatsappMessage(pending.id, {
     status: result.ok ? "sent" : "failed",
     providerMessageId: result.providerMessageId,
     error: result.error,
   })) ?? pending;
+  if (kind === "confirmation") {
+    await sendWhatsappSessionPreparationImage(appointment, phone, client.name);
+  }
+  return updated;
 };
 
 const sendWhatsappReply = async (
@@ -747,6 +757,53 @@ const sendWhatsappDocumentMessage = async (
     providerMessageId: result.providerMessageId,
     error: result.error,
   })) ?? item;
+};
+
+const sendWhatsappSessionPreparationImage = async (
+  appointment: Appointment,
+  phone: string,
+  clientName: string,
+) => {
+  const service = serviceForAppointment(appointment);
+  const serviceLabel = normalizeName(`${appointment.service} ${service?.category ?? ""}`);
+  if (!serviceLabel.includes("bronze")) return null;
+
+  const caption = "Para sua sessão de bronzeamento, traga 1 toalha e 1 protetor solar facial. Venha com roupa escura e leve e com a pele limpa, sem cremes ou hidratantes.";
+  const [existing] = await db
+    .select()
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.appointmentId, appointment.id),
+      eq(whatsappMessagesTable.kind, "image"),
+      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
+    ))
+    .orderBy(desc(whatsappMessagesTable.createdAt))
+    .limit(1);
+  if (existing) return toWhatsappMessage(existing);
+
+  const pending = await addWhatsappMessage({
+    direction: "outbound",
+    phone: normalizeWhatsappPhone(phone),
+    clientName,
+    appointmentId: appointment.id,
+    text: caption,
+    status: "pending",
+    kind: "image",
+    providerMessageId: null,
+    error: null,
+  });
+  const result = await sendEvolutionSessionPreparationImage(phone, caption);
+  if (!result.ok) {
+    logger.warn(
+      { err: result.error, phone, appointmentId: appointment.id },
+      "WhatsApp session preparation image send failed",
+    );
+  }
+  return (await updateWhatsappMessage(pending.id, {
+    status: result.ok ? "sent" : "failed",
+    providerMessageId: result.providerMessageId,
+    error: result.error,
+  })) ?? pending;
 };
 
 const sendWhatsappAudioMessage = async (
@@ -1780,6 +1837,13 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       "reply",
       replyReference,
     );
+    if (createdAppointment) {
+      await sendWhatsappSessionPreparationImage(
+        createdAppointment,
+        phone,
+        client?.name ?? decision.appointment?.clientName ?? phone,
+      );
+    }
     return void res.json(ReceiveEvolutionWebhookResponse.parse({
       received: true,
       action: createdAppointment ? "scheduled" : "replied",

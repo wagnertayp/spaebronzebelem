@@ -57,6 +57,11 @@ const audioFiles: Record<WhatsappAudioClip, { path: string }> = {
   },
 };
 
+const sessionPreparationImageFile = {
+  path: "O_Q_LEVAR_1790254581922.jpeg",
+  fileName: "orientacoes-para-sessao-de-bronzeamento.jpeg",
+};
+
 const readWhatsappAsset = async (fileName: string) => {
   const candidates = [
     resolve(process.cwd(), "attached_assets", fileName),
@@ -474,6 +479,70 @@ export const sendEvolutionDocument = async (
       ok: false,
       providerMessageId: null,
       error: error instanceof Error ? error.message : "Falha de conexão com a Evolution API",
+    };
+  }
+};
+
+export const sendEvolutionSessionPreparationImage = async (
+  phone: string,
+  caption: string,
+): Promise<EvolutionSendResult> => {
+  const config = getEvolutionConfig();
+  if (!config || !config.instance) {
+    return { ok: false, providerMessageId: null, error: "WhatsApp não configurado" };
+  }
+
+  try {
+    const media = (await readWhatsappAsset(sessionPreparationImageFile.path)).toString("base64");
+    const response = await fetch(
+      `${config.baseUrl}/message/sendMedia/${encodeURIComponent(config.instance)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: config.apiKey,
+        },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        body: JSON.stringify({
+          number: normalizeWhatsappPhone(phone),
+          mediatype: "image",
+          mimetype: "image/jpeg",
+          caption,
+          media,
+          fileName: sessionPreparationImageFile.fileName,
+        }),
+      },
+    );
+    const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok) {
+      const providerError = typeof body.message === "string"
+        ? body.message
+        : typeof body.error === "string"
+          ? body.error
+          : typeof body.response === "string"
+            ? body.response
+            : JSON.stringify(body).slice(0, 500) || "resposta vazia do provedor";
+      return {
+        ok: false,
+        providerMessageId: null,
+        error: `Evolution API ${response.status}: ${providerError}`,
+      };
+    }
+    const key = body.key as Record<string, unknown> | undefined;
+    return {
+      ok: true,
+      providerMessageId: typeof key?.id === "string"
+        ? key.id
+        : typeof body.messageId === "string"
+          ? body.messageId
+          : null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      providerMessageId: null,
+      error: error instanceof Error ? error.message : "Falha ao enviar a imagem pelo WhatsApp",
     };
   }
 };

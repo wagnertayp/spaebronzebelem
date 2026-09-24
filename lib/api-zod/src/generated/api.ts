@@ -193,7 +193,7 @@ export const ListWhatsappMessagesResponseItem = zod.object({
   "appointmentId": zod.number().int().nullable(),
   "text": zod.string(),
   "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
-  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document', 'audio']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document', 'audio', 'image']),
   "providerMessageId": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()
@@ -287,7 +287,7 @@ export const SendWhatsappReplyResponse = zod.object({
   "appointmentId": zod.number().int().nullable(),
   "text": zod.string(),
   "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
-  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document', 'audio']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document', 'audio', 'image']),
   "providerMessageId": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()
@@ -317,7 +317,7 @@ export const SendWhatsappDocumentResponse = zod.object({
   "appointmentId": zod.number().int().nullable(),
   "text": zod.string(),
   "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
-  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document', 'audio']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document', 'audio', 'image']),
   "providerMessageId": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()
@@ -341,7 +341,7 @@ export const SendWhatsappAppointmentConfirmationResponse = zod.object({
   "appointmentId": zod.number().int().nullable(),
   "text": zod.string(),
   "status": zod.enum(['pending', 'sent', 'delivered', 'received', 'skipped', 'failed']),
-  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document', 'audio']),
+  "kind": zod.enum(['confirmation', 'reminder24h', 'reminder2h', 'reply', 'handoff', 'document', 'audio', 'image']),
   "providerMessageId": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()
