@@ -6,4 +6,4 @@
 - [Human handoff rule](human-handoff-rule.md) — keep the AI in the conversation unless the client explicitly asks for a human.
 - [WhatsApp booking integrity](whatsapp-webhook-idempotency.md) — dedupe webhook retries, validate AI bookings, derive service end server-side, and parse local agenda times in the configured timezone.
 - [OpenAPI date codegen](openapi-date-codegen.md) — date-formatted strings can become `Date` in generated Zod types but stay strings in the React client.
-- [Drizzle migration generation](drizzle-migration-generation.md) — keep output paths in config; this Drizzle Kit version rejects generate flags combined with `--config`.
+- [Drizzle migration generation](drizzle-migration-generation.md) — keep a package-relative `out` in config; this version rejects extra generate flags with `--config`.

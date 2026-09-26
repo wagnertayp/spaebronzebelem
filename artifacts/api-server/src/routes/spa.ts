@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -145,6 +145,11 @@ import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-op
 import backup from "../data/spa-backup.json";
 import { logger } from "../lib/logger";
 import { requireSession } from "../lib/auth";
+import { createSpaOperationalStateStore } from "../lib/spa-state-store";
+import {
+  acquireSpaOperationalStateLock,
+  spaOperationalStateRepository,
+} from "../lib/spa-state-repository";
 import {
   getEvolutionConfig,
   connectEvolutionInstance,
@@ -1468,7 +1473,7 @@ const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) =>
 
   if (!client) {
     client = {
-      id: clients.length ? Math.max(...clients.map((item) => item.id)) + 1 : 1,
+      id: nextId(clients),
       name: clientName,
       initials: getInitials(clientName),
       lastVisit: "",
@@ -1482,7 +1487,7 @@ const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) =>
     clients.unshift(client);
   }
   const appointment: Appointment = {
-    id: appointments.length ? Math.max(...appointments.map((item) => item.id)) + 1 : 1,
+    id: nextId(appointments),
     start,
     end,
     client: client.name,
@@ -1508,6 +1513,17 @@ const agentAppointmentFailureReply = (reason: AgentAppointmentFailure) => {
 };
 
 export const runWhatsappReminders = async () => {
+  await ensureSpaOperationalStateLoaded();
+  await spaOperationalStateWriteQueue;
+  if (spaOperationalStateStore.status === "ready") {
+    await refreshSpaOperationalState();
+  }
+  if (
+    process.env["NODE_ENV"] === "production" &&
+    spaOperationalStateStore.status !== "ready"
+  ) {
+    return;
+  }
   await loadWhatsappSettings();
   if (!whatsappAutomation.enabled) return;
   const now = Date.now();
@@ -1852,6 +1868,168 @@ const getInitials = (name: string) =>
   name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const nextId = (items: Array<{ id: number }>) =>
+  Math.max(0, ...items.map((item) => item.id)) + 1;
+
+type SpaOperationalSnapshot = {
+  version: 1;
+  appointments: Appointment[];
+  professionals: Professional[];
+  commissionConfigs: CommissionConfig[];
+  commissionRules: CommissionRule[];
+  commissionClosures: CommissionClosure[];
+  commissionAudit: CommissionAudit[];
+  financialMovements: FinancialMovement[];
+  clients: typeof clients;
+  leads: Lead[];
+  quotes: Quote[];
+  services: typeof services;
+  inventory: typeof inventory;
+};
+
+const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
+  version: 1,
+  appointments: clone(appointments),
+  professionals: clone(professionals),
+  commissionConfigs: clone([...commissionConfigs.values()]),
+  commissionRules: clone(commissionRules),
+  commissionClosures: clone(commissionClosures),
+  commissionAudit: clone(commissionAudit),
+  financialMovements: clone(financialMovements),
+  clients: clone(clients),
+  leads: clone(leads),
+  quotes: clone(quotes),
+  services: clone(services),
+  inventory: clone(inventory),
+});
+
+const restoreSpaOperationalSnapshot = (value: unknown) => {
+  if (!value || typeof value !== "object") {
+    throw new Error("Stored SPA operational state is not an object.");
+  }
+  const candidate = value as Record<string, unknown>;
+  const collectionKeys = [
+    "appointments",
+    "professionals",
+    "commissionConfigs",
+    "commissionRules",
+    "commissionClosures",
+    "commissionAudit",
+    "financialMovements",
+    "clients",
+    "leads",
+    "quotes",
+    "services",
+    "inventory",
+  ] as const;
+  if (
+    candidate.version !== 1 ||
+    collectionKeys.some((key) => !Array.isArray(candidate[key]))
+  ) {
+    throw new Error("Stored SPA operational state has an unsupported shape.");
+  }
+
+  const snapshot = candidate as unknown as SpaOperationalSnapshot;
+  const replace = <T>(target: T[], source: T[]) => {
+    target.splice(0, target.length, ...source);
+  };
+  replace(appointments, snapshot.appointments);
+  replace(professionals, snapshot.professionals);
+  replace(commissionRules, snapshot.commissionRules);
+  replace(commissionClosures, snapshot.commissionClosures);
+  replace(commissionAudit, snapshot.commissionAudit);
+  replace(financialMovements, snapshot.financialMovements);
+  replace(clients, snapshot.clients);
+  replace(leads, snapshot.leads);
+  replace(quotes, snapshot.quotes);
+  replace(services, snapshot.services);
+  replace(inventory, snapshot.inventory);
+  commissionConfigs.clear();
+  for (const config of snapshot.commissionConfigs) {
+    commissionConfigs.set(config.professionalId, config);
+  }
+};
+
+const spaOperationalStateStore = createSpaOperationalStateStore({
+  repository: spaOperationalStateRepository,
+  createSnapshot: createSpaOperationalSnapshot,
+  restoreSnapshot: restoreSpaOperationalSnapshot,
+  importApproved:
+    process.env["SPA_INITIAL_IMPORT_APPROVED"] === "true" &&
+    process.env["SPA_INITIAL_BACKUP_CONFIRMED"] === "true",
+  version: 1,
+});
+let spaStateTableUnavailable = false;
+let spaStateTableWarningLogged = false;
+let spaStateImportLogged = false;
+let spaStateEverReady = false;
+let spaStateMemoryFallbackEnabled = false;
+
+const postgresErrorCode = (error: unknown): string | undefined => {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    const candidate = current as { code?: unknown; cause?: unknown };
+    if (typeof candidate.code === "string") return candidate.code;
+    current = candidate.cause;
+  }
+  return undefined;
+};
+
+const markSpaStateTableUnavailable = () => {
+  spaStateMemoryFallbackEnabled =
+    !spaStateEverReady && process.env["NODE_ENV"] === "development";
+  spaOperationalStateStore.markNotInitialized();
+  spaStateTableUnavailable = true;
+  if (!spaStateTableWarningLogged) {
+    logger.warn(
+      "SPA operational-state table is unavailable; persistence is disabled until it is migrated.",
+    );
+    spaStateTableWarningLogged = true;
+  }
+};
+
+const ensureSpaOperationalStateLoaded = async () => {
+  if (spaStateTableUnavailable) return;
+  try {
+    await spaOperationalStateStore.ensureLoaded();
+  } catch (error) {
+    if (postgresErrorCode(error) !== "42P01") throw error;
+    markSpaStateTableUnavailable();
+    return;
+  }
+
+  if (spaOperationalStateStore.status === "ready") spaStateEverReady = true;
+  if (spaOperationalStateStore.importedInitialState && !spaStateImportLogged) {
+    const snapshot = createSpaOperationalSnapshot();
+    logger.info(
+      {
+        counts: {
+          appointments: snapshot.appointments.length,
+          clients: snapshot.clients.length,
+          professionals: snapshot.professionals.length,
+          services: snapshot.services.length,
+          inventory: snapshot.inventory.length,
+          financialMovements: snapshot.financialMovements.length,
+          quotes: snapshot.quotes.length,
+        },
+      },
+      "Imported the approved initial SPA dataset into PostgreSQL.",
+    );
+    spaStateImportLogged = true;
+  }
+};
+
+const refreshSpaOperationalState = async () => {
+  if (spaStateTableUnavailable) return;
+  try {
+    await spaOperationalStateStore.refresh();
+    if (spaOperationalStateStore.status === "ready") spaStateEverReady = true;
+  } catch (error) {
+    if (postgresErrorCode(error) !== "42P01") throw error;
+    markSpaStateTableUnavailable();
+  }
+};
+
 const parseMoney = (value: string | number | undefined): number | null => {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value !== "string") return null;
@@ -1991,6 +2169,153 @@ const getInventoryStatus = (stock: number, minimumStock: number, nextExpiration:
   return "ok" as const;
 };
 
+let spaOperationalStateWriteQueue = Promise.resolve();
+const acquireSpaOperationalStateWriteLock = async () => {
+  let unlock!: () => void;
+  const lock = new Promise<void>((resolve) => {
+    unlock = resolve;
+  });
+  const previous = spaOperationalStateWriteQueue;
+  spaOperationalStateWriteQueue = previous.then(() => lock);
+  await previous;
+  return unlock;
+};
+
+const mutatesOperationalState = (req: Request) =>
+  !["GET", "HEAD", "OPTIONS"].includes(req.method) ||
+  (req.method === "GET" &&
+    (req.path.startsWith("/public/quotes/") ||
+      /^\/professionals\/\d+\/commission-config$/.test(req.path)));
+
+router.use(async (req, res, next) => {
+  let releaseProcessLock: (() => void) | undefined;
+  let releaseDatabaseLock: (() => Promise<void>) | undefined;
+  let releasePromise: Promise<void> | undefined;
+  const releaseHeldLocks = () => {
+    if (!releasePromise) {
+      releasePromise = (async () => {
+        try {
+          await releaseDatabaseLock?.();
+        } catch (error) {
+          logger.error({ err: error }, "Failed to release SPA operational-state database lock");
+        } finally {
+          releaseProcessLock?.();
+          releaseProcessLock = undefined;
+        }
+      })();
+    }
+    return releasePromise;
+  };
+  const respondStateNotInitialized = () =>
+    res.status(503).json({
+      error:
+        "Os dados do spa ainda não foram inicializados no PostgreSQL. Faça e confirme um backup antes de habilitar a importação inicial.",
+    });
+
+  try {
+    await ensureSpaOperationalStateLoaded();
+    const isMutation = mutatesOperationalState(req);
+
+    if (!isMutation && spaOperationalStateStore.status === "ready") {
+      await spaOperationalStateWriteQueue;
+      await refreshSpaOperationalState();
+    }
+
+    if (spaOperationalStateStore.status !== "ready") {
+      if (!spaStateMemoryFallbackEnabled) {
+        respondStateNotInitialized();
+        return;
+      }
+      next();
+      return;
+    }
+
+    if (!isMutation) {
+      next();
+      return;
+    }
+
+    releaseProcessLock = await acquireSpaOperationalStateWriteLock();
+    releaseDatabaseLock = await acquireSpaOperationalStateLock();
+    await refreshSpaOperationalState();
+    if (spaOperationalStateStore.status !== "ready") {
+      await releaseHeldLocks();
+      if (!spaStateMemoryFallbackEnabled) {
+        respondStateNotInitialized();
+        return;
+      }
+      next();
+      return;
+    }
+
+    const before = createSpaOperationalSnapshot();
+    let responseEndStarted = false;
+
+    res.once("close", () => {
+      if (responseEndStarted) return;
+      restoreSpaOperationalSnapshot(before);
+      void releaseHeldLocks();
+    });
+
+    const originalEnd = res.end.bind(res);
+    res.end = ((...args: Parameters<typeof res.end>) => {
+      if (responseEndStarted) return res;
+      responseEndStarted = true;
+
+      if (res.statusCode >= 500) {
+        restoreSpaOperationalSnapshot(before);
+        void releaseHeldLocks().then(() => originalEnd(...args));
+        return res;
+      }
+
+      void spaOperationalStateStore
+        .persist()
+        .then(async () => {
+          await releaseHeldLocks();
+          try {
+            originalEnd(...args);
+          } catch (error) {
+            logger.error({ err: error }, "Failed to finish SPA response after persisting state");
+            throw error;
+          }
+        })
+        .catch(async (error: unknown) => {
+          restoreSpaOperationalSnapshot(before);
+          logger.error(
+            { err: error, method: req.method, path: req.path },
+            "Failed to persist SPA operational state",
+          );
+          if (res.headersSent) {
+            res.destroy(error instanceof Error ? error : undefined);
+            await releaseHeldLocks();
+            return;
+          }
+
+          res.statusCode = 500;
+          res.removeHeader("Content-Length");
+          res.removeHeader("ETag");
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          try {
+            originalEnd(
+              JSON.stringify({
+                error: "Não foi possível salvar os dados. Tente novamente.",
+              }),
+            );
+          } finally {
+            await releaseHeldLocks();
+          }
+        });
+
+      return res;
+    }) as typeof res.end;
+
+    next();
+  } catch (error) {
+    await releaseHeldLocks();
+    next(error);
+  }
+});
+
 router.get("/dashboard", (_req, res) => {
   const data = GetDashboardResponse.parse({
     greeting: "Bom dia, Wagner",
@@ -2072,7 +2397,7 @@ router.post("/appointments", (req, res) => {
     return;
   }
   const appointment: Appointment = {
-    id: Math.max(...appointments.map((item) => item.id)) + 1,
+    id: nextId(appointments),
     ...input,
     professional: professionalName,
     professionalId,
@@ -2636,7 +2961,7 @@ router.post("/clients", (req, res) => {
   if (normalizedPhone && clients.some((client) => client.phone.replace(/\D/g, "") === normalizedPhone)) {
     return void res.status(409).json({ error: "Já existe um cliente com este telefone" });
   }
-  const id = clients.length ? Math.max(...clients.map((item) => item.id)) + 1 : 1;
+  const id = nextId(clients);
   const client = { id, initials: getInitials(input.name), lastVisit: "", ...input };
   clients.unshift(client);
   res.status(201).json(CreateClientResponse.parse(client));
@@ -2666,7 +2991,7 @@ router.get("/leads", (_req, res) => {
 router.post("/leads", (req, res) => {
   const input = CreateLeadBody.parse(req.body);
   const lead: Lead = {
-    id: Math.max(...leads.map((item) => item.id)) + 1,
+    id: nextId(leads),
     ...input,
     initials: input.name
       .split(/\s+/)
@@ -2933,7 +3258,7 @@ router.post("/quotes", (req, res) => {
     0,
   );
   const discount = Math.min(input.discountMode === "percent" ? subtotal * input.discountValue / 100 : input.discountValue, subtotal);
-  const id = quotes.length > 0 ? Math.max(...quotes.map((quote) => quote.id)) + 1 : 1;
+  const id = nextId(quotes);
   const quote: Quote = {
     ...input,
     items,
@@ -3039,7 +3364,7 @@ router.post("/quotes/:id/appointment", (req, res) => {
     return;
   }
   const appointment: Appointment = {
-    id: Math.max(...appointments.map((entry) => entry.id)) + 1,
+    id: nextId(appointments),
     start: input.start,
     end: input.end,
     client: quote.clientName,
@@ -3062,7 +3387,7 @@ router.post("/quotes/:id/payment", (req, res) => {
   if (!quote) return void res.status(404).json({ error: "Orçamento não encontrado" });
   if (quote.status !== "approved") return void res.status(400).json({ error: "Apenas orçamentos aprovados podem receber pagamento" });
   if (quote.paidAt || financialMovements.some((entry) => entry.quoteId === id)) return void res.status(409).json({ error: "Este orçamento já possui pagamento" });
-  const movement: FinancialMovement = { id: Math.max(...financialMovements.map((entry) => entry.id)) + 1, type: "revenue", date: new Date().toISOString().slice(0, 10), description: `Pagamento do orçamento ${quote.number}`, category: "Orçamentos", amount: input.amount, status: "paid", client: quote.clientName, service: "", professional: "", quoteId: id, paymentMethod: input.paymentMethod, source: "quote" };
+  const movement: FinancialMovement = { id: nextId(financialMovements), type: "revenue", date: new Date().toISOString().slice(0, 10), description: `Pagamento do orçamento ${quote.number}`, category: "Orçamentos", amount: input.amount, status: "paid", client: quote.clientName, service: "", professional: "", quoteId: id, paymentMethod: input.paymentMethod, source: "quote" };
   financialMovements.unshift(movement); quote.paidAt = new Date().toISOString(); res.status(201).json(movement);
 });
 
