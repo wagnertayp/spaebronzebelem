@@ -110,6 +110,7 @@ const pairingCodeFromResponse = (body: Record<string, unknown>): string | null =
 const getEvolutionWebhookUrl = () => {
   const configuredUrl = process.env["EVOLUTION_WEBHOOK_URL"]?.trim();
   if (configuredUrl) return configuredUrl;
+  if (process.env["NODE_ENV"] === "production") return null;
   const devDomain = process.env["REPLIT_DEV_DOMAIN"]?.trim();
   return devDomain ? `https://${devDomain}/api/integrations/evolution/webhook` : null;
 };

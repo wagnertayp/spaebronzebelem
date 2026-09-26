@@ -1,14 +1,38 @@
-import { createHmac, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
 const COOKIE_NAME = "spa_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
-const USERNAME = "123kali";
-const PASSWORD_SALT = "spa-bronze-login-v1";
-const PASSWORD_DIGEST = Buffer.from(
+const isProduction = process.env["NODE_ENV"] === "production";
+const configuredUsername = process.env["SPA_ADMIN_USERNAME"]?.trim();
+const configuredPassword = process.env["SPA_ADMIN_PASSWORD"];
+const configuredCredentialsProvided = Boolean(configuredUsername || configuredPassword);
+
+if (configuredCredentialsProvided && (!configuredUsername || !configuredPassword)) {
+  throw new Error("Configure SPA_ADMIN_USERNAME and SPA_ADMIN_PASSWORD together.");
+}
+if (isProduction && (!configuredUsername || !configuredPassword)) {
+  throw new Error("SPA_ADMIN_USERNAME and SPA_ADMIN_PASSWORD are required in production.");
+}
+if (
+  isProduction &&
+  (!process.env["SESSION_SECRET"]?.trim() || process.env["SESSION_SECRET"].length < 32)
+) {
+  throw new Error("A stable SESSION_SECRET with at least 32 characters is required in production.");
+}
+
+const USERNAME = configuredUsername ?? "123kali";
+const PASSWORD_SALT = configuredCredentialsProvided
+  ? randomBytes(16)
+  : "spa-bronze-login-v1";
+const PASSWORD_DIGEST = configuredPassword
+  ? scryptSync(configuredPassword, PASSWORD_SALT, 32)
+  : Buffer.from(
   "53a2b218dfc01ad4a6ef776513a2dbc78be548950ebdc062c727fd2d284a2acd",
   "hex",
-);
+  );
+
+export const getAdminUsername = () => USERNAME;
 
 const getSecret = () => {
   const secret = process.env.SESSION_SECRET;

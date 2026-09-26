@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   clearSessionCookie,
   createSession,
+  getAdminUsername,
   readSession,
   setSessionCookie,
   verifyCredentials,
@@ -14,9 +15,10 @@ router.post("/auth/login", (req, res) => {
   if (!verifyCredentials(req.body?.username, req.body?.password)) {
     return void res.status(401).json({ error: "Usuário ou senha inválidos" });
   }
-  const token = createSession("123kali");
+  const username = getAdminUsername();
+  const token = createSession(username);
   setSessionCookie(res, token);
-  res.json({ user: { username: "123kali" } });
+  res.json({ user: { username } });
 });
 
 router.post("/auth/logout", (_req, res) => {
