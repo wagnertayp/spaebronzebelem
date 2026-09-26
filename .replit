@@ -29,3 +29,5 @@ packages = ["freetype", "gumbo", "harfbuzz", "jbig2dec", "libjpeg_turbo", "mupdf
 EVOLUTION_API_URL = "https://api.sincrostudio.pro"
 EVOLUTION_TIMEZONE = "America/Belem"
 EVOLUTION_INSTANCE = "spa-08c7cff6"
+
+[userenv.development]
