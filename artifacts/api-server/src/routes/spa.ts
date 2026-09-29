@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -129,6 +129,14 @@ import {
   PayCommissionPeriodParams,
   PayCommissionPeriodBody,
   PayCommissionPeriodResponse,
+  ListStaffAccessAccountsResponse,
+  CreateStaffAccessAccountBody,
+  CreateStaffAccessAccountResponse,
+  UpdateStaffAccessAccountParams,
+  UpdateStaffAccessAccountBody,
+  UpdateStaffAccessAccountResponse,
+  ResetStaffAccessPasswordParams,
+  ResetStaffAccessPasswordResponse,
   ListCommissionAuditQueryParams,
   ListCommissionAuditResponse,
   ListArchivedRecordsResponse,
@@ -137,6 +145,7 @@ import {
 } from "@workspace/api-zod";
 import {
   db,
+  staffAccessAccountsTable,
   whatsappConversationsTable,
   whatsappFollowupsTable,
   whatsappMessagesTable,
@@ -147,7 +156,14 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import backup from "../data/spa-backup.json";
 import { logger } from "../lib/logger";
-import { requireSession } from "../lib/auth";
+import {
+  createPasswordRecord,
+  generateTemporaryPassword,
+  getAdminUsername,
+  isStaffSpaRequestAllowed,
+  requireSession,
+  type AuthenticatedSession,
+} from "../lib/auth";
 import { createSpaOperationalStateStore } from "../lib/spa-state-store";
 import {
   acquireSpaOperationalStateLock,
@@ -177,6 +193,14 @@ const router: IRouter = Router();
 router.use((req, res, next) => {
   if (req.path.startsWith("/public/") || req.path === "/integrations/evolution/webhook") return next();
   return requireSession(req, res, next);
+});
+router.use((req, res, next) => {
+  const session = res.locals.session as AuthenticatedSession | undefined;
+  if (!session || isStaffSpaRequestAllowed(session, req.method, req.path)) {
+    next();
+    return;
+  }
+  res.status(403).json({ error: "Seu acesso não permite esta área." });
 });
 
 type AppointmentStatus =
@@ -551,6 +575,24 @@ const saveWhatsappSettings = async () => {
 const normalizeName = (value: string) => value.trim().toLocaleLowerCase("pt-BR");
 const normalizeCatalogLabel = (value: string) =>
   normalizeName(value).normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/\s+/g, " ");
+const requestSession = (res: Response) => res.locals.session as AuthenticatedSession;
+const disableStaffAccessForProfessional = async (professionalId: number) => {
+  await db
+    .update(staffAccessAccountsTable)
+    .set({
+      active: false,
+      sessionVersion: sql`${staffAccessAccountsTable.sessionVersion} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(eq(staffAccessAccountsTable.professionalId, professionalId));
+};
+const appointmentBelongsToProfessional = (appointment: Appointment, professionalId: number) => {
+  const professional = professionals.find((item) => item.id === professionalId);
+  return appointment.professionalId === professionalId ||
+    (appointment.professionalId == null &&
+      Boolean(professional) &&
+      normalizeName(appointment.professional) === normalizeName(professional!.name));
+};
 const findClientForAppointment = (appointment: Appointment) =>
   clients.find((client) => normalizeName(client.name) === normalizeName(appointment.client));
 
@@ -2523,6 +2565,11 @@ router.post("/archive/bulk", async (req, res): Promise<void> => {
         .filter((target): target is ArchivedSpaRecord => target !== null)
         .map((target) => [`${target.entity}:${target.id}`, target]),
     ).values()];
+    await Promise.all(
+      resolvedTargets
+        .filter((target) => target.entity === "professional" && /^\d+$/.test(target.id))
+        .map((target) => disableStaffAccessForProfessional(Number(target.id))),
+    );
     let changedCount = 0;
     const records = resolvedTargets.map((target) => {
       const result = archiveResolvedSpaRecord(target);
@@ -2570,9 +2617,15 @@ router.post("/archive/bulk", async (req, res): Promise<void> => {
 });
 
 router.get("/appointments", (req, res) => {
+  const session = requestSession(res);
   const { date } = ListAppointmentsQueryParams.parse(req.query);
   const today = new Date().toLocaleDateString("sv-SE");
-  const visibleAppointments = activeSpaRecords("appointment", appointments);
+  let visibleAppointments = activeSpaRecords("appointment", appointments);
+  if (session.role === "staff" && session.agendaScope === "own") {
+    visibleAppointments = visibleAppointments.filter((appointment) =>
+      appointmentBelongsToProfessional(appointment, session.professionalId!),
+    );
+  }
   const filtered = date
     ? visibleAppointments.filter((appointment) => {
         if (/^\d{2}:\d{2}/.test(appointment.start)) return date === today;
@@ -2584,12 +2637,28 @@ router.get("/appointments", (req, res) => {
 
 router.post("/appointments", (req, res) => {
   const input = CreateAppointmentBody.parse(req.body);
-  const selectedProfessional = input.professionalId != null
-    ? activeSpaRecords("professional", professionals).find((professional) => professional.id === input.professionalId)
+  const session = requestSession(res);
+  const scopedProfessional = session.role === "staff" && session.agendaScope === "own"
+    ? activeSpaRecords("professional", professionals).find((professional) => professional.id === session.professionalId)
+    : undefined;
+  if (
+    session.role === "staff" &&
+    session.agendaScope === "own" &&
+    (!scopedProfessional ||
+      (input.professionalId != null && input.professionalId !== scopedProfessional.id) ||
+      normalizeName(input.professional) !== normalizeName(scopedProfessional.name))
+  ) {
+    res.status(403).json({ error: "Você só pode criar agendamentos para sua própria agenda." });
+    return;
+  }
+  const requestedProfessionalId = scopedProfessional?.id ?? input.professionalId;
+  const requestedProfessionalName = scopedProfessional?.name ?? input.professional;
+  const selectedProfessional = requestedProfessionalId != null
+    ? activeSpaRecords("professional", professionals).find((professional) => professional.id === requestedProfessionalId)
     : activeSpaRecords("professional", professionals).find((professional) =>
-        normalizeName(professional.name) === normalizeName(input.professional),
+        normalizeName(professional.name) === normalizeName(requestedProfessionalName),
       );
-  if (input.professionalId != null && !selectedProfessional) {
+  if (requestedProfessionalId != null && !selectedProfessional) {
     res.status(400).json({ error: "Profissional não encontrado." });
     return;
   }
@@ -2597,7 +2666,7 @@ router.post("/appointments", (req, res) => {
     res.status(400).json({ error: "Não é possível agendar com um profissional inativo." });
     return;
   }
-  const professionalName = selectedProfessional?.name ?? input.professional;
+  const professionalName = selectedProfessional?.name ?? requestedProfessionalName;
   const professionalId = selectedProfessional?.id ?? null;
   const slotIssue = appointmentSlotIssue({
     start: input.start,
@@ -2637,6 +2706,21 @@ router.patch("/appointments/:id", (req, res) => {
   if (!appointment) {
     res.status(404).json({ error: "Agendamento não encontrado" });
     return;
+  }
+  const session = requestSession(res);
+  if (session.role === "staff" && session.agendaScope === "own") {
+    const ownProfessional = professionals.find((professional) => professional.id === session.professionalId);
+    if (!ownProfessional || !appointmentBelongsToProfessional(appointment, session.professionalId!)) {
+      res.status(404).json({ error: "Agendamento não encontrado." });
+      return;
+    }
+    if (
+      (input.professionalId != null && input.professionalId !== ownProfessional.id) ||
+      (input.professional !== undefined && normalizeName(input.professional) !== normalizeName(ownProfessional.name))
+    ) {
+      res.status(403).json({ error: "Você só pode manter o agendamento na sua própria agenda." });
+      return;
+    }
   }
   const professionalWasUpdated =
     input.professional !== undefined || input.professionalId !== undefined;
@@ -2703,6 +2787,21 @@ router.patch("/appointments/:id", (req, res) => {
 
 router.delete("/appointments/:id", async (req, res): Promise<void> => {
   const { id } = DeleteAppointmentParams.parse(req.params);
+  const appointment = appointments.find((item) => item.id === id);
+  const session = requestSession(res);
+  if (session.role === "staff") {
+    if (!appointment || appointment.client !== "Horário bloqueado") {
+      res.status(403).json({ error: "Somente o administrador pode arquivar agendamentos." });
+      return;
+    }
+    if (
+      session.agendaScope === "own" &&
+      !appointmentBelongsToProfessional(appointment, session.professionalId!)
+    ) {
+      res.status(404).json({ error: "Horário bloqueado não encontrado." });
+      return;
+    }
+  }
   if (!await archiveSpaRecord("appointment", String(id))) {
     res.status(404).json({ error: "Agendamento não encontrado" });
     return;
@@ -3248,8 +3347,180 @@ router.get("/packages", (_req, res) => {
   res.json(packages);
 });
 
+const staffAccessAccountResponse = (account: typeof staffAccessAccountsTable.$inferSelect) => ({
+  id: account.id,
+  professionalId: account.professionalId,
+  username: account.username,
+  active: account.active,
+  canAccessAgenda: account.canAccessAgenda,
+  canAccessCommissions: account.canAccessCommissions,
+  agendaScope: account.agendaScope,
+  mustChangePassword: account.mustChangePassword,
+});
+
+const isAdminRequest = (res: Response) => {
+  if (requestSession(res).role === "admin") return true;
+  res.status(403).json({ error: "Somente o administrador pode gerenciar acessos." });
+  return false;
+};
+
+router.get("/staff-access", async (_req, res): Promise<void> => {
+  if (!isAdminRequest(res)) return;
+  const accounts = await db
+    .select()
+    .from(staffAccessAccountsTable)
+    .orderBy(asc(staffAccessAccountsTable.id));
+  res.json(ListStaffAccessAccountsResponse.parse(accounts.map(staffAccessAccountResponse)));
+});
+
+router.post("/staff-access", async (req, res): Promise<void> => {
+  if (!isAdminRequest(res)) return;
+  const parsed = CreateStaffAccessAccountBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const professional = activeSpaRecords("professional", professionals)
+    .find((item) => item.id === parsed.data.professionalId);
+  if (!professional || !professional.active) {
+    res.status(400).json({ error: "Selecione uma profissional ativa." });
+    return;
+  }
+
+  const username = parsed.data.username.trim().toLocaleLowerCase("en-US");
+  if (username === getAdminUsername().toLocaleLowerCase("en-US")) {
+    res.status(409).json({ error: "Esse usuário já está reservado para o administrador." });
+    return;
+  }
+  const temporaryPassword = generateTemporaryPassword();
+  const passwordRecord = createPasswordRecord(temporaryPassword);
+  const [created] = await db
+    .insert(staffAccessAccountsTable)
+    .values({
+      professionalId: professional.id,
+      username,
+      ...passwordRecord,
+      active: true,
+      canAccessAgenda: parsed.data.canAccessAgenda,
+      canAccessCommissions: parsed.data.canAccessCommissions,
+      agendaScope: parsed.data.agendaScope,
+      mustChangePassword: true,
+      sessionVersion: 1,
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (!created) {
+    res.status(409).json({ error: "Esta profissional já tem acesso ou o usuário já está em uso." });
+    return;
+  }
+
+  res.status(201).json(CreateStaffAccessAccountResponse.parse({
+    account: staffAccessAccountResponse(created),
+    temporaryPassword,
+  }));
+});
+
+router.patch("/staff-access/:id", async (req, res): Promise<void> => {
+  if (!isAdminRequest(res)) return;
+  const params = UpdateStaffAccessAccountParams.safeParse(req.params);
+  const parsed = UpdateStaffAccessAccountBody.safeParse(req.body);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(staffAccessAccountsTable)
+    .where(eq(staffAccessAccountsTable.id, params.data.id))
+    .limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Acesso não encontrado." });
+    return;
+  }
+  if (parsed.data.active === true) {
+    const professional = activeSpaRecords("professional", professionals)
+      .find((item) => item.id === existing.professionalId);
+    if (!professional?.active) {
+      res.status(400).json({ error: "Reative a profissional antes de habilitar o acesso." });
+      return;
+    }
+  }
+  const [updated] = await db
+    .update(staffAccessAccountsTable)
+    .set({
+      ...parsed.data,
+      sessionVersion: existing.sessionVersion + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(staffAccessAccountsTable.id, existing.id))
+    .returning();
+  if (!updated) {
+    res.status(404).json({ error: "Acesso não encontrado." });
+    return;
+  }
+  res.json(UpdateStaffAccessAccountResponse.parse(staffAccessAccountResponse(updated)));
+});
+
+router.post("/staff-access/:id/reset-password", async (req, res): Promise<void> => {
+  if (!isAdminRequest(res)) return;
+  const params = ResetStaffAccessPasswordParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [existing] = await db
+    .select()
+    .from(staffAccessAccountsTable)
+    .where(eq(staffAccessAccountsTable.id, params.data.id))
+    .limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Acesso não encontrado." });
+    return;
+  }
+
+  const temporaryPassword = generateTemporaryPassword();
+  const [updated] = await db
+    .update(staffAccessAccountsTable)
+    .set({
+      ...createPasswordRecord(temporaryPassword),
+      mustChangePassword: true,
+      sessionVersion: existing.sessionVersion + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(staffAccessAccountsTable.id, existing.id))
+    .returning();
+  if (!updated) {
+    res.status(404).json({ error: "Acesso não encontrado." });
+    return;
+  }
+  res.json(ResetStaffAccessPasswordResponse.parse({ temporaryPassword }));
+});
+
 router.get("/professionals", (_req, res) => {
-  res.json(ListProfessionalsResponse.parse(activeSpaRecords("professional", professionals)));
+  const session = requestSession(res);
+  let visibleProfessionals = activeSpaRecords("professional", professionals);
+  if (session.role === "staff") {
+    if (!session.canAccessAgenda || session.agendaScope === "own") {
+      visibleProfessionals = visibleProfessionals.filter((professional) =>
+        professional.id === session.professionalId,
+      );
+    }
+    visibleProfessionals = visibleProfessionals.map((professional) => ({
+      ...professional,
+      phone: "",
+      email: "",
+      commissionRate: session.canAccessCommissions && professional.id === session.professionalId
+        ? professional.commissionRate
+        : 0,
+    }));
+  }
+  res.json(ListProfessionalsResponse.parse(visibleProfessionals));
 });
 
 router.get("/finance/movements", (req, res) => {
@@ -3309,13 +3580,14 @@ router.post("/professionals", (req, res) => {
   res.status(201).json(CreateProfessionalResponse.parse(professional));
 });
 
-router.patch("/professionals/:id", (req, res) => {
+router.patch("/professionals/:id", async (req, res): Promise<void> => {
   const { id } = UpdateProfessionalParams.parse(req.params);
   const input = UpdateProfessionalBody.parse(req.body);
   const professional = professionals.find((item) => item.id === id);
   if (!professional) return void res.status(404).json({ error: "Profissional não encontrado" });
   const scheduleError = professionalScheduleError(input);
   if (scheduleError) return void res.status(400).json({ error: scheduleError });
+  if (input.active === false) await disableStaffAccessForProfessional(id);
   const previousName = professional.name;
   Object.assign(professional, input);
   for (const appointment of appointments) {
@@ -3339,6 +3611,11 @@ router.patch("/professionals/:id", (req, res) => {
 
 router.delete("/professionals/:id", async (req, res): Promise<void> => {
   const { id } = DeleteProfessionalParams.parse(req.params);
+  if (!professionals.some((professional) => professional.id === id)) {
+    res.status(404).json({ error: "Profissional não encontrado" });
+    return;
+  }
+  await disableStaffAccessForProfessional(id);
   if (!await archiveSpaRecord("professional", String(id))) {
     res.status(404).json({ error: "Profissional não encontrado" });
     return;
@@ -3795,7 +4072,9 @@ router.delete("/professionals/:id/commission-rules/:ruleId", async (req, res): P
 
 router.get("/commissions/items", (req, res) => {
   const query = ListCommissionItemsQueryParams.parse(req.query);
-  const items = getCommissionItems(query.from, query.to, query.professionalId)
+  const session = requestSession(res);
+  const professionalId = session.role === "staff" ? session.professionalId! : query.professionalId;
+  const items = getCommissionItems(query.from, query.to, professionalId)
     .filter((item) => !query.status || item.status === query.status);
   res.json(ListCommissionItemsResponse.parse(items));
 });
@@ -3803,7 +4082,8 @@ router.get("/commissions/items", (req, res) => {
 router.get("/commissions/items/:id", (req, res) => {
   const { id } = GetCommissionItemParams.parse(req.params);
   const item = getCommissionItems("0000-01-01", "9999-12-31").find((entry) => entry.id === id);
-  if (!item) {
+  const session = requestSession(res);
+  if (!item || (session.role === "staff" && item.professionalId !== session.professionalId)) {
     res.status(404).json({ error: "Item de comissão não encontrado" });
     return;
   }
@@ -3812,13 +4092,15 @@ router.get("/commissions/items/:id", (req, res) => {
 
 router.get("/commissions/summary", (req, res) => {
   const query = GetCommissionsSummaryQueryParams.parse(req.query);
-  const items = getCommissionItems(query.from, query.to, query.professionalId)
+  const session = requestSession(res);
+  const professionalId = session.role === "staff" ? session.professionalId! : query.professionalId;
+  const items = getCommissionItems(query.from, query.to, professionalId)
     .filter((item) => !query.status || item.status === query.status);
   const eligibleAmount = items.reduce((sum, item) => sum + (item.commissionAmount ?? 0), 0);
   res.json(GetCommissionsSummaryResponse.parse({
     from: query.from,
     to: query.to,
-    professionalId: query.professionalId ?? null,
+    professionalId: professionalId ?? null,
     totalAmount: eligibleAmount,
     eligibleAmount,
     blockedCount: items.filter((item) => item.status === "blocked").length,
@@ -3829,8 +4111,10 @@ router.get("/commissions/summary", (req, res) => {
 
 router.get("/commissions/closures", (req, res) => {
   const query = ListCommissionClosuresQueryParams.parse(req.query);
+  const session = requestSession(res);
+  const professionalId = session.role === "staff" ? session.professionalId : query.professionalId;
   const result = commissionClosures.filter((closure) =>
-    (!query.professionalId || closure.professionalId === query.professionalId) &&
+    (professionalId == null || closure.professionalId === professionalId) &&
     (!query.from || closure.from >= query.from) &&
     (!query.to || closure.to <= query.to) &&
     (!query.status || closure.status === query.status),
@@ -3978,8 +4262,10 @@ router.post("/commissions/closures/:id/pay", (req, res) => {
 
 router.get("/commissions/audit", (req, res) => {
   const query = ListCommissionAuditQueryParams.parse(req.query);
+  const session = requestSession(res);
+  const professionalId = session.role === "staff" ? session.professionalId : query.professionalId;
   const result = commissionAudit.filter((entry) =>
-    (!query.professionalId || entry.professionalId === query.professionalId) &&
+    (professionalId == null || entry.professionalId === professionalId) &&
     (!query.closureId || entry.closureId === query.closureId),
   );
   res.json(ListCommissionAuditResponse.parse(result));

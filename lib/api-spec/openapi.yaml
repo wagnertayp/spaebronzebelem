@@ -8,6 +8,7 @@ servers:
     description: Base API path
 tags:
   - name: health
+  - name: auth
   - name: dashboard
   - name: appointments
   - name: clients
@@ -20,7 +21,73 @@ tags:
   - name: professionals
   - name: financial-movements
   - name: archive
+  - name: staff-access
 paths:
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Autentica uma conta administrativa ou profissional
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginCredentialsInput" }
+      responses:
+        "200":
+          description: Authenticated user profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthUserResponse" }
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Encerra a sessão atual
+      responses:
+        "204": { description: Session ended }
+  /auth/session:
+    get:
+      operationId: getAuthSession
+      tags: [auth]
+      summary: Retorna o usuário da sessão atual
+      responses:
+        "200":
+          description: Current session profile, or null when signed out
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthSession" }
+  /auth/change-password:
+    post:
+      operationId: changeStaffPassword
+      tags: [auth]
+      summary: Altera a senha temporária de uma conta profissional
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StaffPasswordChangeInput" }
+      responses:
+        "200":
+          description: Updated authenticated user profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthUserResponse" }
+        "400":
+          description: Invalid new password
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Current password is incorrect or session is invalid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /archive:
     get:
       operationId: listArchivedRecords
@@ -60,6 +127,76 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /staff-access:
+    get:
+      operationId: listStaffAccessAccounts
+      tags: [staff-access]
+      summary: Lista os acessos de profissionais
+      responses:
+        "200":
+          description: Accounts and access settings
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StaffAccessAccount" }
+    post:
+      operationId: createStaffAccessAccount
+      tags: [staff-access]
+      summary: Cria um acesso e gera uma senha temporária
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StaffAccessAccountInput" }
+      responses:
+        "201":
+          description: Created account and one-time temporary password
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffAccessCredential" }
+        "400":
+          description: Invalid account details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Professional already has an account or username is taken
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /staff-access/{id}:
+    patch:
+      operationId: updateStaffAccessAccount
+      tags: [staff-access]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StaffAccessAccountUpdate" }
+      responses:
+        "200":
+          description: Updated access settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffAccessAccount" }
+        "404": { description: Account not found }
+  /staff-access/{id}/reset-password:
+    post:
+      operationId: resetStaffAccessPassword
+      tags: [staff-access]
+      summary: Gera uma nova senha temporária e revoga sessões anteriores
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: One-time temporary password
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffAccessPassword" }
+        "404": { description: Account not found }
   /ai-agent/config:
     get:
       operationId: getAiAgentConfig
@@ -1075,6 +1212,83 @@ paths:
         "204": { description: Deleted inventory item }
 components:
   schemas:
+    AuthUser:
+      type: object
+      properties:
+        username: { type: string }
+        role: { type: string, enum: [admin, staff] }
+        professionalId: { type: ["integer", "null"] }
+        canAccessAgenda: { type: boolean }
+        canAccessCommissions: { type: boolean }
+        agendaScope: { type: string, enum: [own, team] }
+        mustChangePassword: { type: boolean }
+      required: [username, role, professionalId, canAccessAgenda, canAccessCommissions, agendaScope, mustChangePassword]
+    AuthUserResponse:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/AuthUser" }
+      required: [user]
+    AuthSession:
+      type: object
+      properties:
+        user:
+          anyOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+        expiresAt: { type: ["string", "null"], format: date-time }
+      required: [user]
+    LoginCredentialsInput:
+      type: object
+      properties:
+        username: { type: string, minLength: 1, maxLength: 120 }
+        password: { type: string, minLength: 1, maxLength: 256 }
+      required: [username, password]
+    StaffPasswordChangeInput:
+      type: object
+      properties:
+        currentPassword: { type: string, minLength: 1, maxLength: 256 }
+        newPassword: { type: string, minLength: 12, maxLength: 256 }
+      required: [currentPassword, newPassword]
+    StaffAccessAccount:
+      type: object
+      properties:
+        id: { type: integer }
+        professionalId: { type: integer }
+        username: { type: string }
+        active: { type: boolean }
+        canAccessAgenda: { type: boolean }
+        canAccessCommissions: { type: boolean }
+        agendaScope: { type: string, enum: [own, team] }
+        mustChangePassword: { type: boolean }
+      required: [id, professionalId, username, active, canAccessAgenda, canAccessCommissions, agendaScope, mustChangePassword]
+    StaffAccessAccountInput:
+      type: object
+      properties:
+        professionalId: { type: integer, minimum: 1 }
+        username: { type: string, minLength: 3, maxLength: 40, pattern: "^[a-zA-Z0-9._-]+$" }
+        canAccessAgenda: { type: boolean }
+        canAccessCommissions: { type: boolean }
+        agendaScope: { type: string, enum: [own, team] }
+      required: [professionalId, username, canAccessAgenda, canAccessCommissions, agendaScope]
+    StaffAccessAccountUpdate:
+      type: object
+      properties:
+        active: { type: boolean }
+        canAccessAgenda: { type: boolean }
+        canAccessCommissions: { type: boolean }
+        agendaScope: { type: string, enum: [own, team] }
+      minProperties: 1
+    StaffAccessCredential:
+      type: object
+      properties:
+        account: { $ref: "#/components/schemas/StaffAccessAccount" }
+        temporaryPassword: { type: string }
+      required: [account, temporaryPassword]
+    StaffAccessPassword:
+      type: object
+      properties:
+        temporaryPassword: { type: string }
+      required: [temporaryPassword]
     ArchiveEntity:
       type: string
       enum: [appointment, client, lead, service, quote, financialMovement, professional, commissionRule, inventory, whatsappConversation]

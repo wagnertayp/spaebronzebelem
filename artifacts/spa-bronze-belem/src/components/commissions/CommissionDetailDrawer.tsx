@@ -19,9 +19,10 @@ interface Props {
   professional: Professional | null;
   period: { from: string; to: string } | null;
   statusFilter: 'all' | 'open' | 'closed' | 'paid';
+  readOnly?: boolean;
 }
 
-export function CommissionDetailDrawer({ open, onOpenChange, professional, period, statusFilter }: Props) {
+export function CommissionDetailDrawer({ open, onOpenChange, professional, period, statusFilter, readOnly = false }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -141,6 +142,11 @@ export function CommissionDetailDrawer({ open, onOpenChange, professional, perio
 
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase text-text-muted">STATUS:</span>
+              {readOnly && (
+                <span className="rounded-md bg-surface-soft px-2.5 py-1 text-xs font-semibold text-text-secondary">
+                  SOMENTE LEITURA
+                </span>
+              )}
               {closureStatus === 'open' && (
                 <span className="px-2.5 py-1 rounded-md text-xs font-bold uppercase bg-warning/10 text-warning flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" /> EM ABERTO
@@ -162,23 +168,25 @@ export function CommissionDetailDrawer({ open, onOpenChange, professional, perio
                 </span>
               )}
 
-              <div className="ml-auto flex gap-2">
-                {closureStatus === 'open' && summary && summary.items.length > 0 && (
-                  <Button size="sm" onClick={() => { setDueDate(to || ""); setCloseConfirmOpen(true); }}>
-                    <Lock className="w-4 h-4 mr-1.5" /> Fechar comissão
-                  </Button>
-                )}
-                {closureStatus === 'closed' && (
-                  <>
-                    <Button size="sm" variant="outline" onClick={() => setReopenConfirmOpen(true)}>
-                      <Unlock className="w-4 h-4 mr-1.5" /> Reabrir
+              {!readOnly && (
+                <div className="ml-auto flex gap-2">
+                  {closureStatus === 'open' && summary && summary.items.length > 0 && (
+                    <Button size="sm" onClick={() => { setDueDate(to || ""); setCloseConfirmOpen(true); }}>
+                      <Lock className="w-4 h-4 mr-1.5" /> Fechar comissão
                     </Button>
-                    <Button size="sm" className="bg-success hover:bg-success-dark text-white" onClick={() => setPayModalOpen(true)}>
-                      Registrar pagamento
-                    </Button>
-                  </>
-                )}
-              </div>
+                  )}
+                  {closureStatus === 'closed' && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setReopenConfirmOpen(true)}>
+                        <Unlock className="w-4 h-4 mr-1.5" /> Reabrir
+                      </Button>
+                      <Button size="sm" className="bg-success hover:bg-success-dark text-white" onClick={() => setPayModalOpen(true)}>
+                        Registrar pagamento
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

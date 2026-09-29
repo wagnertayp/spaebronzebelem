@@ -5,6 +5,134 @@
  * API do sistema operacional do Spa e Bronze Belém
  * OpenAPI spec version: 0.1.0
  */
+export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
+
+
+export const AuthUserRole = {
+  admin: 'admin',
+  staff: 'staff',
+} as const;
+
+export type AuthUserAgendaScope = typeof AuthUserAgendaScope[keyof typeof AuthUserAgendaScope];
+
+
+export const AuthUserAgendaScope = {
+  own: 'own',
+  team: 'team',
+} as const;
+
+export interface AuthUser {
+  username: string;
+  role: AuthUserRole;
+  /** @nullable */
+  professionalId: number | null;
+  canAccessAgenda: boolean;
+  canAccessCommissions: boolean;
+  agendaScope: AuthUserAgendaScope;
+  mustChangePassword: boolean;
+}
+
+export interface AuthUserResponse {
+  user: AuthUser;
+}
+
+export interface AuthSession {
+  user: AuthUser | null;
+  /** @nullable */
+  expiresAt?: string | null;
+}
+
+export interface LoginCredentialsInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  username: string;
+  /**
+     * @minLength 1
+     * @maxLength 256
+     */
+  password: string;
+}
+
+export interface StaffPasswordChangeInput {
+  /**
+     * @minLength 1
+     * @maxLength 256
+     */
+  currentPassword: string;
+  /**
+     * @minLength 12
+     * @maxLength 256
+     */
+  newPassword: string;
+}
+
+export type StaffAccessAccountAgendaScope = typeof StaffAccessAccountAgendaScope[keyof typeof StaffAccessAccountAgendaScope];
+
+
+export const StaffAccessAccountAgendaScope = {
+  own: 'own',
+  team: 'team',
+} as const;
+
+export interface StaffAccessAccount {
+  id: number;
+  professionalId: number;
+  username: string;
+  active: boolean;
+  canAccessAgenda: boolean;
+  canAccessCommissions: boolean;
+  agendaScope: StaffAccessAccountAgendaScope;
+  mustChangePassword: boolean;
+}
+
+export type StaffAccessAccountInputAgendaScope = typeof StaffAccessAccountInputAgendaScope[keyof typeof StaffAccessAccountInputAgendaScope];
+
+
+export const StaffAccessAccountInputAgendaScope = {
+  own: 'own',
+  team: 'team',
+} as const;
+
+export interface StaffAccessAccountInput {
+  /** @minimum 1 */
+  professionalId: number;
+  /**
+     * @minLength 3
+     * @maxLength 40
+     * @pattern ^[a-zA-Z0-9._-]+$
+     */
+  username: string;
+  canAccessAgenda: boolean;
+  canAccessCommissions: boolean;
+  agendaScope: StaffAccessAccountInputAgendaScope;
+}
+
+export type StaffAccessAccountUpdateAgendaScope = typeof StaffAccessAccountUpdateAgendaScope[keyof typeof StaffAccessAccountUpdateAgendaScope];
+
+
+export const StaffAccessAccountUpdateAgendaScope = {
+  own: 'own',
+  team: 'team',
+} as const;
+
+export interface StaffAccessAccountUpdate {
+  active?: boolean;
+  canAccessAgenda?: boolean;
+  canAccessCommissions?: boolean;
+  agendaScope?: StaffAccessAccountUpdateAgendaScope;
+}
+
+export interface StaffAccessCredential {
+  account: StaffAccessAccount;
+  temporaryPassword: string;
+}
+
+export interface StaffAccessPassword {
+  temporaryPassword: string;
+}
+
 export type ArchiveEntity = typeof ArchiveEntity[keyof typeof ArchiveEntity];
 
 

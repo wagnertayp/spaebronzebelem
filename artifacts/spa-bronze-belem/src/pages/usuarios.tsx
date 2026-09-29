@@ -13,14 +13,18 @@ import { CommissionConfigDrawer } from '@/components/commissions/CommissionConfi
 import { CommissionDetailDrawer } from '@/components/commissions/CommissionDetailDrawer';
 import { ExportDialog } from '@/components/export/export-dialog';
 import { formatCurrency } from '@/components/commissions/utils';
+import { StaffAccessTab } from '@/components/staff-access/staff-access-tab';
+import { useAuth } from '@/hooks/use-auth';
 
-type Tab = 'profissionais' | 'comissoes';
+type Tab = 'profissionais' | 'comissoes' | 'acessos';
 type Period = 'today' | 'month' | 'custom';
 type TabStatus = 'all' | 'open' | 'closed' | 'paid';
 type DetailState = { open: boolean, prof: Professional | null, period: { from: string; to: string } | null, statusFilter: 'all' | 'open' | 'closed' | 'paid' };
 
 export function Usuarios() {
-  const [activeTab, setActiveTab] = useState<Tab>('profissionais');
+  const { user } = useAuth();
+  const isStaff = user?.role === 'staff';
+  const [activeTab, setActiveTab] = useState<Tab>(isStaff ? 'comissoes' : 'profissionais');
   
   const [profDialog, setProfDialog] = useState<{ open: boolean, prof: Professional | null }>({ open: false, prof: null });
   const [configDrawer, setConfigDrawer] = useState<{ open: boolean, prof: Professional | null }>({ open: false, prof: null });
@@ -31,7 +35,9 @@ export function Usuarios() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [statusFilter, setStatusFilter] = useState<TabStatus>('all');
-  const [profFilter, setProfFilter] = useState<string>("all");
+  const [profFilter, setProfFilter] = useState<string>(
+    isStaff && user?.professionalId != null ? String(user.professionalId) : "all",
+  );
   
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -49,7 +55,9 @@ export function Usuarios() {
   }, [period, customFrom, customTo]);
 
   const apiStatus = statusFilter === 'open' ? 'eligible' : statusFilter === 'closed' ? 'closed' : statusFilter === 'paid' ? 'paid' : undefined;
-  const pId = profFilter !== 'all' ? Number(profFilter) : undefined;
+  const pId = isStaff && user?.professionalId != null
+    ? user.professionalId
+    : profFilter !== 'all' ? Number(profFilter) : undefined;
   const validDates = dateRange.from && dateRange.to && dateRange.from <= dateRange.to;
 
   const { data: summary } = useGetCommissionsSummary(
@@ -109,24 +117,26 @@ export function Usuarios() {
   return (
     <div className="space-y-8 max-w-[1200px] mx-auto pb-12">
       <PageHeader 
-        title="Usuários"
-        description="Profissionais, comissões e desempenho por período."
+        title={isStaff ? "Minhas comissões" : "Usuários"}
+        description={isStaff
+          ? "Acompanhe suas comissões e os atendimentos do período."
+          : "Profissionais, comissões, acessos e desempenho por período."}
         action={
-          activeTab === 'profissionais' ? (
+          isStaff ? undefined : activeTab === 'profissionais' ? (
             <Button className="bg-primary hover:bg-primary-dark text-white shadow-none rounded-lg" onClick={() => openProfDialog()}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Profissional
             </Button>
-          ) : (
+          ) : activeTab === 'comissoes' ? (
              <Button variant="outline" className="gap-2 border-border" onClick={() => setExportOpen(true)}>
               <Download className="w-4 h-4" />
               Exportar Comissões
             </Button>
-          )
+          ) : undefined
         }
       />
       
-      <div className="flex border-b border-border mb-6">
+      {!isStaff && <div className="flex flex-wrap border-b border-border mb-6">
         <button
           className={cn("px-6 py-3 text-[14px] font-medium transition-colors border-b-2", activeTab === 'profissionais' ? "border-primary text-primary" : "border-transparent text-text-secondary hover:text-text-primary")}
           onClick={() => setActiveTab('profissionais')}
@@ -143,7 +153,15 @@ export function Usuarios() {
             <BadgeDollarSign className="w-4 h-4" /> Comissões
           </div>
         </button>
-      </div>
+        <button
+          className={cn("px-6 py-3 text-[14px] font-medium transition-colors border-b-2", activeTab === 'acessos' ? "border-primary text-primary" : "border-transparent text-text-secondary hover:text-text-primary")}
+          onClick={() => setActiveTab('acessos')}
+        >
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4" /> Acessos
+          </div>
+        </button>
+      </div>}
 
       {activeTab === 'profissionais' && (
         <ProfessionalsTab 
@@ -169,21 +187,24 @@ export function Usuarios() {
           validDates={validDates as boolean}
           apiStatus={apiStatus}
           pId={pId}
+          lockedProfessionalId={isStaff ? user?.professionalId ?? undefined : undefined}
           onViewDetails={(prof, period, statusFilter) => setDetailDrawer({ open: true, prof, period, statusFilter })}
         />
       )}
 
-      <ProfessionalDialog 
+      {activeTab === 'acessos' && !isStaff && <StaffAccessTab />}
+
+      {!isStaff && <ProfessionalDialog 
         open={profDialog.open} 
         onOpenChange={(o) => !o && setProfDialog({ open: false, prof: null })} 
         professional={profDialog.prof} 
-      />
+      />}
 
-      <CommissionConfigDrawer
+      {!isStaff && <CommissionConfigDrawer
         open={configDrawer.open}
         onOpenChange={(o) => !o && setConfigDrawer({ open: false, prof: null })}
         professional={configDrawer.prof}
-      />
+      />}
 
       <CommissionDetailDrawer
         open={detailDrawer.open}
@@ -191,9 +212,10 @@ export function Usuarios() {
         professional={detailDrawer.prof}
         period={detailDrawer.period}
         statusFilter={detailDrawer.statusFilter}
+        readOnly={isStaff}
       />
 
-      <ExportDialog
+      {!isStaff && <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Exportar Comissões"
@@ -204,7 +226,7 @@ export function Usuarios() {
         <div className="py-2 text-sm text-text-secondary">
           Os dados exportados seguirão os filtros atualmente aplicados na aba Comissões.
         </div>
-      </ExportDialog>
+      </ExportDialog>}
     </div>
   );
 }

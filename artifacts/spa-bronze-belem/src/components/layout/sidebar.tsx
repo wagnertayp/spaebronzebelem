@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'wouter';
-import { LogOut, Settings } from 'lucide-react';
+import { KeyRound, LogOut, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBusinessSettings } from '@/hooks/use-business-settings';
 import { navItems } from './nav-items';
@@ -8,19 +8,35 @@ import { useAuth } from '@/hooks/use-auth';
 export function Sidebar({ className }: { className?: string }) {
   const [location] = useLocation();
   const { administrator, initials } = useBusinessSettings();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const visibleNavItems = user?.role === 'staff'
+    ? navItems
+        .filter((item) =>
+          (item.href === '/agenda' && user.canAccessAgenda) ||
+          (item.href === '/usuarios' && user.canAccessCommissions),
+        )
+        .map((item) => item.href === '/usuarios' ? { ...item, label: 'Comissões' } : item)
+    : navItems;
+  const homeHref = user?.role === 'staff'
+    ? user.canAccessAgenda ? '/agenda' : user.canAccessCommissions ? '/usuarios' : '/sem-acesso'
+    : '/';
+  const profileName = user?.role === 'staff' ? user.username : administrator;
+  const profileInitials = user?.role === 'staff'
+    ? user.username.slice(0, 2).toUpperCase()
+    : initials;
+  const profileHref = user?.role === 'staff' ? '/change-password' : '/configuracoes';
 
   return (
     <aside className={cn("flex flex-col bg-surface border-r border-border h-[100dvh] sticky top-0 transition-all z-20", className)}>
       <div className="flex flex-col h-full">
         <div className="px-6 pt-8 pb-6 flex items-center">
-          <Link href="/" className="block transition-opacity hover:opacity-80 outline-none focus-visible:ring-2 ring-primary/50 rounded-lg">
+          <Link href={homeHref} className="block transition-opacity hover:opacity-80 outline-none focus-visible:ring-2 ring-primary/50 rounded-lg">
             <img src="/logo-clean.png" alt="Spa e Bronze Belém" className="h-[52px] w-auto object-contain" />
           </Link>
         </div>
 
         <nav aria-label="Navegação principal" className="flex-1 overflow-y-auto px-4 space-y-1 mt-2">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
             const Icon = item.icon;
             
@@ -50,15 +66,19 @@ export function Sidebar({ className }: { className?: string }) {
         </nav>
 
         <div className="p-4 mt-auto">
-          <Link href="/configuracoes" className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-soft transition-colors group outline-none focus-visible:ring-2 ring-primary/50 border border-transparent hover:border-border/40">
+          <Link href={profileHref} className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-soft transition-colors group outline-none focus-visible:ring-2 ring-primary/50 border border-transparent hover:border-border/40">
             <div className="w-10 h-10 rounded-lg bg-primary-soft text-primary-dark flex items-center justify-center font-bold text-[14px] shrink-0 shadow-sm border border-primary-soft/50">
-              {initials}
+              {profileInitials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[14px] font-semibold text-text-primary truncate leading-tight">{administrator}</p>
-              <p className="text-[12px] text-text-secondary truncate mt-0.5 font-medium group-hover:text-primary transition-colors">Ajustes</p>
+              <p className="text-[14px] font-semibold text-text-primary truncate leading-tight">{profileName}</p>
+              <p className="text-[12px] text-text-secondary truncate mt-0.5 font-medium group-hover:text-primary transition-colors">
+                {user?.role === 'staff' ? 'Alterar senha' : 'Ajustes'}
+              </p>
             </div>
-            <Settings className="w-4 h-4 text-text-muted shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300" />
+            {user?.role === 'staff'
+              ? <KeyRound className="w-4 h-4 text-text-muted shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300" />
+              : <Settings className="w-4 h-4 text-text-muted shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300" />}
             <button 
               onClick={(e) => {
                 e.preventDefault();

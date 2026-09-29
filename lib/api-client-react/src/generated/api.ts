@@ -29,6 +29,8 @@ import type {
   ArchiveEntry,
   ArchiveMutationInput,
   ArchiveMutationResult,
+  AuthSession,
+  AuthUserResponse,
   Client,
   ClientInput,
   CommissionAudit,
@@ -65,6 +67,7 @@ import type {
   ListQuotesParams,
   ListWhatsappConversationsParams,
   ListWhatsappMessagesParams,
+  LoginCredentialsInput,
   Package,
   Professional,
   ProfessionalInput,
@@ -77,6 +80,12 @@ import type {
   SendAppointmentConfirmationResponse,
   Service,
   ServiceInput,
+  StaffAccessAccount,
+  StaffAccessAccountInput,
+  StaffAccessAccountUpdate,
+  StaffAccessCredential,
+  StaffAccessPassword,
+  StaffPasswordChangeInput,
   WhatsappAutomation,
   WhatsappConnectResponse,
   WhatsappConnection,
@@ -114,6 +123,296 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getLoginUrl = () => {
+
+
+
+
+  return `/api/auth/login`
+}
+
+/**
+ * @summary Autentica uma conta administrativa ou profissional
+ */
+export const login = async (loginCredentialsInput: LoginCredentialsInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthUserResponse> => {
+
+  return customFetch<AuthUserResponse>(getLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(loginCredentialsInput)
+  }
+);}
+
+
+
+
+
+export const getLoginMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginCredentialsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginCredentialsInput>}, TContext> => {
+
+const mutationKey = ['login'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof login>>, {data: BodyType<LoginCredentialsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  login(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
+    export type LoginMutationBody = BodyType<LoginCredentialsInput>
+    export type LoginMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Autentica uma conta administrativa ou profissional
+ */
+export const useLogin = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginCredentialsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof login>>,
+        TError,
+        {data: BodyType<LoginCredentialsInput>},
+        TContext
+      > => {
+      return useMutation(getLoginMutationOptions(options));
+    }
+
+export const getLogoutUrl = () => {
+
+
+
+
+  return `/api/auth/logout`
+}
+
+/**
+ * @summary Encerra a sessão atual
+ */
+export const logout = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getLogoutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLogoutMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext> => {
+
+const mutationKey = ['logout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logout>>, void> = () => {
+
+
+          return  logout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogoutMutationResult = NonNullable<Awaited<ReturnType<typeof logout>>>
+
+    export type LogoutMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Encerra a sessão atual
+ */
+export const useLogout = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLogoutMutationOptions(options));
+    }
+
+export const getGetAuthSessionUrl = () => {
+
+
+
+
+  return `/api/auth/session`
+}
+
+/**
+ * @summary Retorna o usuário da sessão atual
+ */
+export const getAuthSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
+
+  return customFetch<AuthSession>(getGetAuthSessionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAuthSessionQueryKey = () => {
+    return [
+    `/api/auth/session`
+    ] as const;
+    }
+
+
+export const getGetAuthSessionQueryOptions = <TData = Awaited<ReturnType<typeof getAuthSession>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAuthSessionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthSession>>> = ({ signal }) => getAuthSession({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAuthSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAuthSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getAuthSession>>>
+export type GetAuthSessionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Retorna o usuário da sessão atual
+ */
+
+export function useGetAuthSession<TData = Awaited<ReturnType<typeof getAuthSession>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAuthSessionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChangeStaffPasswordUrl = () => {
+
+
+
+
+  return `/api/auth/change-password`
+}
+
+/**
+ * @summary Altera a senha temporária de uma conta profissional
+ */
+export const changeStaffPassword = async (staffPasswordChangeInput: StaffPasswordChangeInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthUserResponse> => {
+
+  return customFetch<AuthUserResponse>(getChangeStaffPasswordUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffPasswordChangeInput)
+  }
+);}
+
+
+
+
+
+export const getChangeStaffPasswordMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeStaffPassword>>, TError,{data: BodyType<StaffPasswordChangeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeStaffPassword>>, TError,{data: BodyType<StaffPasswordChangeInput>}, TContext> => {
+
+const mutationKey = ['changeStaffPassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeStaffPassword>>, {data: BodyType<StaffPasswordChangeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  changeStaffPassword(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeStaffPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof changeStaffPassword>>>
+    export type ChangeStaffPasswordMutationBody = BodyType<StaffPasswordChangeInput>
+    export type ChangeStaffPasswordMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Altera a senha temporária de uma conta profissional
+ */
+export const useChangeStaffPassword = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeStaffPassword>>, TError,{data: BodyType<StaffPasswordChangeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeStaffPassword>>,
+        TError,
+        {data: BodyType<StaffPasswordChangeInput>},
+        TContext
+      > => {
+      return useMutation(getChangeStaffPasswordMutationOptions(options));
+    }
 
 export const getListArchivedRecordsUrl = () => {
 
@@ -261,6 +560,291 @@ export const useManageArchivedRecords = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getManageArchivedRecordsMutationOptions(options));
+    }
+
+export const getListStaffAccessAccountsUrl = () => {
+
+
+
+
+  return `/api/staff-access`
+}
+
+/**
+ * @summary Lista os acessos de profissionais
+ */
+export const listStaffAccessAccounts = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessAccount[]> => {
+
+  return customFetch<StaffAccessAccount[]>(getListStaffAccessAccountsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffAccessAccountsQueryKey = () => {
+    return [
+    `/api/staff-access`
+    ] as const;
+    }
+
+
+export const getListStaffAccessAccountsQueryOptions = <TData = Awaited<ReturnType<typeof listStaffAccessAccounts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffAccessAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffAccessAccountsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffAccessAccounts>>> = ({ signal }) => listStaffAccessAccounts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffAccessAccounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffAccessAccountsQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffAccessAccounts>>>
+export type ListStaffAccessAccountsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Lista os acessos de profissionais
+ */
+
+export function useListStaffAccessAccounts<TData = Awaited<ReturnType<typeof listStaffAccessAccounts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffAccessAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffAccessAccountsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStaffAccessAccountUrl = () => {
+
+
+
+
+  return `/api/staff-access`
+}
+
+/**
+ * @summary Cria um acesso e gera uma senha temporária
+ */
+export const createStaffAccessAccount = async (staffAccessAccountInput: StaffAccessAccountInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessCredential> => {
+
+  return customFetch<StaffAccessCredential>(getCreateStaffAccessAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffAccessAccountInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStaffAccessAccountMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffAccessAccount>>, TError,{data: BodyType<StaffAccessAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStaffAccessAccount>>, TError,{data: BodyType<StaffAccessAccountInput>}, TContext> => {
+
+const mutationKey = ['createStaffAccessAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStaffAccessAccount>>, {data: BodyType<StaffAccessAccountInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStaffAccessAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStaffAccessAccountMutationResult = NonNullable<Awaited<ReturnType<typeof createStaffAccessAccount>>>
+    export type CreateStaffAccessAccountMutationBody = BodyType<StaffAccessAccountInput>
+    export type CreateStaffAccessAccountMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Cria um acesso e gera uma senha temporária
+ */
+export const useCreateStaffAccessAccount = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffAccessAccount>>, TError,{data: BodyType<StaffAccessAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStaffAccessAccount>>,
+        TError,
+        {data: BodyType<StaffAccessAccountInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStaffAccessAccountMutationOptions(options));
+    }
+
+export const getUpdateStaffAccessAccountUrl = (id: number,) => {
+
+
+
+
+  return `/api/staff-access/${id}`
+}
+
+export const updateStaffAccessAccount = async (id: number,
+    staffAccessAccountUpdate: StaffAccessAccountUpdate, options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessAccount> => {
+
+  return customFetch<StaffAccessAccount>(getUpdateStaffAccessAccountUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffAccessAccountUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffAccessAccountMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffAccessAccount>>, TError,{id: number;data: BodyType<StaffAccessAccountUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffAccessAccount>>, TError,{id: number;data: BodyType<StaffAccessAccountUpdate>}, TContext> => {
+
+const mutationKey = ['updateStaffAccessAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffAccessAccount>>, {id: number;data: BodyType<StaffAccessAccountUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateStaffAccessAccount(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffAccessAccountMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffAccessAccount>>>
+    export type UpdateStaffAccessAccountMutationBody = BodyType<StaffAccessAccountUpdate>
+    export type UpdateStaffAccessAccountMutationError = ErrorType<void>
+
+    export const useUpdateStaffAccessAccount = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffAccessAccount>>, TError,{id: number;data: BodyType<StaffAccessAccountUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffAccessAccount>>,
+        TError,
+        {id: number;data: BodyType<StaffAccessAccountUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffAccessAccountMutationOptions(options));
+    }
+
+export const getResetStaffAccessPasswordUrl = (id: number,) => {
+
+
+
+
+  return `/api/staff-access/${id}/reset-password`
+}
+
+/**
+ * @summary Gera uma nova senha temporária e revoga sessões anteriores
+ */
+export const resetStaffAccessPassword = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessPassword> => {
+
+  return customFetch<StaffAccessPassword>(getResetStaffAccessPasswordUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResetStaffAccessPasswordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetStaffAccessPassword>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetStaffAccessPassword>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['resetStaffAccessPassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetStaffAccessPassword>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  resetStaffAccessPassword(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetStaffAccessPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetStaffAccessPassword>>>
+
+    export type ResetStaffAccessPasswordMutationError = ErrorType<void>
+
+    /**
+ * @summary Gera uma nova senha temporária e revoga sessões anteriores
+ */
+export const useResetStaffAccessPassword = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetStaffAccessPassword>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetStaffAccessPassword>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getResetStaffAccessPasswordMutationOptions(options));
     }
 
 export const getGetAiAgentConfigUrl = () => {

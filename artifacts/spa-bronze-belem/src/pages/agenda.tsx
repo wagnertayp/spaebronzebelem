@@ -16,6 +16,7 @@ import type { Appointment } from '@workspace/api-client-react';
 import { ProfessionalScheduleDialog } from '@/components/agenda/ProfessionalScheduleDialog';
 import { BulkArchiveToolbar } from '@/components/archive/bulk-archive-toolbar';
 import { useBulkArchiveSelection } from '@/hooks/use-bulk-archive-selection';
+import { useAuth } from '@/hooks/use-auth';
 
 const appointmentTime = (value: string) => {
   if (/^\d{2}:\d{2}/.test(value)) return value.slice(0, 5);
@@ -44,6 +45,8 @@ type DialogState =
   | { type: 'block', time?: string, professional?: string };
 
 export function Agenda() {
+  const { user } = useAuth();
+  const isStaff = user?.role === 'staff';
   const [date, setDate] = useState(new Date());
   const [dialogState, setDialogState] = useState<DialogState>({ type: 'none' });
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -83,7 +86,7 @@ export function Agenda() {
         weeklySchedule: professional.weeklySchedule,
         scheduleExceptions: professional.scheduleExceptions,
       })),
-    { id: null, name: 'Spa', role: 'Recurso', weeklySchedule: [], scheduleExceptions: [] },
+    ...(!isStaff ? [{ id: null, name: 'Spa', role: 'Recurso', weeklySchedule: [], scheduleExceptions: [] }] : []),
   ];
 
   useEffect(() => {
@@ -177,13 +180,15 @@ export function Agenda() {
   return (
     <div className="flex flex-col h-full h-full space-y-6 max-w-[1400px] mx-auto">
       <PageHeader 
-        title="Agenda de Hoje"
+        title={isStaff && user.agendaScope === 'own' ? "Minha agenda" : "Agenda de Hoje"}
         action={
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => setScheduleDialogOpen(true)}>
-              <CalendarIcon className="w-4 h-4" />
-              Grade semanal
-            </Button>
+            {!isStaff && (
+              <Button variant="outline" className="gap-2" onClick={() => setScheduleDialogOpen(true)}>
+                <CalendarIcon className="w-4 h-4" />
+                Grade semanal
+              </Button>
+            )}
             <Button variant="outline" className="gap-2" onClick={() => setDialogState({ type: 'block' })}>
               <CalendarIcon className="w-4 h-4" />
               Bloquear Horário
@@ -244,7 +249,7 @@ export function Agenda() {
             </button>
           </div>
         </div>
-        <BulkArchiveToolbar selection={archiveSelection} />
+        {!isStaff && <BulkArchiveToolbar selection={archiveSelection} />}
 
         <div className="flex-1 overflow-auto bg-surface">
           <div className="min-w-[800px]">
@@ -316,14 +321,16 @@ export function Agenda() {
                                 minHeight: '52px' 
                               }}
                             >
-                              <input
-                                type="checkbox"
-                                aria-label={`Selecionar agendamento de ${app.client}`}
-                                checked={archiveSelection.isSelected({ entity: 'appointment', id: String(app.id) })}
-                                onChange={() => archiveSelection.toggleRecord({ entity: 'appointment', id: String(app.id) })}
-                                onClick={(e) => e.stopPropagation()}
-                                className="absolute right-2 top-2 z-20 h-4 w-4 accent-primary"
-                              />
+                              {!isStaff && (
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Selecionar agendamento de ${app.client}`}
+                                  checked={archiveSelection.isSelected({ entity: 'appointment', id: String(app.id) })}
+                                  onChange={() => archiveSelection.toggleRecord({ entity: 'appointment', id: String(app.id) })}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute right-2 top-2 z-20 h-4 w-4 accent-primary"
+                                />
+                              )}
                               <div className={cn("font-semibold text-[12px] leading-tight truncate", app.client === 'Horário bloqueado' && "italic text-text-muted")}>
                                 {app.client}
                               </div>
@@ -355,11 +362,13 @@ export function Agenda() {
         </div>
       </Card>
 
-      <ProfessionalScheduleDialog
-        open={scheduleDialogOpen}
-        onOpenChange={setScheduleDialogOpen}
-        professionals={professionalUsers.filter((professional) => professional.active)}
-      />
+      {!isStaff && (
+        <ProfessionalScheduleDialog
+          open={scheduleDialogOpen}
+          onOpenChange={setScheduleDialogOpen}
+          professionals={professionalUsers.filter((professional) => professional.active)}
+        />
+      )}
 
       <Dialog open={dialogState.type !== 'none'} onOpenChange={(open) => !open && setDialogState({ type: 'none' })}>
         <DialogContent className="sm:max-w-[425px]">
@@ -662,7 +671,7 @@ export function Agenda() {
             </div>
             
             <DialogFooter className="gap-2 sm:justify-between">
-              {dialogState.type === 'edit' ? (
+              {dialogState.type === 'edit' && !isStaff ? (
                 <Button 
                   type="button" 
                   variant="destructive" 

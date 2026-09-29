@@ -26,6 +26,7 @@ interface Props {
   validDates: boolean;
   apiStatus: string | undefined;
   pId: number | undefined;
+  lockedProfessionalId?: number;
   onViewDetails: (prof: Professional, period: { from: string; to: string }, status: TabStatus) => void;
 }
 
@@ -36,6 +37,7 @@ export function CommissionsTab({
   statusFilter, setStatusFilter, 
   profFilter, setProfFilter, 
   dateRange, validDates, apiStatus, pId,
+  lockedProfessionalId,
   onViewDetails 
 }: Props) {
   
@@ -146,20 +148,26 @@ export function CommissionsTab({
             </>
           )}
 
-          <div className="space-y-1.5 flex-1 min-w-[200px]">
-            <label className="text-xs font-medium text-text-secondary">Profissional</label>
-            <Select value={profFilter} onValueChange={setProfFilter}>
-              <SelectTrigger className="h-9 bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os profissionais</SelectItem>
-                {professionals.map(p => (
-                  <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {lockedProfessionalId == null ? (
+            <div className="space-y-1.5 flex-1 min-w-[200px]">
+              <label className="text-xs font-medium text-text-secondary">Profissional</label>
+              <Select value={profFilter} onValueChange={setProfFilter}>
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os profissionais</SelectItem>
+                  {professionals.map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="flex min-w-[200px] flex-1 items-end pb-2 text-sm font-medium text-text-secondary">
+              Minhas comissões
+            </div>
+          )}
 
           <div className="space-y-1.5 flex-1 min-w-[150px]">
             <label className="text-xs font-medium text-text-secondary">Status</label>

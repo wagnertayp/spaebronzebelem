@@ -9,6 +9,84 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Autentica uma conta administrativa ou profissional
+ */
+export const loginBodyUsernameMax = 120;
+
+export const loginBodyPasswordMax = 256;
+
+
+
+export const LoginBody = zod.object({
+  "username": zod.string().min(1).max(loginBodyUsernameMax),
+  "password": zod.string().min(1).max(loginBodyPasswordMax)
+})
+
+export const LoginResponse = zod.object({
+  "user": zod.object({
+  "username": zod.string(),
+  "role": zod.enum(['admin', 'staff']),
+  "professionalId": zod.number().int().nullable(),
+  "canAccessAgenda": zod.boolean(),
+  "canAccessCommissions": zod.boolean(),
+  "agendaScope": zod.enum(['own', 'team']),
+  "mustChangePassword": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Encerra a sessão atual
+ */
+export const LogoutResponse = zod.void()
+
+
+/**
+ * @summary Retorna o usuário da sessão atual
+ */
+export const GetAuthSessionResponse = zod.object({
+  "user": zod.union([zod.object({
+  "username": zod.string(),
+  "role": zod.enum(['admin', 'staff']),
+  "professionalId": zod.number().int().nullable(),
+  "canAccessAgenda": zod.boolean(),
+  "canAccessCommissions": zod.boolean(),
+  "agendaScope": zod.enum(['own', 'team']),
+  "mustChangePassword": zod.boolean()
+}),zod.null()]),
+  "expiresAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Altera a senha temporária de uma conta profissional
+ */
+export const changeStaffPasswordBodyCurrentPasswordMax = 256;
+
+export const changeStaffPasswordBodyNewPasswordMin = 12;
+export const changeStaffPasswordBodyNewPasswordMax = 256;
+
+
+
+export const ChangeStaffPasswordBody = zod.object({
+  "currentPassword": zod.string().min(1).max(changeStaffPasswordBodyCurrentPasswordMax),
+  "newPassword": zod.string().min(changeStaffPasswordBodyNewPasswordMin).max(changeStaffPasswordBodyNewPasswordMax)
+})
+
+export const ChangeStaffPasswordResponse = zod.object({
+  "user": zod.object({
+  "username": zod.string(),
+  "role": zod.enum(['admin', 'staff']),
+  "professionalId": zod.number().int().nullable(),
+  "canAccessAgenda": zod.boolean(),
+  "canAccessCommissions": zod.boolean(),
+  "agendaScope": zod.enum(['own', 'team']),
+  "mustChangePassword": zod.boolean()
+})
+})
+
+
+/**
  * @summary Lista registros arquivados que podem ser restaurados
  */
 export const ListArchivedRecordsResponseItem = zod.object({
@@ -50,6 +128,91 @@ export const ManageArchivedRecordsResponse = zod.object({
   "archivedAt": zod.coerce.date(),
   "label": zod.string()
 }))
+})
+
+
+/**
+ * @summary Lista os acessos de profissionais
+ */
+export const ListStaffAccessAccountsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "username": zod.string(),
+  "active": zod.boolean(),
+  "canAccessAgenda": zod.boolean(),
+  "canAccessCommissions": zod.boolean(),
+  "agendaScope": zod.enum(['own', 'team']),
+  "mustChangePassword": zod.boolean()
+})
+export const ListStaffAccessAccountsResponse = zod.array(ListStaffAccessAccountsResponseItem)
+
+
+/**
+ * @summary Cria um acesso e gera uma senha temporária
+ */
+
+export const createStaffAccessAccountBodyUsernameMin = 3;
+export const createStaffAccessAccountBodyUsernameMax = 40;
+
+
+export const createStaffAccessAccountBodyUsernameRegExp = new RegExp('^[a-zA-Z0-9._-]+$');
+
+
+export const CreateStaffAccessAccountBody = zod.object({
+  "professionalId": zod.number().int().min(1),
+  "username": zod.string().min(createStaffAccessAccountBodyUsernameMin).max(createStaffAccessAccountBodyUsernameMax).regex(createStaffAccessAccountBodyUsernameRegExp),
+  "canAccessAgenda": zod.boolean(),
+  "canAccessCommissions": zod.boolean(),
+  "agendaScope": zod.enum(['own', 'team'])
+})
+
+export const CreateStaffAccessAccountResponse = zod.object({
+  "account": zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "username": zod.string(),
+  "active": zod.boolean(),
+  "canAccessAgenda": zod.boolean(),
+  "canAccessCommissions": zod.boolean(),
+  "agendaScope": zod.enum(['own', 'team']),
+  "mustChangePassword": zod.boolean()
+}),
+  "temporaryPassword": zod.string()
+})
+
+
+export const UpdateStaffAccessAccountParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateStaffAccessAccountBody = zod.object({
+  "active": zod.boolean().optional(),
+  "canAccessAgenda": zod.boolean().optional(),
+  "canAccessCommissions": zod.boolean().optional(),
+  "agendaScope": zod.enum(['own', 'team']).optional()
+})
+
+export const UpdateStaffAccessAccountResponse = zod.object({
+  "id": zod.number().int(),
+  "professionalId": zod.number().int(),
+  "username": zod.string(),
+  "active": zod.boolean(),
+  "canAccessAgenda": zod.boolean(),
+  "canAccessCommissions": zod.boolean(),
+  "agendaScope": zod.enum(['own', 'team']),
+  "mustChangePassword": zod.boolean()
+})
+
+
+/**
+ * @summary Gera uma nova senha temporária e revoga sessões anteriores
+ */
+export const ResetStaffAccessPasswordParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ResetStaffAccessPasswordResponse = zod.object({
+  "temporaryPassword": zod.string()
 })
 
 

@@ -1,44 +1,89 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import {
+  getGetAuthSessionQueryKey,
+  useChangeStaffPassword,
+  useGetAuthSession,
+  useLogin,
+  useLogout,
+  type AuthUser,
+} from "@workspace/api-client-react";
 
-type User = { username: string };
 type AuthContextValue = {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const errorMessage = (error: unknown, fallback: string) => {
+  if (error && typeof error === "object") {
+    const data = (error as { data?: unknown }).data;
+    if (data && typeof data === "object" && "error" in data && typeof data.error === "string") {
+      return data.error;
+    }
+    if (error instanceof Error && error.message) return error.message;
+  }
+  return fallback;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const sessionQuery = useGetAuthSession({
+    query: {
+      queryKey: getGetAuthSessionQueryKey(),
+      retry: false,
+      refetchOnWindowFocus: false,
+    },
+  });
+  const loginMutation = useLogin();
+  const logoutMutation = useLogout();
+  const changePasswordMutation = useChangeStaffPassword();
 
   useEffect(() => {
-    fetch("/api/auth/session", { credentials: "include" })
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => setUser(data?.user ?? null))
-      .finally(() => setLoading(false));
-  }, []);
+    if (sessionQuery.isFetched) setUser(sessionQuery.data?.user ?? null);
+  }, [sessionQuery.data, sessionQuery.isFetched]);
 
   const login = async (username: string, password: string) => {
-    const response = await fetch("/api/auth/login", {
-      method: "POST", credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Não foi possível entrar");
-    const data = await response.json();
-    setUser(data.user);
+    try {
+      await queryClient.cancelQueries();
+      const response = await loginMutation.mutateAsync({ data: { username, password } });
+      queryClient.clear();
+      setUser(response.user);
+      queryClient.setQueryData(getGetAuthSessionQueryKey(), { user: response.user });
+    } catch (error) {
+      throw new Error(errorMessage(error, "Não foi possível entrar"));
+    }
   };
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    await logoutMutation.mutateAsync();
+    queryClient.clear();
     setUser(null);
   };
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      const response = await changePasswordMutation.mutateAsync({
+        data: { currentPassword, newPassword },
+      });
+      setUser(response.user);
+      queryClient.setQueryData(getGetAuthSessionQueryKey(), { user: response.user });
+    } catch (error) {
+      throw new Error(errorMessage(error, "Não foi possível alterar a senha"));
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading: sessionQuery.isLoading, login, logout, changePassword }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
@@ -49,10 +94,16 @@ export function useAuth() {
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   useEffect(() => {
     if (!loading && !user) navigate("/login", { replace: true });
-  }, [loading, user, navigate]);
+    else if (!loading && user?.mustChangePassword && location !== "/change-password") {
+      navigate("/change-password", { replace: true });
+    } else if (!loading && user?.role === "admin" && location === "/change-password") {
+      navigate("/", { replace: true });
+    }
+  }, [loading, user, location, navigate]);
   if (loading) return <div className="min-h-screen bg-background" aria-label="Carregando sessão" />;
+  if (user?.mustChangePassword && location !== "/change-password") return null;
   return user ? <>{children}</> : null;
 }

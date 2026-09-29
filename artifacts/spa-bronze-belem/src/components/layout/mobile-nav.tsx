@@ -1,4 +1,4 @@
-import { Menu, X, Settings, LogOut } from 'lucide-react';
+import { Menu, X, Settings, LogOut, KeyRound } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { navItems } from './nav-items';
 import { cn } from '@/lib/utils';
@@ -9,7 +9,23 @@ import { useAuth } from '@/hooks/use-auth';
 export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean, onOpenChange: (open: boolean) => void, className?: string }) {
   const [location] = useLocation();
   const { administrator, initials } = useBusinessSettings();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const visibleNavItems = user?.role === 'staff'
+    ? navItems
+        .filter((item) =>
+          (item.href === '/agenda' && user.canAccessAgenda) ||
+          (item.href === '/usuarios' && user.canAccessCommissions),
+        )
+        .map((item) => item.href === '/usuarios' ? { ...item, label: 'Comissões' } : item)
+    : navItems;
+  const homeHref = user?.role === 'staff'
+    ? user.canAccessAgenda ? '/agenda' : user.canAccessCommissions ? '/usuarios' : '/sem-acesso'
+    : '/';
+  const profileName = user?.role === 'staff' ? user.username : administrator;
+  const profileInitials = user?.role === 'staff'
+    ? user.username.slice(0, 2).toUpperCase()
+    : initials;
+  const profileHref = user?.role === 'staff' ? '/change-password' : '/configuracoes';
 
   return (
     <div className={cn("flex items-center justify-between h-[72px] px-4 border-b border-border/50 bg-surface/70 backdrop-blur-2xl shrink-0 sticky top-0 z-30", className)}>
@@ -33,7 +49,7 @@ export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean
               </div>
               
               <div className="flex-1 overflow-y-auto px-4 space-y-1">
-                {navItems.map((item) => {
+                {visibleNavItems.map((item) => {
                   const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
                   const Icon = item.icon;
                   return (
@@ -63,18 +79,22 @@ export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean
               
               <div className="p-4 mt-auto">
                 <Link 
-                  href="/configuracoes" 
+                  href={profileHref} 
                   onClick={() => onOpenChange(false)} 
                   className="flex items-center gap-3 group outline-none p-3 rounded-xl hover:bg-surface-soft transition-colors border border-transparent hover:border-border/40"
                 >
                   <div className="w-10 h-10 rounded-lg bg-primary-soft text-primary-dark flex items-center justify-center font-bold text-[14px] shadow-sm shrink-0 border border-primary-soft/50">
-                    {initials}
+                    {profileInitials}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-semibold text-text-primary truncate">{administrator}</p>
-                    <p className="text-[12px] font-medium text-text-secondary mt-0.5 transition-colors group-hover:text-primary">Ajustes</p>
+                    <p className="text-[14px] font-semibold text-text-primary truncate">{profileName}</p>
+                    <p className="text-[12px] font-medium text-text-secondary mt-0.5 transition-colors group-hover:text-primary">
+                      {user?.role === 'staff' ? 'Alterar senha' : 'Ajustes'}
+                    </p>
                   </div>
-                  <Settings className="w-4 h-4 text-text-muted shrink-0 opacity-50 group-hover:opacity-100 transition-all duration-300" />
+                  {user?.role === 'staff'
+                    ? <KeyRound className="w-4 h-4 text-text-muted shrink-0 opacity-50 group-hover:opacity-100 transition-all duration-300" />
+                    : <Settings className="w-4 h-4 text-text-muted shrink-0 opacity-50 group-hover:opacity-100 transition-all duration-300" />}
                   <button 
                     type="button" 
                     onClick={(e) => {
@@ -93,18 +113,18 @@ export function MobileNav({ isOpen, onOpenChange, className }: { isOpen: boolean
           </Dialog.Portal>
         </Dialog.Root>
         
-        <Link href="/" className="ml-1 outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-md">
+        <Link href={homeHref} className="ml-1 outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-md">
           <img src="/logo-clean.png" alt="Spa e Bronze" className="h-[36px] w-auto object-contain" />
         </Link>
       </div>
       
       <div className="flex items-center gap-3">
         <Link 
-          href="/configuracoes" 
-          aria-label="Abrir configurações" 
+          href={profileHref} 
+          aria-label={user?.role === 'staff' ? 'Alterar senha' : 'Abrir configurações'} 
           className="w-10 h-10 rounded-lg bg-primary-soft text-primary-dark flex items-center justify-center font-bold text-[14px] shadow-sm hover:-translate-y-0.5 transition-transform outline-none focus-visible:ring-2 focus-visible:ring-primary/50 border border-primary-soft/50"
         >
-          {initials}
+          {profileInitials}
         </Link>
       </div>
     </div>
