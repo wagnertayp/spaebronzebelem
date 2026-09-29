@@ -14,6 +14,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { BulkArchiveToolbar } from "@/components/archive/bulk-archive-toolbar";
+import { useBulkArchiveSelection } from "@/hooks/use-bulk-archive-selection";
 
 interface ProfessionalsTabProps {
   onEdit: (prof: Professional) => void;
@@ -33,6 +35,13 @@ export function ProfessionalsTab({ onEdit, onConfigCommission, onViewCommissions
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const updateMutation = useUpdateProfessional();
+  const archiveSelection = useBulkArchiveSelection({
+    action: "archive",
+    records: professionals.map((professional) => ({
+      entity: "professional" as const,
+      id: String(professional.id),
+    })),
+  });
 
   const toggleActive = (prof: Professional) => {
     updateMutation.mutate({ id: prof.id, data: { ...prof, active: !prof.active } }, {
@@ -66,6 +75,7 @@ export function ProfessionalsTab({ onEdit, onConfigCommission, onViewCommissions
       <div className="text-sm font-medium text-text-secondary px-1">
         {activeCount} {activeCount === 1 ? "profissional ativo" : "profissionais ativos"}
       </div>
+      <BulkArchiveToolbar selection={archiveSelection} />
 
       {/* Desktop Table */}
       <div className="hidden md:block bg-surface rounded-xl border border-border shadow-sm overflow-hidden">
@@ -92,7 +102,14 @@ export function ProfessionalsTab({ onEdit, onConfigCommission, onViewCommissions
               const stats = profStats[prof.id] || { production: 0, commission: 0 };
               return (
                 <tr key={prof.id} className="hover:bg-surface-soft/30 transition-colors group">
-                  <td className="py-3 px-4">
+                   <td className="py-3 px-4">
+                     <input
+                       type="checkbox"
+                       aria-label={`Selecionar profissional ${prof.name}`}
+                       checked={archiveSelection.isSelected({ entity: "professional", id: String(prof.id) })}
+                       onChange={() => archiveSelection.toggleRecord({ entity: "professional", id: String(prof.id) })}
+                       className="mr-3 h-4 w-4 align-middle accent-primary"
+                     />
                     <div className="font-semibold text-text-primary text-[14px]">{prof.name}</div>
                     <div className="text-text-muted text-[12px]">{prof.email || prof.phone}</div>
                   </td>
@@ -165,7 +182,14 @@ export function ProfessionalsTab({ onEdit, onConfigCommission, onViewCommissions
           return (
             <Card key={prof.id} className="p-4 bg-surface border-border shadow-sm flex flex-col gap-3">
               <div className="flex justify-between items-start">
-                <div>
+                 <div>
+                   <input
+                     type="checkbox"
+                     aria-label={`Selecionar profissional ${prof.name}`}
+                     checked={archiveSelection.isSelected({ entity: "professional", id: String(prof.id) })}
+                     onChange={() => archiveSelection.toggleRecord({ entity: "professional", id: String(prof.id) })}
+                     className="mr-2 h-4 w-4 align-middle accent-primary"
+                   />
                   <h4 className="font-semibold text-text-primary text-[15px]">{prof.name}</h4>
                   <p className="text-[13px] text-text-secondary">{prof.specialty || 'Sem especialidade'}</p>
                 </div>

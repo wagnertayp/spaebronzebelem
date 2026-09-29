@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import type { Appointment } from '@workspace/api-client-react';
 import { ProfessionalScheduleDialog } from '@/components/agenda/ProfessionalScheduleDialog';
+import { BulkArchiveToolbar } from '@/components/archive/bulk-archive-toolbar';
+import { useBulkArchiveSelection } from '@/hooks/use-bulk-archive-selection';
 
 const appointmentTime = (value: string) => {
   if (/^\d{2}:\d{2}/.test(value)) return value.slice(0, 5);
@@ -142,6 +144,20 @@ export function Agenda() {
     });
   };
 
+  const visibleAppointments = appointments.filter((app) => {
+    if (statusFilter && app.status !== statusFilter) return false;
+    if (professionalFilter !== 'all') {
+      const professional = professionals.find((item) => String(item.id) === professionalFilter);
+      if (!professional) return false;
+      if (professional.id !== null ? app.professionalId !== professional.id : app.professional !== professional.name) return false;
+    }
+    return true;
+  });
+  const archiveSelection = useBulkArchiveSelection({
+    action: 'archive',
+    records: visibleAppointments.map((appointment) => ({ entity: 'appointment' as const, id: String(appointment.id) })),
+  });
+
   const getStatusColor = (status: string) => {
     switch(status) {
       case 'confirmed': return 'bg-[#E7EEE4] text-[#596653] border-[#7D8B78]/20';
@@ -228,6 +244,7 @@ export function Agenda() {
             </button>
           </div>
         </div>
+        <BulkArchiveToolbar selection={archiveSelection} />
 
         <div className="flex-1 overflow-auto bg-surface">
           <div className="min-w-[800px]">
@@ -299,6 +316,14 @@ export function Agenda() {
                                 minHeight: '52px' 
                               }}
                             >
+                              <input
+                                type="checkbox"
+                                aria-label={`Selecionar agendamento de ${app.client}`}
+                                checked={archiveSelection.isSelected({ entity: 'appointment', id: String(app.id) })}
+                                onChange={() => archiveSelection.toggleRecord({ entity: 'appointment', id: String(app.id) })}
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute right-2 top-2 z-20 h-4 w-4 accent-primary"
+                              />
                               <div className={cn("font-semibold text-[12px] leading-tight truncate", app.client === 'Horário bloqueado' && "italic text-text-muted")}>
                                 {app.client}
                               </div>
@@ -377,7 +402,7 @@ export function Agenda() {
                   onClick={() => {
                     deleteMutation.mutate({ id: dialogState.appointment.id }, {
                       onSuccess: () => {
-                        queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+                        queryClient.invalidateQueries();
                         setDialogState({ type: 'none' });
                         toast({ title: "Horário desbloqueado!" });
                       },
@@ -643,22 +668,22 @@ export function Agenda() {
                   variant="destructive" 
                   className="gap-2"
                   onClick={() => {
-                    if (confirm('Remover este agendamento da agenda?')) {
+                    if (confirm('Arquivar este agendamento? Ele poderá ser restaurado no Arquivo.')) {
                       deleteMutation.mutate({ id: dialogState.appointment.id }, {
                         onSuccess: () => {
-                          queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+                          queryClient.invalidateQueries();
                           setDialogState({ type: 'none' });
-                          toast({ title: "Agendamento removido da agenda" });
+                          toast({ title: "Agendamento arquivado", description: "Ele poderá ser restaurado no Arquivo." });
                         },
                         onError: () => {
-                          toast({ title: "Erro", description: "Não foi possível excluir o agendamento.", variant: "destructive" });
+                          toast({ title: "Erro", description: "Não foi possível arquivar o agendamento.", variant: "destructive" });
                         }
                       });
                     }
                   }}
                   disabled={deleteMutation.isPending}
                 >
-                  <Trash className="w-4 h-4" /> Remover da agenda
+                  <Trash className="w-4 h-4" /> Arquivar agendamento
                 </Button>
               ) : (
                 <div /> // Spacer

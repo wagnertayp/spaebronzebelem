@@ -24,6 +24,7 @@ import { Financeiro } from '@/pages/financeiro';
 import { Estoque } from '@/pages/estoque';
 import { Relatorios } from '@/pages/relatorios';
 import { Configuracoes } from '@/pages/configuracoes';
+import { Arquivo } from '@/pages/arquivo';
 import { Login } from '@/pages/login';
 import { AuthGuard, AuthProvider } from '@/hooks/use-auth';
 
@@ -54,6 +55,7 @@ function Router() {
           <Route path="/financeiro" component={Financeiro} />
           <Route path="/estoque" component={Estoque} />
           <Route path="/relatorios" component={Relatorios} />
+          <Route path="/arquivo" component={Arquivo} />
           <Route path="/configuracoes" component={Configuracoes} />
           <Route component={NotFound} />
         </Switch>

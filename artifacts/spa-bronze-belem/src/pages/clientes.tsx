@@ -29,6 +29,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { BulkArchiveToolbar } from '@/components/archive/bulk-archive-toolbar';
+import { useBulkArchiveSelection } from '@/hooks/use-bulk-archive-selection';
+import type { ArchiveRecordRef } from '@workspace/api-client-react';
 
 const ClientFormContent = ({ defaultValues = {} }: { defaultValues?: Partial<Client> }) => (
   <div className="space-y-4 py-2">
@@ -96,6 +99,10 @@ export function Clientes() {
   const safePage = Math.min(currentPage, totalPages);
   const pageStart = (safePage - 1) * pageSize;
   const paginatedClients = filteredClients.slice(pageStart, pageStart + pageSize);
+  const selection = useBulkArchiveSelection({
+    action: 'archive',
+    records: paginatedClients.map((client): ArchiveRecordRef => ({ entity: 'client', id: String(client.id) })),
+  });
   const visiblePages = Array.from(
     { length: Math.min(5, totalPages) },
     (_, index) => Math.min(Math.max(1, safePage - 2), Math.max(1, totalPages - 4)) + index,
@@ -191,9 +198,10 @@ export function Clientes() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
           setDeletingClient(null);
-          toast({ title: 'Sucesso', description: 'Cliente excluído.' });
+           queryClient.invalidateQueries();
+           toast({ title: 'Sucesso', description: 'Cliente arquivado. Você pode restaurá-lo em Arquivo.' });
         },
-        onError: () => toast({ title: 'Erro', description: 'Erro ao excluir.', variant: 'destructive' })
+         onError: () => toast({ title: 'Erro', description: 'Não foi possível arquivar o cliente.', variant: 'destructive' })
       }
     );
   };
@@ -239,12 +247,16 @@ export function Clientes() {
         </div>
       </div>
 
-      <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
+       <BulkArchiveToolbar selection={selection} />
+       <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="border-b border-border bg-surface-soft/50">
-                <th className="px-6 py-4 text-[12px] font-medium text-text-muted">Cliente</th>
+                 <th className="px-6 py-4 text-[12px] font-medium text-text-muted">
+                   <input type="checkbox" checked={selection.allVisibleSelected} onChange={selection.toggleAllVisible} aria-label="Selecionar todos os clientes visíveis" className="h-4 w-4 accent-primary" />
+                 </th>
+                 <th className="px-6 py-4 text-[12px] font-medium text-text-muted">Cliente</th>
                 <th className="px-6 py-4 text-[12px] font-medium text-text-muted">Status</th>
                 <th className="px-6 py-4 text-[12px] font-medium text-text-muted">Serviço Principal</th>
                 <th className="px-6 py-4 text-[12px] font-medium text-text-muted">Última Visita</th>
@@ -267,7 +279,10 @@ export function Clientes() {
               ) : paginatedClients.length > 0 ? (
                 paginatedClients.map((client) => (
                   <tr key={client.id} className="group hover:bg-surface-soft/50 transition-colors">
-                    <td className="px-6 py-4">
+                     <td className="px-6 py-4">
+                       <input type="checkbox" checked={selection.isSelected({ entity: 'client', id: String(client.id) })} onChange={() => selection.toggleRecord({ entity: 'client', id: String(client.id) })} aria-label={`Selecionar cliente ${client.name}`} className="h-4 w-4 accent-primary" />
+                     </td>
+                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-primary-soft text-primary-dark flex items-center justify-center font-medium text-[13px] shrink-0">
                           {client.initials}
@@ -317,7 +332,7 @@ export function Clientes() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => setDeletingClient(client)} className="text-red-600 focus:text-red-600">
                             <Trash className="w-4 h-4 mr-2" />
-                            Excluir
+                             Arquivar
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -326,7 +341,7 @@ export function Clientes() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
+           <td colSpan={7} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center text-text-muted">
                       <Search className="w-8 h-8 mb-4 opacity-20" />
                       <p className="text-[14px] font-medium text-text-primary">Nenhum cliente encontrado</p>
@@ -482,15 +497,15 @@ export function Clientes() {
       <Dialog open={!!deletingClient} onOpenChange={(o) => !o && setDeletingClient(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-red-600">Excluir Cliente</DialogTitle>
+           <DialogTitle>Arquivar Cliente</DialogTitle>
             <DialogDescription>
-              Você tem certeza que deseja excluir <strong>{deletingClient?.name}</strong>? Esta ação não pode ser desfeita.
+               Você tem certeza que deseja arquivar <strong>{deletingClient?.name}</strong>? O cliente poderá ser restaurado em Arquivo.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDeletingClient(null)}>Cancelar</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleteClient.isPending}>
-              {deleteClient.isPending ? 'Excluindo...' : 'Excluir Definitivamente'}
+               {deleteClient.isPending ? 'Arquivando...' : 'Arquivar'}
             </Button>
           </DialogFooter>
         </DialogContent>

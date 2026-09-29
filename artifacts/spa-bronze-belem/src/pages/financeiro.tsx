@@ -35,6 +35,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ExportDialog } from '@/components/export/export-dialog';
+import { BulkArchiveToolbar } from '@/components/archive/bulk-archive-toolbar';
+import { useBulkArchiveSelection } from '@/hooks/use-bulk-archive-selection';
+import type { ArchiveRecordRef } from '@workspace/api-client-react';
 
 const formSchema = z.object({
   type: z.enum(['revenue', 'expense', 'receivable']),
@@ -108,12 +111,13 @@ export function Financeiro() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListFinancialMovementsQueryKey({ month: selectedMonth }) });
-        toast({ title: 'Movimentação excluída com sucesso.' });
+         queryClient.invalidateQueries();
+         toast({ title: 'Movimentação arquivada. Você pode restaurá-la em Arquivo.' });
         setDeletingId(null);
       },
       onError: (error) => {
         toast({
-          title: 'Erro ao excluir movimentação.',
+          title: 'Erro ao arquivar movimentação.',
           description: error instanceof Error ? error.message : 'Tente novamente.',
           variant: 'destructive'
         });
@@ -204,6 +208,10 @@ export function Financeiro() {
     }
     return [...result].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [movements, filterType]);
+  const selection = useBulkArchiveSelection({
+    action: 'archive',
+    records: filteredMovements.map((movement): ArchiveRecordRef => ({ entity: 'financialMovement', id: String(movement.id) })),
+  });
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -452,7 +460,8 @@ export function Financeiro() {
             </div>
           </div>
 
-          <Card className="shadow-card border-none overflow-hidden">
+             <BulkArchiveToolbar selection={selection} />
+             <Card className="shadow-card border-none overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-[16px]">Fluxo financeiro</CardTitle>
             </CardHeader>
@@ -635,7 +644,10 @@ export function Financeiro() {
                 <Table className="min-w-[800px]">
                   <TableHeader className="bg-surface-soft/50">
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-[100px]">Data</TableHead>
+                       <TableHead className="w-[48px]">
+                         <input type="checkbox" checked={selection.allVisibleSelected} onChange={selection.toggleAllVisible} aria-label="Selecionar todas as movimentações visíveis" className="h-4 w-4 accent-primary" />
+                       </TableHead>
+                       <TableHead className="w-[100px]">Data</TableHead>
                       <TableHead>Descrição</TableHead>
                       <TableHead>Categoria</TableHead>
                       <TableHead>Envolvidos</TableHead>
@@ -653,7 +665,10 @@ export function Financeiro() {
                       </TableRow>
                     ) : (
                       filteredMovements.map((m) => (
-                        <TableRow key={m.id} className="hover:bg-surface-soft/50 border-border/40">
+                         <TableRow key={m.id} className="hover:bg-surface-soft/50 border-border/40">
+                           <TableCell>
+                             <input type="checkbox" checked={selection.isSelected({ entity: 'financialMovement', id: String(m.id) })} onChange={() => selection.toggleRecord({ entity: 'financialMovement', id: String(m.id) })} aria-label={`Selecionar movimentação ${m.description}`} className="h-4 w-4 accent-primary" />
+                           </TableCell>
                           <TableCell className="text-[13px] font-medium text-text-secondary whitespace-nowrap">
                             {format(parseISO(m.date), 'dd/MM/yyyy')}
                           </TableCell>
@@ -687,7 +702,7 @@ export function Financeiro() {
                               <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-primary" onClick={() => openEditMovementForm(m)}>
                                 <Edit2 className="w-4 h-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-error" onClick={() => setDeletingId(m.id)}>
+                               <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-error" onClick={() => setDeletingId(m.id)} aria-label="Arquivar movimentação" title="Arquivar movimentação">
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
@@ -707,7 +722,8 @@ export function Financeiro() {
                 ) : (
                   filteredMovements.map((m) => (
                     <div key={m.id} className="bg-surface border border-border/40 rounded-[14px] p-4 flex flex-col gap-3">
-                      <div className="flex justify-between items-start gap-2">
+                       <div className="flex justify-between items-start gap-2">
+                         <input type="checkbox" checked={selection.isSelected({ entity: 'financialMovement', id: String(m.id) })} onChange={() => selection.toggleRecord({ entity: 'financialMovement', id: String(m.id) })} aria-label={`Selecionar movimentação ${m.description}`} className="mt-1 h-4 w-4 shrink-0 accent-primary" />
                         <div>
                           <div className="flex items-center gap-2 text-[14px] font-medium text-text-primary">
                             <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.type === 'revenue' ? 'bg-success' : m.type === 'expense' ? 'bg-error' : 'bg-warning'}`} />
@@ -738,7 +754,7 @@ export function Financeiro() {
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-primary" onClick={() => openEditMovementForm(m)} aria-label="Editar movimentação" title="Editar movimentação">
                             <Edit2 className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-error" onClick={() => setDeletingId(m.id)} aria-label="Excluir movimentação" title="Excluir movimentação">
+                           <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-error" onClick={() => setDeletingId(m.id)} aria-label="Arquivar movimentação" title="Arquivar movimentação">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -927,13 +943,13 @@ export function Financeiro() {
         </DialogContent>
       </Dialog>
 
-      {/* DELETE ALERT DIALOG */}
+       {/* ARCHIVE ALERT DIALOG */}
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
         <AlertDialogContent className="border-none shadow-modal bg-surface">
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir movimentação?</AlertDialogTitle>
+           <AlertDialogTitle>Arquivar movimentação?</AlertDialogTitle>
             <AlertDialogDescription className="text-text-secondary">
-              Esta ação não pode ser desfeita. A movimentação será removida permanentemente do histórico do mês.
+               A movimentação sairá da lista, mas poderá ser restaurada em Arquivo. Nenhum dado será apagado.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -942,7 +958,7 @@ export function Financeiro() {
               onClick={() => deletingId && deleteMutation.mutate({ id: deletingId })}
               className="bg-error hover:bg-error/90 text-white shadow-button"
             >
-              Excluir
+               Arquivar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

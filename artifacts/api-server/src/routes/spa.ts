@@ -131,6 +131,9 @@ import {
   PayCommissionPeriodResponse,
   ListCommissionAuditQueryParams,
   ListCommissionAuditResponse,
+  ListArchivedRecordsResponse,
+  ManageArchivedRecordsBody,
+  ManageArchivedRecordsResponse,
 } from "@workspace/api-zod";
 import {
   db,
@@ -1227,10 +1230,10 @@ const askWhatsappAgent = async (
   isFirstClientMessage = false,
   currentInput: WhatsappAgentInput = `Cliente: ${clientName}\nMensagem: ${text}`,
 ): Promise<AgentDecision> => {
-  const serviceTable = services
+  const serviceTable = activeSpaRecords("service", services)
     .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
     .join("\n");
-  const professionalTable = professionals
+  const professionalTable = activeSpaRecords("professional", professionals)
     .filter((professional) => professional.active)
     .map((professional) => `- ${professional.name}`)
     .join("\n");
@@ -1343,8 +1346,8 @@ const appointmentSlotIssue = (
   if (start == null || end == null || end <= start) return "invalid";
 
   const selectedProfessional = candidate.professionalId != null
-    ? professionals.find((professional) => professional.id === candidate.professionalId)
-    : professionals.find((professional) =>
+    ? activeSpaRecords("professional", professionals).find((professional) => professional.id === candidate.professionalId)
+    : activeSpaRecords("professional", professionals).find((professional) =>
         normalizeName(professional.name) === normalizeName(candidate.professional),
       );
   if (selectedProfessional) {
@@ -1363,7 +1366,7 @@ const appointmentSlotIssue = (
     if (!insideAvailability) return "conflict";
   }
 
-  const conflict = appointments.some((appointment) => {
+  const conflict = activeSpaRecords("appointment", appointments).some((appointment) => {
     if (
       appointment.id === excludedAppointmentId ||
       !appointmentBlocksTime(appointment)
@@ -1864,12 +1867,122 @@ const catalogKnowledge = [
 
 const inventory = backup.inventory.map((item) => ({ ...item }));
 
+type ArchiveEntityType =
+  | "appointment"
+  | "client"
+  | "lead"
+  | "service"
+  | "quote"
+  | "financialMovement"
+  | "professional"
+  | "commissionRule"
+  | "inventory"
+  | "whatsappConversation";
+type ArchivedSpaRecord = {
+  entity: ArchiveEntityType;
+  id: string;
+  archivedAt: string;
+  label: string;
+};
+const archivedSpaRecords: ArchivedSpaRecord[] = [];
+
 const getInitials = (name: string) =>
   name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const nextId = (items: Array<{ id: number }>) =>
   Math.max(0, ...items.map((item) => item.id)) + 1;
+
+const isSpaRecordArchived = (entity: ArchiveEntityType, id: string | number) =>
+  archivedSpaRecords.some((entry) => entry.entity === entity && entry.id === String(id));
+
+const activeSpaRecords = <T extends { id: number }>(entity: ArchiveEntityType, records: T[]) =>
+  records.filter((record) => !isSpaRecordArchived(entity, record.id));
+
+const archiveCollection = (
+  entity: Exclude<ArchiveEntityType, "whatsappConversation">,
+): Array<{ id: number }> => {
+  switch (entity) {
+    case "appointment": return appointments;
+    case "client": return clients;
+    case "lead": return leads;
+    case "service": return services;
+    case "quote": return quotes;
+    case "financialMovement": return financialMovements;
+    case "professional": return professionals;
+    case "commissionRule": return commissionRules;
+    case "inventory": return inventory;
+  }
+};
+
+const archiveLabel = (entity: ArchiveEntityType, record: Record<string, unknown>) => {
+  const value = (key: string) => String(record[key] ?? "").trim();
+  switch (entity) {
+    case "appointment": return [value("client"), value("service"), value("start")].filter(Boolean).join(" · ");
+    case "client": return value("name") || `Cliente ${value("id")}`;
+    case "lead": return value("name") || `Lead ${value("id")}`;
+    case "service": return value("name") || `Serviço ${value("id")}`;
+    case "quote": return [value("number"), value("clientName")].filter(Boolean).join(" · ");
+    case "financialMovement": return [value("description"), value("date")].filter(Boolean).join(" · ");
+    case "professional": return value("name") || `Profissional ${value("id")}`;
+    case "commissionRule": return [value("serviceName"), `Profissional ${value("professionalId")}`].filter(Boolean).join(" · ");
+    case "inventory": return value("name") || `Produto ${value("id")}`;
+    case "whatsappConversation":
+      return [value("clientName"), value("phone")].filter(Boolean).join(" · ") || "Conversa do WhatsApp";
+  }
+};
+
+const resolveArchiveTarget = async (
+  entity: ArchiveEntityType,
+  rawId: string,
+): Promise<ArchivedSpaRecord | null> => {
+  if (entity === "whatsappConversation") {
+    const id = normalizeWhatsappPhone(rawId);
+    if (!id) return null;
+    const conversation = await getWhatsappConversation(id);
+    if (!conversation) return null;
+    return {
+      entity,
+      id,
+      archivedAt: "",
+      label: archiveLabel(entity, { clientName: conversation.clientName, phone: conversation.phone }),
+    };
+  }
+
+  if (!/^\d+$/.test(rawId)) return null;
+  const id = Number(rawId);
+  if (!Number.isSafeInteger(id)) return null;
+  const record = archiveCollection(entity).find((item) => item.id === id);
+  if (!record) return null;
+  return {
+    entity,
+    id: String(id),
+    archivedAt: "",
+    label: archiveLabel(entity, record as Record<string, unknown>),
+  };
+};
+
+const archiveResolvedSpaRecord = (target: ArchivedSpaRecord) => {
+  const existing = archivedSpaRecords.find((entry) => entry.entity === target.entity && entry.id === target.id);
+  if (existing) return { entry: existing, changed: false };
+  const archived = { ...target, archivedAt: new Date().toISOString() };
+  archivedSpaRecords.push(archived);
+  return { entry: archived, changed: true };
+};
+
+const archiveSpaRecord = async (entity: ArchiveEntityType, id: string) => {
+  const target = await resolveArchiveTarget(entity, id);
+  return target ? archiveResolvedSpaRecord(target).entry : null;
+};
+
+const restoreSpaRecord = (entity: ArchiveEntityType, id: string) => {
+  const normalizedId = entity === "whatsappConversation"
+    ? normalizeWhatsappPhone(id)
+    : /^\d+$/.test(id) && Number.isSafeInteger(Number(id)) ? String(Number(id)) : id;
+  const index = archivedSpaRecords.findIndex((entry) => entry.entity === entity && entry.id === normalizedId);
+  if (index < 0) return null;
+  return archivedSpaRecords.splice(index, 1)[0] ?? null;
+};
 
 type SpaOperationalSnapshot = {
   version: 1;
@@ -1885,6 +1998,7 @@ type SpaOperationalSnapshot = {
   quotes: Quote[];
   services: typeof services;
   inventory: typeof inventory;
+  archivedSpaRecords: ArchivedSpaRecord[];
 };
 
 const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
@@ -1901,6 +2015,7 @@ const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
   quotes: clone(quotes),
   services: clone(services),
   inventory: clone(inventory),
+  archivedSpaRecords: clone(archivedSpaRecords),
 });
 
 const restoreSpaOperationalSnapshot = (value: unknown) => {
@@ -1924,12 +2039,24 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   ] as const;
   if (
     candidate.version !== 1 ||
-    collectionKeys.some((key) => !Array.isArray(candidate[key]))
+    collectionKeys.some((key) => !Array.isArray(candidate[key])) ||
+    (candidate.archivedSpaRecords !== undefined && !Array.isArray(candidate.archivedSpaRecords))
   ) {
     throw new Error("Stored SPA operational state has an unsupported shape.");
   }
 
   const snapshot = candidate as unknown as SpaOperationalSnapshot;
+  const archiveEntries = (candidate.archivedSpaRecords ?? []) as ArchivedSpaRecord[];
+  if (archiveEntries.some((entry) =>
+    !entry ||
+    typeof entry !== "object" ||
+    typeof entry.entity !== "string" ||
+    typeof entry.id !== "string" ||
+    typeof entry.archivedAt !== "string" ||
+    typeof entry.label !== "string"
+  )) {
+    throw new Error("Stored SPA archive state has an unsupported shape.");
+  }
   const replace = <T>(target: T[], source: T[]) => {
     target.splice(0, target.length, ...source);
   };
@@ -1944,6 +2071,7 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   replace(quotes, snapshot.quotes);
   replace(services, snapshot.services);
   replace(inventory, snapshot.inventory);
+  replace(archivedSpaRecords, archiveEntries);
   commissionConfigs.clear();
   for (const config of snapshot.commissionConfigs) {
     commissionConfigs.set(config.professionalId, config);
@@ -2077,7 +2205,7 @@ const getCommissionItems = (from: string, to: string, professionalId?: number): 
       const config = professional ? commissionConfigs.get(professional.id) : undefined;
       const date = appointmentDate(appointment.start);
       const rule = professional && service
-        ? commissionRules.find((entry) => entry.professionalId === professional.id && entry.serviceId === service.id && entry.active)
+        ? activeSpaRecords("commissionRule", commissionRules).find((entry) => entry.professionalId === professional.id && entry.serviceId === service.id && entry.active)
         : undefined;
       const rateType = rule?.type ?? config?.commissionType ?? "percent";
       const rateValue = rule?.value ?? config?.defaultValue ?? null;
@@ -2362,29 +2490,103 @@ router.get("/dashboard", (_req, res) => {
     revenue: [{ label: "Total", value: backup.meta.totalRevenue }],
     serviceMix: [],
     currentAppointment: appointments.find(
-      (appointment) => appointment.status === "in_progress",
+      (appointment) => appointment.status === "in_progress" &&
+        !isSpaRecordArchived("appointment", appointment.id),
     ),
   });
   res.json(data);
 });
 
+router.get("/archive", (_req, res) => {
+  const archived = [...archivedSpaRecords].sort(
+    (left, right) => right.archivedAt.localeCompare(left.archivedAt),
+  );
+  res.json(ListArchivedRecordsResponse.parse(archived));
+});
+
+router.post("/archive/bulk", async (req, res): Promise<void> => {
+  const input = ManageArchivedRecordsBody.parse(req.body);
+  const uniqueRefs = [...new Map(
+    input.records.map((record) => [`${record.entity}:${record.id}`, record]),
+  ).values()];
+
+  if (input.action === "archive") {
+    const targets = await Promise.all(
+      uniqueRefs.map((record) => resolveArchiveTarget(record.entity, record.id)),
+    );
+    if (targets.some((target) => !target)) {
+      res.status(404).json({ error: "Um ou mais registros selecionados não foram encontrados. Nenhum item foi alterado." });
+      return;
+    }
+    const resolvedTargets = [...new Map(
+      targets
+        .filter((target): target is ArchivedSpaRecord => target !== null)
+        .map((target) => [`${target.entity}:${target.id}`, target]),
+    ).values()];
+    let changedCount = 0;
+    const records = resolvedTargets.map((target) => {
+      const result = archiveResolvedSpaRecord(target);
+      if (result.changed) changedCount += 1;
+      return result.entry;
+    });
+    res.json(ManageArchivedRecordsResponse.parse({
+      action: input.action,
+      changedCount,
+      records,
+    }));
+    return;
+  }
+
+  const restoringMarkers = uniqueRefs
+    .map((record) => {
+      const normalizedId = record.entity === "whatsappConversation"
+        ? normalizeWhatsappPhone(record.id)
+        : /^\d+$/.test(record.id) && Number.isSafeInteger(Number(record.id)) ? String(Number(record.id)) : record.id;
+      return archivedSpaRecords.find((entry) => entry.entity === record.entity && entry.id === normalizedId);
+    })
+    .filter((record): record is ArchivedSpaRecord => record !== undefined);
+  const restoringRuleIds = new Set(
+    restoringMarkers
+      .filter((record) => record.entity === "commissionRule")
+      .map((record) => Number(record.id)),
+  );
+  const activeRulesAfterRestore = commissionRules.filter(
+    (rule) => !isSpaRecordArchived("commissionRule", rule.id) || restoringRuleIds.has(rule.id),
+  );
+  const ruleKeys = activeRulesAfterRestore.map((rule) => `${rule.professionalId}:${rule.serviceId}`);
+  if (new Set(ruleKeys).size !== ruleKeys.length) {
+    res.status(409).json({ error: "Não foi possível restaurar as regras: já existe uma regra ativa para o mesmo serviço e profissional." });
+    return;
+  }
+
+  const restored = uniqueRefs
+    .map((record) => restoreSpaRecord(record.entity, record.id))
+    .filter((record): record is ArchivedSpaRecord => record !== null);
+  res.json(ManageArchivedRecordsResponse.parse({
+    action: input.action,
+    changedCount: restored.length,
+    records: restored,
+  }));
+});
+
 router.get("/appointments", (req, res) => {
   const { date } = ListAppointmentsQueryParams.parse(req.query);
   const today = new Date().toLocaleDateString("sv-SE");
+  const visibleAppointments = activeSpaRecords("appointment", appointments);
   const filtered = date
-    ? appointments.filter((appointment) => {
+    ? visibleAppointments.filter((appointment) => {
         if (/^\d{2}:\d{2}/.test(appointment.start)) return date === today;
         return appointment.start.slice(0, 10) === date;
       })
-    : appointments;
+    : visibleAppointments;
   res.json(ListAppointmentsResponse.parse(filtered));
 });
 
 router.post("/appointments", (req, res) => {
   const input = CreateAppointmentBody.parse(req.body);
   const selectedProfessional = input.professionalId != null
-    ? professionals.find((professional) => professional.id === input.professionalId)
-    : professionals.find((professional) =>
+    ? activeSpaRecords("professional", professionals).find((professional) => professional.id === input.professionalId)
+    : activeSpaRecords("professional", professionals).find((professional) =>
         normalizeName(professional.name) === normalizeName(input.professional),
       );
   if (input.professionalId != null && !selectedProfessional) {
@@ -2439,9 +2641,9 @@ router.patch("/appointments/:id", (req, res) => {
   const professionalWasUpdated =
     input.professional !== undefined || input.professionalId !== undefined;
   const selectedProfessional = input.professionalId != null
-    ? professionals.find((professional) => professional.id === input.professionalId)
+    ? activeSpaRecords("professional", professionals).find((professional) => professional.id === input.professionalId)
     : input.professional !== undefined
-      ? professionals.find((professional) =>
+      ? activeSpaRecords("professional", professionals).find((professional) =>
           normalizeName(professional.name) === normalizeName(input.professional!),
         )
       : professionalForAppointment(appointment);
@@ -2499,11 +2701,12 @@ router.patch("/appointments/:id", (req, res) => {
   res.json(UpdateAppointmentResponse.parse(appointment));
 });
 
-router.delete("/appointments/:id", (req, res) => {
+router.delete("/appointments/:id", async (req, res): Promise<void> => {
   const { id } = DeleteAppointmentParams.parse(req.params);
-  const index = appointments.findIndex((item) => item.id === id);
-  if (index < 0) return void res.status(404).json({ error: "Agendamento não encontrado" });
-  appointments.splice(index, 1);
+  if (!await archiveSpaRecord("appointment", String(id))) {
+    res.status(404).json({ error: "Agendamento não encontrado" });
+    return;
+  }
   res.status(204).end();
 });
 
@@ -2553,11 +2756,12 @@ router.get("/whatsapp/messages", (req, res) => {
 
 router.get("/whatsapp/conversations", async (req, res) => {
   const { limit = 50 } = ListWhatsappConversationsQueryParams.parse(req.query);
-  const conversations = await db
+  const conversations = (await db
     .select()
     .from(whatsappConversationsTable)
-    .orderBy(desc(whatsappConversationsTable.lastMessageAt))
-    .limit(limit);
+    .orderBy(desc(whatsappConversationsTable.lastMessageAt)))
+    .filter((conversation) => !isSpaRecordArchived("whatsappConversation", conversation.phone))
+    .slice(0, limit);
   res.json(ListWhatsappConversationsResponse.parse(await Promise.all(conversations.map(toWhatsappConversation))));
 });
 
@@ -2569,11 +2773,12 @@ router.patch("/whatsapp/conversations/:phone", async (req, res) => {
   res.json(UpdateWhatsappConversationResponse.parse(summary));
 });
 
-router.delete("/whatsapp/conversations/:phone", async (req, res) => {
+router.delete("/whatsapp/conversations/:phone", async (req, res): Promise<void> => {
   const { phone } = DeleteWhatsappConversationParams.parse(req.params);
-  const conversation = await getWhatsappConversation(phone);
-  if (!conversation) return void res.status(404).json({ error: "Conversa não encontrada" });
-  await db.delete(whatsappConversationsTable).where(eq(whatsappConversationsTable.id, conversation.id));
+  if (!await archiveSpaRecord("whatsappConversation", phone)) {
+    res.status(404).json({ error: "Conversa não encontrada" });
+    return;
+  }
   res.status(204).end();
 });
 
@@ -2707,6 +2912,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   if (!phone || (!text && !isAudioMessage && !isImageMessage)) {
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_without_text" }));
   }
+  restoreSpaRecord("whatsappConversation", phone);
   if (!currentInput) currentInput = `Cliente: ${phone}\nMensagem: ${text}`;
   const replyReference = providerMessageId
     ? {
@@ -2957,13 +3163,14 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
 router.get("/clients", (req, res) => {
   const { search } = ListClientsQueryParams.parse(req.query);
   const normalized = search?.trim().toLocaleLowerCase("pt-BR");
+  const visibleClients = activeSpaRecords("client", clients);
   const filtered = normalized
-    ? clients.filter((client) =>
+    ? visibleClients.filter((client) =>
         `${client.name} ${client.service} ${client.source}`
           .toLocaleLowerCase("pt-BR")
           .includes(normalized),
       )
-    : clients;
+    : visibleClients;
   res.json(ListClientsResponse.parse(filtered));
 });
 
@@ -2988,16 +3195,17 @@ router.patch("/clients/:id", (req, res) => {
   res.json(UpdateClientResponse.parse(client));
 });
 
-router.delete("/clients/:id", (req, res) => {
+router.delete("/clients/:id", async (req, res): Promise<void> => {
   const { id } = DeleteClientParams.parse(req.params);
-  const index = clients.findIndex((item) => item.id === id);
-  if (index < 0) return void res.status(404).json({ error: "Cliente não encontrado" });
-  clients.splice(index, 1);
+  if (!await archiveSpaRecord("client", String(id))) {
+    res.status(404).json({ error: "Cliente não encontrado" });
+    return;
+  }
   res.status(204).end();
 });
 
 router.get("/leads", (_req, res) => {
-  res.json(ListLeadsResponse.parse(leads));
+  res.json(ListLeadsResponse.parse(activeSpaRecords("lead", leads)));
 });
 
 router.post("/leads", (req, res) => {
@@ -3033,7 +3241,7 @@ router.patch("/leads/:id", (req, res) => {
 });
 
 router.get("/services", (_req, res) => {
-  res.json(ListServicesResponse.parse(services));
+  res.json(ListServicesResponse.parse(activeSpaRecords("service", services)));
 });
 
 router.get("/packages", (_req, res) => {
@@ -3041,14 +3249,15 @@ router.get("/packages", (_req, res) => {
 });
 
 router.get("/professionals", (_req, res) => {
-  res.json(ListProfessionalsResponse.parse(professionals));
+  res.json(ListProfessionalsResponse.parse(activeSpaRecords("professional", professionals)));
 });
 
 router.get("/finance/movements", (req, res) => {
   const { month } = ListFinancialMovementsQueryParams.parse(req.query);
+  const visibleMovements = activeSpaRecords("financialMovement", financialMovements);
   const filtered = month
-    ? financialMovements.filter((movement) => movement.date.startsWith(month))
-    : financialMovements;
+    ? visibleMovements.filter((movement) => movement.date.startsWith(month))
+    : visibleMovements;
   res.json(ListFinancialMovementsResponse.parse(filtered));
 });
 
@@ -3069,11 +3278,12 @@ router.patch("/finance/movements/:id", (req, res) => {
   res.json(UpdateFinancialMovementResponse.parse(movement));
 });
 
-router.delete("/finance/movements/:id", (req, res) => {
+router.delete("/finance/movements/:id", async (req, res): Promise<void> => {
   const { id } = DeleteFinancialMovementParams.parse(req.params);
-  const index = financialMovements.findIndex((item) => item.id === id);
-  if (index < 0) return void res.status(404).json({ error: "Movimentação não encontrada" });
-  financialMovements.splice(index, 1);
+  if (!await archiveSpaRecord("financialMovement", String(id))) {
+    res.status(404).json({ error: "Movimentação não encontrada" });
+    return;
+  }
   res.status(204).end();
 });
 
@@ -3127,16 +3337,12 @@ router.patch("/professionals/:id", (req, res) => {
   res.json(UpdateProfessionalResponse.parse(professional));
 });
 
-router.delete("/professionals/:id", (req, res) => {
+router.delete("/professionals/:id", async (req, res): Promise<void> => {
   const { id } = DeleteProfessionalParams.parse(req.params);
-  const index = professionals.findIndex((item) => item.id === id);
-  if (index < 0) return void res.status(404).json({ error: "Profissional não encontrado" });
-  if (appointments.some((appointment) => professionalForAppointment(appointment)?.id === id) ||
-      commissionClosures.some((closure) => closure.professionalId === id)) {
-    return void res.status(409).json({ error: "Profissional possui agendamentos ou fechamentos; desative-o em vez de excluir" });
+  if (!await archiveSpaRecord("professional", String(id))) {
+    res.status(404).json({ error: "Profissional não encontrado" });
+    return;
   }
-  professionals.splice(index, 1);
-  commissionConfigs.delete(id);
   res.status(204).end();
 });
 
@@ -3160,7 +3366,7 @@ router.post("/ai-agent/test", async (req, res, next) => {
   try {
     await loadWhatsappSettings();
     const { message } = TestAiAgentBody.parse(req.body);
-    const serviceTable = services
+    const serviceTable = activeSpaRecords("service", services)
       .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
       .join("\n");
     const response = await openai.chat.completions.create({
@@ -3232,18 +3438,19 @@ router.patch("/services/:id", (req, res) => {
   res.json(UpdateServiceResponse.parse(service));
 });
 
-router.delete("/services/:id", (req, res) => {
+router.delete("/services/:id", async (req, res): Promise<void> => {
   const { id } = DeleteServiceParams.parse(req.params);
-  const index = services.findIndex((item) => item.id === id);
-  if (index < 0) return void res.status(404).json({ error: "Serviço não encontrado" });
-  services.splice(index, 1);
+  if (!await archiveSpaRecord("service", String(id))) {
+    res.status(404).json({ error: "Serviço não encontrado" });
+    return;
+  }
   res.status(204).end();
 });
 
 router.get("/quotes", (req, res) => {
   const { search, status, from, to } = ListQuotesQueryParams.parse(req.query);
   const normalized = search?.toLocaleLowerCase("pt-BR");
-  const filtered = quotes.filter((quote) =>
+  const filtered = activeSpaRecords("quote", quotes).filter((quote) =>
     (!normalized || `${quote.number} ${quote.clientName} ${quote.phone}`.toLocaleLowerCase("pt-BR").includes(normalized)) &&
     (!status || quote.status === status) &&
     (!from || quote.createdAt.slice(0, 10) >= from) &&
@@ -3254,11 +3461,16 @@ router.get("/quotes", (req, res) => {
 
 router.post("/quotes", (req, res) => {
   const input = CreateQuoteBody.parse(req.body);
-  const client = clients.find((entry) => entry.id === input.clientId);
+  const client = activeSpaRecords("client", clients).find((entry) => entry.id === input.clientId);
   if (!client) return void res.status(400).json({ error: "Cliente não encontrado" });
   const items = input.items.map((item) => {
-    const source = item.type === "service" ? services.find((entry) => entry.id === item.refId)
-      : item.type === "product" ? inventory.find((entry) => entry.id === item.refId) : item.type === "package" ? packages.find((entry) => entry.id === item.refId) : undefined;
+    const source = item.type === "service"
+      ? activeSpaRecords("service", services).find((entry) => entry.id === item.refId)
+      : item.type === "product"
+        ? activeSpaRecords("inventory", inventory).find((entry) => entry.id === item.refId)
+        : item.type === "package"
+          ? packages.find((entry) => entry.id === item.refId)
+          : undefined;
     if (item.refId && !source) throw new Error("Referência do item não encontrada");
     const sourcePrice = source ? (typeof source.price === "string" ? Number(source.price.replace(/[^\d,]/g, "").replace(",", ".")) : source.price) : item.unitPrice;
     const name = source?.name ?? item.name;
@@ -3360,7 +3572,9 @@ router.post("/quotes/:id/appointment", (req, res) => {
   const quote = quotes.find((entry) => entry.id === id);
   if (!quote) return void res.status(404).json({ error: "Orçamento não encontrado" });
   if (quote.status !== "approved") return void res.status(400).json({ error: "Apenas orçamentos aprovados podem ser agendados" });
-  const professional = input.professionalId ? professionals.find((entry) => entry.id === input.professionalId) : undefined;
+  const professional = input.professionalId
+    ? activeSpaRecords("professional", professionals).find((entry) => entry.id === input.professionalId)
+    : undefined;
   if (input.professionalId && !professional) return void res.status(400).json({ error: "Profissional não encontrado" });
   const item = quote.items.find((entry) => entry.type === "service");
   const appointmentProfessional = professional?.name ?? item?.professionalName ?? "";
@@ -3403,11 +3617,12 @@ router.post("/quotes/:id/payment", (req, res) => {
   financialMovements.unshift(movement); quote.paidAt = new Date().toISOString(); res.status(201).json(movement);
 });
 
-router.delete("/quotes/:id", (req, res) => {
+router.delete("/quotes/:id", async (req, res): Promise<void> => {
   const { id } = DeleteQuoteParams.parse(req.params);
-  const index = quotes.findIndex((item) => item.id === id);
-  if (index < 0) return void res.status(404).json({ error: "Orçamento não encontrado" });
-  quotes.splice(index, 1);
+  if (!await archiveSpaRecord("quote", String(id))) {
+    res.status(404).json({ error: "Orçamento não encontrado" });
+    return;
+  }
   res.status(204).end();
 });
 
@@ -3427,13 +3642,14 @@ router.get("/finance/summary", (_req, res) => {
 router.get("/inventory", (req, res) => {
   const { search } = ListInventoryQueryParams.parse(req.query);
   const normalized = search?.trim().toLocaleLowerCase("pt-BR");
+  const visibleInventory = activeSpaRecords("inventory", inventory);
   const filtered = normalized
-    ? inventory.filter((item) =>
+    ? visibleInventory.filter((item) =>
         `${item.name} ${item.brand} ${item.category}`
           .toLocaleLowerCase("pt-BR")
           .includes(normalized),
       )
-    : inventory;
+    : visibleInventory;
   res.json(ListInventoryResponse.parse(filtered));
 });
 
@@ -3454,11 +3670,12 @@ router.patch("/inventory/:id", (req, res) => {
   res.json(UpdateInventoryItemResponse.parse(item));
 });
 
-router.delete("/inventory/:id", (req, res) => {
+router.delete("/inventory/:id", async (req, res): Promise<void> => {
   const { id } = DeleteInventoryItemParams.parse(req.params);
-  const index = inventory.findIndex((item) => item.id === id);
-  if (index < 0) return void res.status(404).json({ error: "Produto não encontrado" });
-  inventory.splice(index, 1);
+  if (!await archiveSpaRecord("inventory", String(id))) {
+    res.status(404).json({ error: "Produto não encontrado" });
+    return;
+  }
   res.status(204).end();
 });
 
@@ -3510,7 +3727,9 @@ router.get("/professionals/:id/commission-rules", (req, res) => {
     res.status(404).json({ error: "Profissional não encontrado" });
     return;
   }
-  res.json(ListCommissionRulesResponse.parse(commissionRules.filter((rule) => rule.professionalId === id)));
+  res.json(ListCommissionRulesResponse.parse(
+    activeSpaRecords("commissionRule", commissionRules).filter((rule) => rule.professionalId === id),
+  ));
 });
 
 router.post("/professionals/:id/commission-rules", (req, res) => {
@@ -3520,12 +3739,13 @@ router.post("/professionals/:id/commission-rules", (req, res) => {
     res.status(404).json({ error: "Profissional não encontrado" });
     return;
   }
-  if (!services.some((service) => service.id === input.serviceId)) {
+  if (!activeSpaRecords("service", services).some((service) => service.id === input.serviceId)) {
     res.status(400).json({ error: "Serviço não encontrado" });
     return;
   }
-  const service = services.find((entry) => entry.id === input.serviceId)!;
-  const duplicate = commissionRules.find((rule) => rule.professionalId === id && rule.serviceId === input.serviceId);
+  const service = activeSpaRecords("service", services).find((entry) => entry.id === input.serviceId)!;
+  const duplicate = activeSpaRecords("commissionRule", commissionRules)
+    .find((rule) => rule.professionalId === id && rule.serviceId === input.serviceId);
   if (duplicate) {
     res.status(409).json({ error: "Já existe uma regra para este serviço" });
     return;
@@ -3548,12 +3768,13 @@ router.patch("/professionals/:id/commission-rules/:ruleId", (req, res) => {
     res.status(404).json({ error: "Regra de comissão não encontrada" });
     return;
   }
-  const service = services.find((entry) => entry.id === input.serviceId);
+  const service = activeSpaRecords("service", services).find((entry) => entry.id === input.serviceId);
   if (!service) {
     res.status(400).json({ error: "Serviço não encontrado" });
     return;
   }
-  const duplicate = commissionRules.find((entry) => entry.id !== ruleId && entry.professionalId === id && entry.serviceId === input.serviceId);
+  const duplicate = activeSpaRecords("commissionRule", commissionRules)
+    .find((entry) => entry.id !== ruleId && entry.professionalId === id && entry.serviceId === input.serviceId);
   if (duplicate) {
     res.status(409).json({ error: "Já existe uma regra para este serviço" });
     return;
@@ -3562,14 +3783,13 @@ router.patch("/professionals/:id/commission-rules/:ruleId", (req, res) => {
   res.json(UpdateCommissionRuleResponse.parse(rule));
 });
 
-router.delete("/professionals/:id/commission-rules/:ruleId", (req, res) => {
+router.delete("/professionals/:id/commission-rules/:ruleId", async (req, res): Promise<void> => {
   const { id, ruleId } = DeleteCommissionRuleParams.parse(req.params);
-  const index = commissionRules.findIndex((entry) => entry.id === ruleId && entry.professionalId === id);
-  if (index < 0) {
+  const rule = commissionRules.find((entry) => entry.id === ruleId && entry.professionalId === id);
+  if (!rule || !await archiveSpaRecord("commissionRule", String(ruleId))) {
     res.status(404).json({ error: "Regra de comissão não encontrada" });
     return;
   }
-  commissionRules.splice(index, 1);
   res.status(204).end();
 });
 

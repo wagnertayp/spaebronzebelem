@@ -6,7 +6,6 @@ import {
   useListServices,
   useCreateService,
   useUpdateService,
-  useDeleteService,
   getListServicesQueryKey,
   useGetWhatsappConnection,
   getGetWhatsappConnectionQueryKey,
@@ -19,8 +18,9 @@ import {
   getListWhatsappMessagesQueryKey,
   useListWhatsappConversations,
   getListWhatsappConversationsQueryKey,
+  getListArchivedRecordsQueryKey,
   useUpdateWhatsappConversation,
-  useDeleteWhatsappConversation,
+  useManageArchivedRecords,
   useSendWhatsappReply,
   useSendWhatsappDocument,
   AiAgentConfig,
@@ -35,6 +35,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { useBulkArchiveSelection } from '@/hooks/use-bulk-archive-selection';
+import { BulkArchiveToolbar } from '@/components/archive/bulk-archive-toolbar';
 import {
   Dialog,
   DialogContent,
@@ -69,12 +71,19 @@ export function WhatsApp() {
   const { data: whatsappMessages = [] } = useListWhatsappMessages({ limit: 50 });
   const { data: whatsappConversations = [] } = useListWhatsappConversations({ limit: 50 });
   const updateWhatsappConversation = useUpdateWhatsappConversation();
-  const deleteWhatsappConversation = useDeleteWhatsappConversation();
+  const archiveRecords = useManageArchivedRecords();
   
   const { data: services = [], isLoading: isServicesLoading } = useListServices();
   const createService = useCreateService();
   const updateService = useUpdateService();
-  const deleteService = useDeleteService();
+  const conversationArchiveSelection = useBulkArchiveSelection({
+    records: whatsappConversations.map((conversation) => ({ entity: 'whatsappConversation', id: String(conversation.phone) })),
+    action: 'archive',
+  });
+  const serviceArchiveSelection = useBulkArchiveSelection({
+    records: services.map((service) => ({ entity: 'service', id: String(service.id) })),
+    action: 'archive',
+  });
 
   const [activeTab, setActiveTab] = useState<'config' | 'services' | 'test'>('config');
   const [automationForm, setAutomationForm] = useState<WhatsappAutomation>({
@@ -222,17 +231,18 @@ export function WhatsApp() {
   };
 
   const handleDeleteConversation = () => {
-    if (!selectedPhone || !window.confirm(`Excluir permanentemente a conversa com ${selectedClientName}? Todas as mensagens serão removidas.`)) return;
-    const phoneToDelete = selectedPhone;
-    deleteWhatsappConversation.mutate(
-      { phone: phoneToDelete },
+    if (!selectedPhone || !window.confirm(`Arquivar a conversa com ${selectedClientName}? As mensagens serão preservadas e a conversa poderá ser restaurada no Arquivo.`)) return;
+    const phoneToArchive = String(selectedPhone);
+    archiveRecords.mutate(
+      { data: { action: 'archive', records: [{ entity: 'whatsappConversation', id: phoneToArchive }] } },
       {
         onSuccess: () => {
           setSelectedPhone('');
           invalidateWhatsapp();
-          toast({ title: 'Conversa excluída', description: 'O histórico foi removido permanentemente.' });
+          void queryClient.invalidateQueries({ queryKey: getListArchivedRecordsQueryKey() });
+          toast({ title: 'Conversa arquivada', description: 'As mensagens foram preservadas e a conversa pode ser restaurada no Arquivo.' });
         },
-        onError: () => toast({ title: 'Erro', description: 'Não foi possível excluir a conversa.', variant: 'destructive' }),
+        onError: () => toast({ title: 'Erro', description: 'Não foi possível arquivar a conversa.', variant: 'destructive' }),
       },
     );
   };
@@ -314,13 +324,14 @@ export function WhatsApp() {
 
   const confirmDeleteService = () => {
     if (!deleteDialog.service) return;
-    deleteService.mutate({ id: deleteDialog.service.id }, {
+    archiveRecords.mutate({ data: { action: 'archive', records: [{ entity: 'service', id: String(deleteDialog.service.id) }] } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getListArchivedRecordsQueryKey() });
         setDeleteDialog({ open: false });
-        toast({ title: 'Serviço removido' });
+        toast({ title: 'Serviço arquivado', description: 'O serviço pode ser restaurado no Arquivo.' });
       },
-      onError: () => toast({ title: 'Erro', description: 'Não foi possível remover o serviço.', variant: 'destructive' })
+      onError: () => toast({ title: 'Erro', description: 'Não foi possível arquivar o serviço.', variant: 'destructive' })
     });
   };
 
@@ -489,6 +500,7 @@ export function WhatsApp() {
             </span>
           </div>
           <div>
+             <BulkArchiveToolbar selection={conversationArchiveSelection} />
             {whatsappConversations.length === 0 ? (
               <p className="text-sm text-text-muted rounded-lg border border-dashed border-border p-3">
                 Nenhuma conversa registrada ainda. Quando chegar uma mensagem, ela aparecerá aqui para a equipe acompanhar.
@@ -497,30 +509,41 @@ export function WhatsApp() {
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,0.78fr)_minmax(0,1.5fr)] gap-4">
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {whatsappConversations.map((conversation) => (
-                    <button
+                    <div
                       key={conversation.id}
-                      type="button"
-                      onClick={() => setSelectedPhone(conversation.phone)}
                       className={cn(
-                        "w-full min-w-0 text-left flex items-start justify-between gap-3 rounded-xl border p-3 text-xs transition-colors",
+                        "w-full min-w-0 flex items-start gap-3 rounded-xl border p-3 text-xs transition-colors",
                         selectedPhone === conversation.phone ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
                       )}
                     >
-                      <div className="min-w-0">
-                        <div className="font-medium text-text-primary truncate">
-                          {conversation.clientName || conversation.phone}
-                          <span className="font-normal text-text-muted ml-2">{conversation.messageCount} mensagens</span>
+                      <input
+                        type="checkbox"
+                        checked={conversationArchiveSelection.isSelected({ entity: 'whatsappConversation', id: String(conversation.phone) })}
+                        onChange={() => conversationArchiveSelection.toggleRecord({ entity: 'whatsappConversation', id: String(conversation.phone) })}
+                        aria-label={`Selecionar conversa com ${conversation.clientName || conversation.phone}`}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPhone(conversation.phone)}
+                        className="flex min-w-0 flex-1 items-start justify-between gap-3 text-left"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-medium text-text-primary truncate">
+                            {conversation.clientName || conversation.phone}
+                            <span className="font-normal text-text-muted ml-2">{conversation.messageCount} mensagens</span>
+                          </div>
+                          <div className="text-text-muted truncate">{conversation.lastMessage || 'Sem mensagens'}</div>
                         </div>
-                        <div className="text-text-muted truncate">{conversation.lastMessage || 'Sem mensagens'}</div>
-                      </div>
-                      <span className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 font-semibold",
-                        conversation.status === 'human' ? "bg-warning/10 text-warning" :
-                          conversation.status === 'closed' ? "bg-text-muted/10 text-text-muted" : "bg-success/10 text-success",
-                      )}>
-                        {conversationStatusLabel[conversation.status]}
-                      </span>
-                    </button>
+                        <span className={cn(
+                          "shrink-0 rounded-full px-2 py-0.5 font-semibold",
+                          conversation.status === 'human' ? "bg-warning/10 text-warning" :
+                            conversation.status === 'closed' ? "bg-text-muted/10 text-text-muted" : "bg-success/10 text-success",
+                        )}>
+                          {conversationStatusLabel[conversation.status]}
+                        </span>
+                      </button>
+                    </div>
                   ))}
                 </div>
                 <div className="min-w-0 rounded-xl border border-border bg-background p-3 sm:p-4 space-y-3">
@@ -534,11 +557,11 @@ export function WhatsApp() {
                       size="icon"
                       variant="ghost"
                       onClick={handleDeleteConversation}
-                      disabled={!selectedPhone || deleteWhatsappConversation.isPending}
+                       disabled={!selectedPhone || archiveRecords.isPending}
                       className="h-7 w-7 text-error hover:text-error"
-                      title="Excluir conversa"
+                       title="Arquivar conversa"
                     >
-                      {deleteWhatsappConversation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                       {archiveRecords.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                     </Button>
                   </div>
                   {selectedConversation && (
@@ -857,13 +880,15 @@ export function WhatsApp() {
                 Novo Serviço
               </Button>
             </div>
+            <BulkArchiveToolbar selection={serviceArchiveSelection} />
 
             <Card className="flex-1 overflow-hidden flex flex-col">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm whitespace-nowrap">
                   <thead className="bg-surface-soft text-text-muted font-medium">
                     <tr>
-                      <th className="px-6 py-4">Nome do Serviço</th>
+                          <th className="px-6 py-4">Selecionar</th>
+                          <th className="px-6 py-4">Nome do Serviço</th>
                       <th className="px-6 py-4">Categoria</th>
                       <th className="px-6 py-4">Duração</th>
                       <th className="px-6 py-4">Preço</th>
@@ -873,19 +898,28 @@ export function WhatsApp() {
                   <tbody className="divide-y divide-border">
                     {isServicesLoading ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-text-muted">
+                        <td colSpan={6} className="px-6 py-12 text-center text-text-muted">
                           <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                         </td>
                       </tr>
                     ) : services.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-text-muted">
+                        <td colSpan={6} className="px-6 py-12 text-center text-text-muted">
                           Nenhum serviço cadastrado. Adicione o primeiro para treinar o agente.
                         </td>
                       </tr>
                     ) : (
                       services.map(service => (
                         <tr key={service.id} className="hover:bg-surface-soft/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <input
+                              type="checkbox"
+                              checked={serviceArchiveSelection.isSelected({ entity: 'service', id: String(service.id) })}
+                              onChange={() => serviceArchiveSelection.toggleRecord({ entity: 'service', id: String(service.id) })}
+                              aria-label={`Selecionar serviço ${service.name}`}
+                              className="h-4 w-4 accent-primary"
+                            />
+                          </td>
                           <td className="px-6 py-4 font-medium text-text-primary">{service.name}</td>
                           <td className="px-6 py-4 text-text-secondary">{service.category}</td>
                           <td className="px-6 py-4 text-text-secondary">{service.duration}</td>
@@ -1094,13 +1128,13 @@ export function WhatsApp() {
       <Dialog open={deleteDialog.open} onOpenChange={(o) => !o && setDeleteDialog({ open: false })}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Remover Serviço</DialogTitle>
-            <DialogDescription>Tem certeza? Isso impedirá a IA de oferecer este serviço e ele não aparecerá em novos orçamentos.</DialogDescription>
+            <DialogTitle>Arquivar Serviço</DialogTitle>
+            <DialogDescription>O serviço deixará de aparecer nas listas ativas, mas poderá ser restaurado no Arquivo.</DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
             <Button type="button" variant="outline" onClick={() => setDeleteDialog({ open: false })}>Cancelar</Button>
-            <Button type="button" variant="destructive" onClick={confirmDeleteService} disabled={deleteService.isPending}>
-              {deleteService.isPending ? 'Removendo...' : 'Sim, remover'}
+              <Button type="button" variant="destructive" onClick={confirmDeleteService} disabled={archiveRecords.isPending}>
+               {archiveRecords.isPending ? 'Arquivando...' : 'Sim, arquivar'}
             </Button>
           </DialogFooter>
         </DialogContent>

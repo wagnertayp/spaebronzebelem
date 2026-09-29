@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Professional, CommissionConfig, CommissionRule, useListServices, useGetProfessionalCommissionConfig, useUpdateProfessionalCommissionConfig, useListCommissionRules, useCreateCommissionRule, useUpdateCommissionRule, useDeleteCommissionRule, getGetProfessionalCommissionConfigQueryKey, getListCommissionRulesQueryKey, Service } from "@workspace/api-client-react";
+import { Professional, CommissionConfig, CommissionRule, useListServices, useGetProfessionalCommissionConfig, useUpdateProfessionalCommissionConfig, useListCommissionRules, useCreateCommissionRule, useUpdateCommissionRule, useManageArchivedRecords, getGetProfessionalCommissionConfigQueryKey, getListCommissionRulesQueryKey, getListArchivedRecordsQueryKey } from "@workspace/api-client-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, Edit2, Plus, X, Check } from "lucide-react";
+import { useBulkArchiveSelection } from "@/hooks/use-bulk-archive-selection";
+import { BulkArchiveToolbar } from "@/components/archive/bulk-archive-toolbar";
 
 interface Props {
   open: boolean;
@@ -203,7 +205,11 @@ function RulesList({ professional }: { professional: Professional }) {
   const { toast } = useToast();
   const createMutation = useCreateCommissionRule();
   const updateMutation = useUpdateCommissionRule();
-  const deleteMutation = useDeleteCommissionRule();
+  const archiveMutation = useManageArchivedRecords();
+  const archiveSelection = useBulkArchiveSelection({
+    records: rules.map((rule) => ({ entity: "commissionRule", id: String(rule.id) })),
+    action: "archive",
+  });
 
   const handleSaveRule = () => {
     if (!editingRule?.serviceId || editingRule.value == null) return;
@@ -244,12 +250,14 @@ function RulesList({ professional }: { professional: Professional }) {
   };
 
   const handleDelete = (ruleId: number) => {
-    deleteMutation.mutate(
-      { id: professional.id, ruleId },
+    if (!window.confirm("Arquivar regra? Ela poderá ser restaurada no Arquivo.")) return;
+    archiveMutation.mutate(
+      { data: { action: "archive", records: [{ entity: "commissionRule", id: String(ruleId) }] } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListCommissionRulesQueryKey(professional.id) });
-          toast({ title: "Regra removida" });
+          queryClient.invalidateQueries({ queryKey: getListArchivedRecordsQueryKey() });
+          toast({ title: "Regra arquivada", description: "A regra pode ser restaurada no Arquivo." });
         }
       }
     );
@@ -259,11 +267,20 @@ function RulesList({ professional }: { professional: Professional }) {
 
   return (
     <div className="space-y-4 pt-2">
+      <BulkArchiveToolbar selection={archiveSelection} />
       {rules.length > 0 ? (
         <div className="space-y-3">
           {rules.map(rule => (
             <div key={rule.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
-              <div>
+              <div className="flex min-w-0 items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={archiveSelection.isSelected({ entity: "commissionRule", id: String(rule.id) })}
+                  onChange={() => archiveSelection.toggleRecord({ entity: "commissionRule", id: String(rule.id) })}
+                  aria-label={`Selecionar regra de ${rule.serviceName}`}
+                  className="h-4 w-4 shrink-0 accent-primary"
+                />
+                <div>
                 <div className="font-medium text-sm flex items-center gap-2">
                   {rule.serviceName}
                   {!rule.active && <span className="text-[10px] bg-text-muted/10 text-text-muted px-1.5 py-0.5 rounded uppercase">Inativo</span>}
@@ -271,12 +288,13 @@ function RulesList({ professional }: { professional: Professional }) {
                 <div className="text-xs text-text-secondary mt-0.5">
                   {rule.type === "percent" ? `${rule.value}%` : `R$ ${rule.value.toFixed(2)}`}
                 </div>
+                </div>
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-text-muted hover:text-text-primary" onClick={() => setEditingRule(rule)}>
                   <Edit2 className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-error hover:text-error hover:bg-error/10" onClick={() => handleDelete(rule.id)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-error hover:text-error hover:bg-error/10" onClick={() => handleDelete(rule.id)} title="Arquivar regra" aria-label="Arquivar regra">
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>

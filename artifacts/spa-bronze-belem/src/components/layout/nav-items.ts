@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Archive,
   Box,
   Calendar,
   LayoutDashboard,
@@ -19,5 +20,6 @@ export const navItems = [
   { href: '/financeiro', label: 'Financeiro', icon: PieChart },
   { href: '/estoque', label: 'Estoque', icon: Box },
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
+  { href: '/arquivo', label: 'Arquivo', icon: Archive },
   { href: '/usuarios', label: 'Usuários', icon: UserCog },
 ];

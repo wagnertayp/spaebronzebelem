@@ -8,6 +8,8 @@ import { format, parseISO, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Link } from 'wouter';
+import { BulkArchiveToolbar } from '@/components/archive/bulk-archive-toolbar';
+import { useBulkArchiveSelection } from '@/hooks/use-bulk-archive-selection';
 
 export function QuoteList() {
   const [, setLocation] = useLocation();
@@ -21,6 +23,10 @@ export function QuoteList() {
     search: search || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
     from: fromDate
+  });
+  const archiveSelection = useBulkArchiveSelection({
+    action: 'archive',
+    records: quotes.map((quote) => ({ entity: 'quote' as const, id: String(quote.id) })),
   });
 
   const stats = useMemo(() => {
@@ -193,6 +199,7 @@ export function QuoteList() {
           </div>
         </div>
       </div>
+      <BulkArchiveToolbar selection={archiveSelection} />
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -247,7 +254,15 @@ export function QuoteList() {
               <tbody>
                 {quotes.map(quote => (
                   <tr key={quote.id} className="border-b border-border/40 hover:bg-surface-soft/50 transition-colors group">
-                    <td className="px-5 py-4 text-[14px] font-semibold text-text-primary">
+                   <td className="px-5 py-4 text-[14px] font-semibold text-text-primary">
+                       <input
+                         type="checkbox"
+                         aria-label={`Selecionar orçamento ${quote.number || quote.id}`}
+                         checked={archiveSelection.isSelected({ entity: 'quote', id: String(quote.id) })}
+                         onChange={() => archiveSelection.toggleRecord({ entity: 'quote', id: String(quote.id) })}
+                         onClick={(event) => event.stopPropagation()}
+                         className="mr-3 h-4 w-4 align-middle accent-primary"
+                       />
                       {quote.number || `#${String(quote.id).padStart(5, '0')}`}
                     </td>
                     <td className="px-5 py-4 text-[14px] text-text-primary font-medium">
@@ -295,6 +310,14 @@ export function QuoteList() {
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
+                    <input
+                      type="checkbox"
+                      aria-label={`Selecionar orçamento ${quote.number || quote.id}`}
+                      checked={archiveSelection.isSelected({ entity: 'quote', id: String(quote.id) })}
+                      onChange={() => archiveSelection.toggleRecord({ entity: 'quote', id: String(quote.id) })}
+                      onClick={(event) => event.stopPropagation()}
+                      className="mr-2 h-4 w-4 align-middle accent-primary"
+                    />
                     <span className="text-[12px] font-bold text-text-muted tracking-wider block mb-1">
                       {quote.number || `#${String(quote.id).padStart(5, '0')}`}
                     </span>

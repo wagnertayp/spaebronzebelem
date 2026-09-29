@@ -19,7 +19,47 @@ tags:
   - name: ai-agent
   - name: professionals
   - name: financial-movements
+  - name: archive
 paths:
+  /archive:
+    get:
+      operationId: listArchivedRecords
+      tags: [archive]
+      summary: Lista registros arquivados que podem ser restaurados
+      responses:
+        "200":
+          description: Archived records
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ArchiveEntry" }
+  /archive/bulk:
+    post:
+      operationId: manageArchivedRecords
+      tags: [archive]
+      summary: Arquiva ou restaura vários registros sem apagar dados
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArchiveMutationInput" }
+      responses:
+        "200":
+          description: Archive operation completed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArchiveMutationResult" }
+        "400":
+          description: Invalid archive request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: One or more records were not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /ai-agent/config:
     get:
       operationId: getAiAgentConfig
@@ -1035,6 +1075,42 @@ paths:
         "204": { description: Deleted inventory item }
 components:
   schemas:
+    ArchiveEntity:
+      type: string
+      enum: [appointment, client, lead, service, quote, financialMovement, professional, commissionRule, inventory, whatsappConversation]
+    ArchiveRecordRef:
+      type: object
+      properties:
+        entity: { $ref: "#/components/schemas/ArchiveEntity" }
+        id: { type: string, minLength: 1, maxLength: 128 }
+      required: [entity, id]
+    ArchiveMutationInput:
+      type: object
+      properties:
+        action: { type: string, enum: [archive, restore] }
+        records:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { $ref: "#/components/schemas/ArchiveRecordRef" }
+      required: [action, records]
+    ArchiveEntry:
+      type: object
+      properties:
+        entity: { $ref: "#/components/schemas/ArchiveEntity" }
+        id: { type: string }
+        archivedAt: { type: string, format: date-time }
+        label: { type: string }
+      required: [entity, id, archivedAt, label]
+    ArchiveMutationResult:
+      type: object
+      properties:
+        action: { type: string, enum: [archive, restore] }
+        changedCount: { type: integer, minimum: 0 }
+        records:
+          type: array
+          items: { $ref: "#/components/schemas/ArchiveEntry" }
+      required: [action, changedCount, records]
     ErrorResponse:
       type: object
       properties:

@@ -26,6 +26,9 @@ import type {
   Appointment,
   AppointmentInput,
   AppointmentUpdate,
+  ArchiveEntry,
+  ArchiveMutationInput,
+  ArchiveMutationResult,
   Client,
   ClientInput,
   CommissionAudit,
@@ -111,6 +114,154 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getListArchivedRecordsUrl = () => {
+
+
+
+
+  return `/api/archive`
+}
+
+/**
+ * @summary Lista registros arquivados que podem ser restaurados
+ */
+export const listArchivedRecords = async ( options?: Parameters<typeof customFetch>[1]): Promise<ArchiveEntry[]> => {
+
+  return customFetch<ArchiveEntry[]>(getListArchivedRecordsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListArchivedRecordsQueryKey = () => {
+    return [
+    `/api/archive`
+    ] as const;
+    }
+
+
+export const getListArchivedRecordsQueryOptions = <TData = Awaited<ReturnType<typeof listArchivedRecords>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArchivedRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListArchivedRecordsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listArchivedRecords>>> = ({ signal }) => listArchivedRecords({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listArchivedRecords>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListArchivedRecordsQueryResult = NonNullable<Awaited<ReturnType<typeof listArchivedRecords>>>
+export type ListArchivedRecordsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Lista registros arquivados que podem ser restaurados
+ */
+
+export function useListArchivedRecords<TData = Awaited<ReturnType<typeof listArchivedRecords>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArchivedRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListArchivedRecordsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getManageArchivedRecordsUrl = () => {
+
+
+
+
+  return `/api/archive/bulk`
+}
+
+/**
+ * @summary Arquiva ou restaura vários registros sem apagar dados
+ */
+export const manageArchivedRecords = async (archiveMutationInput: ArchiveMutationInput, options?: Parameters<typeof customFetch>[1]): Promise<ArchiveMutationResult> => {
+
+  return customFetch<ArchiveMutationResult>(getManageArchivedRecordsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(archiveMutationInput)
+  }
+);}
+
+
+
+
+
+export const getManageArchivedRecordsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manageArchivedRecords>>, TError,{data: BodyType<ArchiveMutationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof manageArchivedRecords>>, TError,{data: BodyType<ArchiveMutationInput>}, TContext> => {
+
+const mutationKey = ['manageArchivedRecords'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof manageArchivedRecords>>, {data: BodyType<ArchiveMutationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  manageArchivedRecords(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ManageArchivedRecordsMutationResult = NonNullable<Awaited<ReturnType<typeof manageArchivedRecords>>>
+    export type ManageArchivedRecordsMutationBody = BodyType<ArchiveMutationInput>
+    export type ManageArchivedRecordsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Arquiva ou restaura vários registros sem apagar dados
+ */
+export const useManageArchivedRecords = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manageArchivedRecords>>, TError,{data: BodyType<ArchiveMutationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof manageArchivedRecords>>,
+        TError,
+        {data: BodyType<ArchiveMutationInput>},
+        TContext
+      > => {
+      return useMutation(getManageArchivedRecordsMutationOptions(options));
+    }
 
 export const getGetAiAgentConfigUrl = () => {
 

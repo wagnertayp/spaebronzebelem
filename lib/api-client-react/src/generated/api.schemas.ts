@@ -5,6 +5,70 @@
  * API do sistema operacional do Spa e Bronze Belém
  * OpenAPI spec version: 0.1.0
  */
+export type ArchiveEntity = typeof ArchiveEntity[keyof typeof ArchiveEntity];
+
+
+export const ArchiveEntity = {
+  appointment: 'appointment',
+  client: 'client',
+  lead: 'lead',
+  service: 'service',
+  quote: 'quote',
+  financialMovement: 'financialMovement',
+  professional: 'professional',
+  commissionRule: 'commissionRule',
+  inventory: 'inventory',
+  whatsappConversation: 'whatsappConversation',
+} as const;
+
+export interface ArchiveRecordRef {
+  entity: ArchiveEntity;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  id: string;
+}
+
+export type ArchiveMutationInputAction = typeof ArchiveMutationInputAction[keyof typeof ArchiveMutationInputAction];
+
+
+export const ArchiveMutationInputAction = {
+  archive: 'archive',
+  restore: 'restore',
+} as const;
+
+export interface ArchiveMutationInput {
+  action: ArchiveMutationInputAction;
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  records: ArchiveRecordRef[];
+}
+
+export interface ArchiveEntry {
+  entity: ArchiveEntity;
+  id: string;
+  archivedAt: string;
+  label: string;
+}
+
+export type ArchiveMutationResultAction = typeof ArchiveMutationResultAction[keyof typeof ArchiveMutationResultAction];
+
+
+export const ArchiveMutationResultAction = {
+  archive: 'archive',
+  restore: 'restore',
+} as const;
+
+export interface ArchiveMutationResult {
+  action: ArchiveMutationResultAction;
+  /** @minimum 0 */
+  changedCount: number;
+  records: ArchiveEntry[];
+}
+
 export interface ErrorResponse {
   error: string;
 }

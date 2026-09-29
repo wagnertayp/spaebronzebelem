@@ -22,6 +22,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { BulkArchiveToolbar } from '@/components/archive/bulk-archive-toolbar';
+import { useBulkArchiveSelection } from '@/hooks/use-bulk-archive-selection';
+import type { ArchiveRecordRef } from '@workspace/api-client-react';
 
 function FilterChip({ active, onClick, label, count, icon }: { active: boolean, onClick: () => void, label: string, count: number, icon?: React.ReactNode }) {
   return (
@@ -150,6 +153,10 @@ export function Estoque() {
       }
     });
   }, [rawInventory, categoryFilter, statusFilter]);
+  const selection = useBulkArchiveSelection({
+    action: 'archive',
+    records: filteredInventory.map((item): ArchiveRecordRef => ({ entity: 'inventory', id: String(item.id) })),
+  });
 
   const stats = useMemo(() => {
     return {
@@ -304,9 +311,10 @@ export function Estoque() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListInventoryQueryKey() });
         setIsDeleteOpen(false);
-        toast.success('Produto removido com sucesso');
+         queryClient.invalidateQueries();
+         toast.success('Produto arquivado. Você pode restaurá-lo em Arquivo.');
       },
-      onError: (error) => toast.error(error instanceof Error ? error.message : 'Erro ao remover produto')
+       onError: (error) => toast.error(error instanceof Error ? error.message : 'Erro ao arquivar produto')
     });
   };
 
@@ -370,6 +378,7 @@ export function Estoque() {
       </div>
 
       {/* Controls & Filters */}
+      <BulkArchiveToolbar selection={selection} />
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
           <div className="relative w-full sm:w-[320px]">
@@ -413,6 +422,9 @@ export function Estoque() {
           <table className="w-full text-left border-collapse min-w-[1080px]">
             <thead>
               <tr className="border-b border-border bg-surface-soft/50">
+                <th className="px-6 py-4 text-[12px] font-bold uppercase tracking-wider text-text-muted">
+                  <input type="checkbox" checked={selection.allVisibleSelected} onChange={selection.toggleAllVisible} aria-label="Selecionar todos os produtos visíveis" className="h-4 w-4 accent-primary" />
+                </th>
                 <th className="px-6 py-4 text-[12px] font-bold uppercase tracking-wider text-text-muted">Produto/Insumo</th>
                 <th className="px-6 py-4 text-[12px] font-bold uppercase tracking-wider text-text-muted">Status</th>
                 <th className="px-6 py-4 text-[12px] font-bold uppercase tracking-wider text-text-muted text-right">Estoque</th>
@@ -440,6 +452,9 @@ export function Estoque() {
               ) : filteredInventory.length > 0 ? (
                 filteredInventory.map((item) => (
                   <tr key={item.id} className="group hover:bg-surface-soft/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <input type="checkbox" checked={selection.isSelected({ entity: 'inventory', id: String(item.id) })} onChange={() => selection.toggleRecord({ entity: 'inventory', id: String(item.id) })} aria-label={`Selecionar produto ${item.name}`} className="h-4 w-4 accent-primary" />
+                    </td>
                     <td className="px-6 py-4">
                       <div>
                         <div className="font-bold text-[14px] text-text-primary mb-0.5">{item.name}</div>
@@ -525,7 +540,7 @@ export function Estoque() {
                               <Edit2 className="w-4 h-4 mr-2" /> Editar Produto/Insumo
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setEditingItem(item); setIsDeleteOpen(true); }} className="text-error focus:text-error">
-                              <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                              <Trash2 className="w-4 h-4 mr-2" /> Arquivar
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -557,9 +572,10 @@ export function Estoque() {
           ))
         ) : filteredInventory.length > 0 ? (
           filteredInventory.map(item => (
-            <div key={item.id} className="bg-surface border border-border rounded-xl p-4 shadow-sm flex flex-col gap-3">
+              <div key={item.id} className="bg-surface border border-border rounded-xl p-4 shadow-sm flex flex-col gap-3">
               <div className="flex justify-between items-start">
                 <div>
+                   <input type="checkbox" checked={selection.isSelected({ entity: 'inventory', id: String(item.id) })} onChange={() => selection.toggleRecord({ entity: 'inventory', id: String(item.id) })} aria-label={`Selecionar produto ${item.name}`} className="mr-2 h-4 w-4 accent-primary" />
                   <div className="font-bold text-[15px] text-text-primary">{item.name}</div>
                   <div className="text-[13px] text-text-secondary">{item.brand} • {item.category}</div>
                 </div>
@@ -574,7 +590,7 @@ export function Estoque() {
                       <Edit2 className="w-4 h-4 mr-2" /> Editar
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => { setEditingItem(item); setIsDeleteOpen(true); }} className="text-error focus:text-error">
-                      <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                      <Trash2 className="w-4 h-4 mr-2" /> Arquivar
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -788,15 +804,15 @@ export function Estoque() {
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Excluir Produto/Insumo</DialogTitle>
+            <DialogTitle>Arquivar Produto/Insumo</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir <strong>{editingItem?.name}</strong>? Esta ação não pode ser desfeita.
+              Tem certeza que deseja arquivar <strong>{editingItem?.name}</strong>? O item poderá ser restaurado em Arquivo.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
             <Button variant="ghost" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleteItem.isPending}>
-              Excluir
+              Arquivar
             </Button>
           </DialogFooter>
         </DialogContent>

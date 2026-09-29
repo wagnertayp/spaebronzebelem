@@ -9,6 +9,51 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Lista registros arquivados que podem ser restaurados
+ */
+export const ListArchivedRecordsResponseItem = zod.object({
+  "entity": zod.enum(['appointment', 'client', 'lead', 'service', 'quote', 'financialMovement', 'professional', 'commissionRule', 'inventory', 'whatsappConversation']),
+  "id": zod.string(),
+  "archivedAt": zod.coerce.date(),
+  "label": zod.string()
+})
+export const ListArchivedRecordsResponse = zod.array(ListArchivedRecordsResponseItem)
+
+
+/**
+ * @summary Arquiva ou restaura vários registros sem apagar dados
+ */
+export const manageArchivedRecordsBodyRecordsItemIdMax = 128;
+
+export const manageArchivedRecordsBodyRecordsMax = 500;
+
+
+
+export const ManageArchivedRecordsBody = zod.object({
+  "action": zod.enum(['archive', 'restore']),
+  "records": zod.array(zod.object({
+  "entity": zod.enum(['appointment', 'client', 'lead', 'service', 'quote', 'financialMovement', 'professional', 'commissionRule', 'inventory', 'whatsappConversation']),
+  "id": zod.string().min(1).max(manageArchivedRecordsBodyRecordsItemIdMax)
+})).min(1).max(manageArchivedRecordsBodyRecordsMax)
+})
+
+export const manageArchivedRecordsResponseChangedCountMin = 0;
+
+
+
+export const ManageArchivedRecordsResponse = zod.object({
+  "action": zod.enum(['archive', 'restore']),
+  "changedCount": zod.number().int().min(manageArchivedRecordsResponseChangedCountMin),
+  "records": zod.array(zod.object({
+  "entity": zod.enum(['appointment', 'client', 'lead', 'service', 'quote', 'financialMovement', 'professional', 'commissionRule', 'inventory', 'whatsappConversation']),
+  "id": zod.string(),
+  "archivedAt": zod.coerce.date(),
+  "label": zod.string()
+}))
+})
+
+
+/**
  * @summary Retorna a configuração do agente de atendimento
  */
 export const getAiAgentConfigResponseNameMin = 2;
