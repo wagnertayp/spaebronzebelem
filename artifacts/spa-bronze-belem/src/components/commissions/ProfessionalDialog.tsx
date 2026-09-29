@@ -64,9 +64,9 @@ export function ProfessionalDialog({
       if (professional) {
         form.reset({
           name: professional.name,
-          specialty: professional.specialty,
-          phone: professional.phone,
-          email: professional.email,
+          specialty: professional.specialty ?? "",
+          phone: professional.phone ?? "",
+          email: professional.email ?? "",
           commissionRate: professional.commissionRate,
           active: professional.active,
         });
@@ -122,9 +122,9 @@ export function ProfessionalDialog({
           toast({ title: "Profissional atualizado com sucesso" });
           onOpenChange(false);
         },
-        onError: () => toast({
+        onError: (error) => toast({
           title: "Não foi possível salvar a grade",
-          description: "Confira os horários e tente novamente.",
+          description: error instanceof Error ? error.message : "Confira os horários e tente novamente.",
           variant: "destructive",
         }),
       });
@@ -135,9 +135,9 @@ export function ProfessionalDialog({
           toast({ title: "Profissional criado com sucesso" });
           onOpenChange(false);
         },
-        onError: () => toast({
+        onError: (error) => toast({
           title: "Não foi possível cadastrar o profissional",
-          description: "Confira os dados e horários e tente novamente.",
+          description: error instanceof Error ? error.message : "Confira os dados e horários e tente novamente.",
           variant: "destructive",
         }),
       });

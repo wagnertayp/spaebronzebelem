@@ -236,7 +236,7 @@ export function Estoque() {
           setIsFormOpen(false);
           toast.success('Produto atualizado com sucesso');
         },
-        onError: () => toast.error('Erro ao atualizar produto')
+        onError: (error) => toast.error(error instanceof Error ? error.message : 'Erro ao atualizar produto')
       });
     } else {
       createItem.mutate({ data: payload }, {
@@ -245,7 +245,7 @@ export function Estoque() {
           setIsFormOpen(false);
           toast.success('Produto/insumo cadastrado com sucesso');
         },
-        onError: () => toast.error('Erro ao cadastrar produto')
+        onError: (error) => toast.error(error instanceof Error ? error.message : 'Erro ao cadastrar produto')
       });
     }
   };
@@ -294,7 +294,7 @@ export function Estoque() {
         setMovement(null);
         setMovementAmount('');
       },
-      onError: () => toast.error('Erro ao atualizar estoque')
+      onError: (error) => toast.error(error instanceof Error ? error.message : 'Erro ao atualizar estoque')
     });
   };
 
@@ -306,7 +306,7 @@ export function Estoque() {
         setIsDeleteOpen(false);
         toast.success('Produto removido com sucesso');
       },
-      onError: () => toast.error('Erro ao remover produto')
+      onError: (error) => toast.error(error instanceof Error ? error.message : 'Erro ao remover produto')
     });
   };
 

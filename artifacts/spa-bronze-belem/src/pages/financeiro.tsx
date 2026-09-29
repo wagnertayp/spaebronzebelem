@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -49,6 +49,7 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+const EMPTY_FINANCIAL_MOVEMENTS: FinancialMovement[] = [];
 
 export function Financeiro() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -64,7 +65,7 @@ export function Financeiro() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: movements = [], isLoading } = useListFinancialMovements(
+  const { data: movements = EMPTY_FINANCIAL_MOVEMENTS, isLoading } = useListFinancialMovements(
     { month: selectedMonth },
     { query: { queryKey: getListFinancialMovementsQueryKey({ month: selectedMonth }) } }
   );
@@ -76,8 +77,12 @@ export function Financeiro() {
         toast({ title: 'Movimentação adicionada com sucesso.' });
         setIsFormOpen(false);
       },
-      onError: () => {
-        toast({ title: 'Erro ao adicionar movimentação.', variant: 'destructive' });
+      onError: (error) => {
+        toast({
+          title: 'Erro ao adicionar movimentação.',
+          description: error instanceof Error ? error.message : 'Tente novamente.',
+          variant: 'destructive'
+        });
       }
     }
   });
@@ -89,8 +94,12 @@ export function Financeiro() {
         toast({ title: 'Movimentação atualizada com sucesso.' });
         setIsFormOpen(false);
       },
-      onError: () => {
-        toast({ title: 'Erro ao atualizar movimentação.', variant: 'destructive' });
+      onError: (error) => {
+        toast({
+          title: 'Erro ao atualizar movimentação.',
+          description: error instanceof Error ? error.message : 'Tente novamente.',
+          variant: 'destructive'
+        });
       }
     }
   });
@@ -102,8 +111,12 @@ export function Financeiro() {
         toast({ title: 'Movimentação excluída com sucesso.' });
         setDeletingId(null);
       },
-      onError: () => {
-        toast({ title: 'Erro ao excluir movimentação.', variant: 'destructive' });
+      onError: (error) => {
+        toast({
+          title: 'Erro ao excluir movimentação.',
+          description: error instanceof Error ? error.message : 'Tente novamente.',
+          variant: 'destructive'
+        });
       }
     }
   });
@@ -189,7 +202,7 @@ export function Financeiro() {
     if (filterType !== 'all') {
       result = result.filter(m => m.type === filterType);
     }
-    return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return [...result].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [movements, filterType]);
 
   const formatCurrency = (value: number) => {
@@ -243,7 +256,7 @@ export function Financeiro() {
       date: format(new Date(), 'yyyy-MM-dd'),
       description: '',
       category: '',
-      amount: undefined as unknown as number,
+      amount: 0,
       status: 'paid',
       client: '',
       service: '',
@@ -253,38 +266,42 @@ export function Financeiro() {
 
   const selectedType = form.watch('type');
 
-  useEffect(() => {
-    if (isFormOpen) {
-      if (editingId) {
-        const movement = movements.find(m => m.id === editingId);
-        if (movement) {
-          form.reset({
-            type: movement.type,
-            date: movement.date.split('T')[0],
-            description: movement.description,
-            category: movement.category,
-            amount: movement.amount,
-            status: movement.status,
-            client: movement.client || '',
-            service: movement.service || '',
-            professional: movement.professional || ''
-          });
-        }
-      } else {
-        form.reset({
-          type: 'revenue',
-          date: format(currentDate, 'yyyy-MM-dd'),
-          description: '',
-          category: '',
-          amount: 0,
-          status: 'paid',
-          client: '',
-          service: '',
-          professional: ''
-        });
-      }
-    }
-  }, [isFormOpen, editingId, currentDate, form, movements]);
+  const openNewMovementForm = () => {
+    setEditingId(null);
+    form.reset({
+      type: 'revenue',
+      date: format(currentDate, 'yyyy-MM-dd'),
+      description: '',
+      category: '',
+      amount: 0,
+      status: 'paid',
+      client: '',
+      service: '',
+      professional: ''
+    });
+    setIsFormOpen(true);
+  };
+
+  const openEditMovementForm = (movement: FinancialMovement) => {
+    setEditingId(movement.id);
+    form.reset({
+      type: movement.type,
+      date: movement.date.split('T')[0],
+      description: movement.description,
+      category: movement.category,
+      amount: movement.amount,
+      status: movement.status,
+      client: movement.client || '',
+      service: movement.service || '',
+      professional: movement.professional || ''
+    });
+    setIsFormOpen(true);
+  };
+
+  const handleFormOpenChange = (open: boolean) => {
+    setIsFormOpen(open);
+    if (!open) setEditingId(null);
+  };
 
   const onSubmit = (data: FormValues) => {
     const payload = {
@@ -339,7 +356,7 @@ export function Financeiro() {
                 <Download className="w-4 h-4" />
                 Exportar
               </Button>
-              <Button className="gap-2 shadow-button h-10 w-full sm:w-auto" onClick={() => { setEditingId(null); setIsFormOpen(true); }}>
+              <Button className="gap-2 shadow-button h-10 w-full sm:w-auto" onClick={openNewMovementForm}>
                 <Plus className="w-4 h-4" />
                 <span className="hidden sm:inline">Nova movimentação</span>
                 <span className="sm:hidden">Nova</span>
@@ -667,7 +684,7 @@ export function Financeiro() {
                           </TableCell>
                           <TableCell>
                             <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-primary" onClick={() => { setEditingId(m.id); setIsFormOpen(true); }}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-primary" onClick={() => openEditMovementForm(m)}>
                                 <Edit2 className="w-4 h-4" />
                               </Button>
                               <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-error" onClick={() => setDeletingId(m.id)}>
@@ -718,7 +735,7 @@ export function Financeiro() {
                           {m.status === 'paid' ? 'Pago' : 'Pendente'}
                         </Badge>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-primary" onClick={() => { setEditingId(m.id); setIsFormOpen(true); }} aria-label="Editar movimentação" title="Editar movimentação">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-primary" onClick={() => openEditMovementForm(m)} aria-label="Editar movimentação" title="Editar movimentação">
                             <Edit2 className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-text-secondary hover:text-error" onClick={() => setDeletingId(m.id)} aria-label="Excluir movimentação" title="Excluir movimentação">
@@ -736,7 +753,7 @@ export function Financeiro() {
       )}
 
       {/* CREATE/EDIT DIALOG */}
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+      <Dialog open={isFormOpen} onOpenChange={handleFormOpenChange}>
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-background border-none shadow-modal">
           <DialogHeader className="p-6 bg-surface border-b pb-4">
             <DialogTitle className="text-[18px]">{editingId ? 'Editar Movimentação' : 'Nova Movimentação'}</DialogTitle>
@@ -753,7 +770,7 @@ export function Financeiro() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-text-secondary">Tipo</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger className="bg-surface shadow-sm">
                                 <SelectValue placeholder="Selecione" />
@@ -835,7 +852,7 @@ export function Financeiro() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-text-secondary">Status</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="bg-surface shadow-sm">
                               <SelectValue placeholder="Selecione" />
