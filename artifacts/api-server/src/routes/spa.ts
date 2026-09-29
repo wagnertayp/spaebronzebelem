@@ -2212,13 +2212,14 @@ router.use(async (req, res, next) => {
         "Os dados do spa ainda não foram inicializados no PostgreSQL. Faça e confirme um backup antes de habilitar a importação inicial.",
     });
 
-  const isWhatsappConnectionBootstrapRequest =
+  const isWhatsappConnectionManagementRequest =
     (req.method === "GET" && req.path === "/whatsapp/connection") ||
-    (req.method === "POST" && req.path === "/whatsapp/connect");
+    (req.method === "POST" && req.path === "/whatsapp/connect") ||
+    (req.method === "POST" && req.path === "/whatsapp/disconnect");
 
-  // QR onboarding talks to Evolution and does not mutate the SPA operational snapshot.
+  // Connection management talks to Evolution and does not mutate the SPA operational snapshot.
   // Keep it available while the production snapshot is being initialized.
-  if (isWhatsappConnectionBootstrapRequest) {
+  if (isWhatsappConnectionManagementRequest) {
     next();
     return;
   }

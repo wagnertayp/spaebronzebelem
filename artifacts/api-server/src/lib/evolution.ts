@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { evolutionInstanceStore } from "./evolution-instance-repository";
 
 type EvolutionConfig = {
   baseUrl: string;
@@ -19,7 +20,6 @@ export type EvolutionInstance = {
   connected: boolean;
 };
 
-let selectedInstance = process.env["EVOLUTION_INSTANCE"]?.trim() || null;
 let configuredWebhookInstance: string | null = null;
 
 export type EvolutionSendResult = {
@@ -82,16 +82,12 @@ const readWhatsappAsset = async (fileName: string) => {
     : new Error(`Arquivo não encontrado: ${fileName}`);
 };
 
-export const getEvolutionConfig = (): EvolutionConfig | null => {
+export const getEvolutionConfig = async (): Promise<EvolutionConfig | null> => {
   const baseUrl = process.env["EVOLUTION_API_URL"]?.replace(/\/+$/, "");
   const apiKey = process.env["EVOLUTION_API_KEY"]?.trim();
   if (!baseUrl || !apiKey) return null;
-  return { baseUrl, instance: selectedInstance, apiKey };
-};
-
-export const setEvolutionInstance = (instance: string) => {
-  selectedInstance = instance.trim() || null;
-  return selectedInstance;
+  const instance = await evolutionInstanceStore.getSelectedInstance();
+  return { baseUrl, instance, apiKey };
 };
 
 const qrCodeFromResponse = (body: Record<string, unknown>): string | null => {
@@ -116,7 +112,7 @@ const getEvolutionWebhookUrl = () => {
 };
 
 export const configureEvolutionWebhook = async (instance: string) => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   const webhookUrl = getEvolutionWebhookUrl();
   if (!config || !webhookUrl || configuredWebhookInstance === instance) return false;
 
@@ -151,7 +147,7 @@ export const configureEvolutionWebhook = async (instance: string) => {
 };
 
 export const connectEvolutionInstance = async () => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   if (!config) {
     return {
       created: false,
@@ -200,7 +196,7 @@ export const connectEvolutionInstance = async () => {
       };
     }
 
-    setEvolutionInstance(instance);
+    await evolutionInstanceStore.setSelectedInstance(instance);
     await configureEvolutionWebhook(instance);
     const qrCode = qrCodeFromResponse(body);
     const pairingCode = pairingCodeFromResponse(body);
@@ -234,7 +230,7 @@ export const connectEvolutionInstance = async () => {
 };
 
 export const disconnectEvolutionInstance = async () => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   if (!config || !config.instance) {
     return {
       disconnected: false,
@@ -254,6 +250,16 @@ export const disconnectEvolutionInstance = async () => {
       },
     );
     if (!response.ok) {
+      const connection = await getEvolutionConnection({ configureWebhook: false });
+      if (["close", "closed", "disconnected", "offline", "instance_not_found"].includes(connection.state.toLowerCase())) {
+        await evolutionInstanceStore.setSelectedInstance(null);
+        configuredWebhookInstance = null;
+        return {
+          disconnected: true,
+          instance,
+          message: "A instância já estava desconectada. Gere um novo QR Code para conectar outro número.",
+        };
+      }
       return {
         disconnected: false,
         instance,
@@ -261,7 +267,7 @@ export const disconnectEvolutionInstance = async () => {
       };
     }
 
-    setEvolutionInstance("");
+    await evolutionInstanceStore.setSelectedInstance(null);
     configuredWebhookInstance = null;
     return {
       disconnected: true,
@@ -288,7 +294,7 @@ export const sendEvolutionText = async (
   text: string,
   replyTo?: EvolutionReplyReference,
 ): Promise<EvolutionSendResult> => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   if (!config || !config.instance) {
     return { ok: false, providerMessageId: null, error: "Evolution API não configurada" };
   }
@@ -358,7 +364,7 @@ export const sendEvolutionReaction = async (
   providerMessageId: string,
   reaction = "❤️",
 ): Promise<EvolutionSendResult> => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   if (!config || !config.instance || !providerMessageId) {
     return { ok: false, providerMessageId: null, error: "Evolution API não configurada" };
   }
@@ -412,7 +418,7 @@ export const sendEvolutionDocument = async (
   caption: string,
   replyTo?: EvolutionReplyReference,
 ): Promise<EvolutionSendResult> => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   if (!config || !config.instance) {
     return { ok: false, providerMessageId: null, error: "WhatsApp não configurado" };
   }
@@ -489,7 +495,7 @@ export const sendEvolutionSessionPreparationImage = async (
   phone: string,
   caption: string,
 ): Promise<EvolutionSendResult> => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   if (!config || !config.instance) {
     return { ok: false, providerMessageId: null, error: "WhatsApp não configurado" };
   }
@@ -553,7 +559,7 @@ export const sendEvolutionAudio = async (
   phone: string,
   clip: WhatsappAudioClip,
 ): Promise<EvolutionSendResult> => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   if (!config || !config.instance) {
     return { ok: false, providerMessageId: null, error: "WhatsApp não configurado" };
   }
@@ -639,7 +645,7 @@ export const getEvolutionMedia = async (
   message: Record<string, unknown>,
   mediaType: "audio" | "image",
 ): Promise<EvolutionMedia> => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   if (!config || !config.instance) throw new Error("Evolution API não configurada");
 
   const contentMessage = unwrapEvolutionMessage(message);
@@ -693,8 +699,12 @@ export const getEvolutionMedia = async (
   return decodeBase64Media(base64, responseMimetype?.split(";")[0] ?? mimetype);
 };
 
-export const getEvolutionConnection = async () => {
-  const config = getEvolutionConfig();
+export const getEvolutionConnection = async ({
+  configureWebhook = true,
+}: {
+  configureWebhook?: boolean;
+} = {}) => {
+  const config = await getEvolutionConfig();
   if (!config) {
     return { configured: false, connected: false, instance: "", state: "not_configured", message: "WhatsApp não configurado" };
   }
@@ -746,7 +756,7 @@ export const getEvolutionConnection = async () => {
       (response.ok ? "unknown" : `http_${response.status}`),
     );
     const connected = response.ok && ["open", "connected"].includes(state.toLowerCase());
-    if (connected) await configureEvolutionWebhook(config.instance);
+    if (connected && configureWebhook) await configureEvolutionWebhook(config.instance);
     return {
       configured: true,
       connected,
@@ -785,7 +795,7 @@ const parseEvolutionInstances = (value: unknown): EvolutionInstance[] => {
 };
 
 export const listEvolutionInstances = async (): Promise<EvolutionInstance[]> => {
-  const config = getEvolutionConfig();
+  const config = await getEvolutionConfig();
   if (!config) return [];
   const response = await fetch(`${config.baseUrl}/instance/fetchInstances`, {
     headers: { apikey: config.apiKey },

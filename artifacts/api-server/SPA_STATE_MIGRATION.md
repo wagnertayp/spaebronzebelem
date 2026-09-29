@@ -6,7 +6,7 @@ Operational data is saved as one versioned PostgreSQL JSONB snapshot. Each reque
 
 To perform the one-time initial import:
 
-1. Take and verify a backup of the target Heroku Postgres database.
+1. Take and verify a backup of the Neon database used by the Heroku app.
 2. Review the current `spa-backup.json` and the initial operational collections in `src/routes/spa.ts`.
 3. Only after approval, set both Heroku config vars to the literal value `true`:
    - `SPA_INITIAL_BACKUP_CONFIRMED`
@@ -17,3 +17,7 @@ To perform the one-time initial import:
 The primary key and `INSERT ... ON CONFLICT DO NOTHING` make the import one-time: later deploys and repeated requests do not replace or duplicate existing operational data. If the row already exists, the database always wins over the bundled seed data. Do not set either import flag before the backup and approval are complete.
 
 For development previews, if the new table does not exist yet, the API keeps its existing in-memory seed behavior. If the table exists but has no initialized state row, endpoints return `503` rather than accepting changes that would not persist. The missing-table fallback is disabled in production.
+
+## Evolution WhatsApp instance selection
+
+`EVOLUTION_INSTANCE` is a legacy fallback used only when no saved selection exists. The `evolution_instance_settings` singleton row is authoritative once present, including when `instance_name` is `NULL`. Successful connections save their instance there; disconnecting clears it, so a later dyno restart does not restore the old environment-variable value. The migration only adds this settings table; it does not modify existing WhatsApp conversations or appointments.

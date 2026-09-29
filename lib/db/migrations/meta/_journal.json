@@ -15,6 +15,13 @@
       "when": 1790459564312,
       "tag": "0001_bright_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790696227671,
+      "tag": "0002_small_tag",
+      "breakpoints": true
     }
   ]
 }

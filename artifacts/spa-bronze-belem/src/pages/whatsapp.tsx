@@ -163,8 +163,8 @@ export function WhatsApp() {
   };
 
   const handleDisconnectWhatsapp = () => {
-    if (!whatsappConnection?.connected || disconnectWhatsapp.isPending) return;
-    if (!window.confirm('Desconectar o WhatsApp atual para conectar outro número? As conversas e configurações serão mantidas.')) return;
+    if (!whatsappConnection?.instance || disconnectWhatsapp.isPending) return;
+    if (!window.confirm('Liberar a instância atual para conectar outro número? As conversas e configurações serão mantidas.')) return;
     disconnectWhatsapp.mutate(undefined, {
       onSuccess: (data) => {
         if (!data.disconnected) {
@@ -402,7 +402,7 @@ export function WhatsApp() {
                 {connectWhatsapp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
                 {whatsappConnection?.connected ? 'Gerar QR Code novamente' : 'Gerar QR Code'}
               </Button>
-              {whatsappConnection?.connected && (
+              {whatsappConnection?.instance && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -411,7 +411,7 @@ export function WhatsApp() {
                   className="gap-2"
                 >
                   {disconnectWhatsapp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                  Desconectar e trocar número
+                  {whatsappConnection.connected ? 'Desconectar e trocar número' : 'Liberar instância e trocar número'}
                 </Button>
               )}
             </div>
