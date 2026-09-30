@@ -156,6 +156,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import backup from "../data/spa-backup.json";
 import { logger } from "../lib/logger";
+import { defaultStaffPasswordFromEmail } from "../lib/staff-access-password";
 import {
   createPasswordRecord,
   generateTemporaryPassword,
@@ -3357,14 +3358,6 @@ const staffAccessAccountResponse = (account: typeof staffAccessAccountsTable.$in
   agendaScope: account.agendaScope,
   mustChangePassword: account.mustChangePassword,
 });
-
-const defaultStaffPasswordFromEmail = (email: unknown): string | null => {
-  if (typeof email !== "string") return null;
-  const [localPart, domain, ...extraParts] = email.trim().split("@");
-  const password = localPart?.trim();
-  if (!password || !domain?.trim() || extraParts.length > 0) return null;
-  return password;
-};
 
 const isAdminRequest = (res: Response) => {
   if (requestSession(res).role === "admin") return true;

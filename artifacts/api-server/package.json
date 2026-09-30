@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:persistence": "node --experimental-strip-types --test ./test/spa-state-store.test.mjs"
+    "test:persistence": "node --experimental-strip-types --test ./test/spa-state-store.test.mjs",
+    "test:staff-access-password": "node --experimental-strip-types --test ./test/staff-access-password.test.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
