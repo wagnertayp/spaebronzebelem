@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Plus, Trash2 } from "lucide-react";
+import { Clock3, Plus, Trash2 } from "lucide-react";
 import type { ProfessionalScheduleException, WeeklyScheduleDay } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -18,6 +19,33 @@ const WEEKDAYS = [
   { weekday: 6, label: "Sábado" },
   { weekday: 0, label: "Domingo" },
 ];
+
+const STANDARD_SPA_HOURS: Record<number, { start: string; end: string }> = {
+  0: { start: "07:30", end: "11:30" },
+  1: { start: "07:30", end: "20:00" },
+  2: { start: "07:30", end: "20:00" },
+  3: { start: "07:30", end: "20:00" },
+  4: { start: "07:30", end: "20:00" },
+  5: { start: "07:30", end: "20:00" },
+  6: { start: "07:30", end: "18:00" },
+};
+
+const createStandardSpaSchedule = (): WeeklyScheduleDay[] =>
+  WEEKDAYS.map(({ weekday }) => ({
+    weekday,
+    enabled: true,
+    intervals: [{ ...STANDARD_SPA_HOURS[weekday] }],
+  })).sort((a, b) => a.weekday - b.weekday);
+
+const matchesStandardSpaSchedule = (schedule: WeeklyScheduleDay[]) =>
+  schedule.length === WEEKDAYS.length && WEEKDAYS.every(({ weekday }) => {
+    const day = schedule.find((item) => item.weekday === weekday);
+    const standardHours = STANDARD_SPA_HOURS[weekday];
+    return day?.enabled === true &&
+      day.intervals.length === 1 &&
+      day.intervals[0]?.start === standardHours.start &&
+      day.intervals[0]?.end === standardHours.end;
+  });
 
 export const createEmptyWeeklySchedule = (): WeeklyScheduleDay[] =>
   Array.from({ length: 7 }, (_, weekday) => ({ weekday, enabled: false, intervals: [] }));
@@ -41,6 +69,13 @@ export function ProfessionalAvailabilityEditor({
   const [exceptionStart, setExceptionStart] = useState("09:00");
   const [exceptionEnd, setExceptionEnd] = useState("17:00");
   const [exceptionReason, setExceptionReason] = useState("");
+  const [standardScheduleSelected, setStandardScheduleSelected] = useState(
+    () => matchesStandardSpaSchedule(weeklySchedule),
+  );
+
+  useEffect(() => {
+    setStandardScheduleSelected(matchesStandardSpaSchedule(weeklySchedule));
+  }, [weeklySchedule]);
 
   const updateDay = (weekday: number, update: (day: WeeklyScheduleDay) => WeeklyScheduleDay) => {
     const current = weeklySchedule.find((day) => day.weekday === weekday) ?? {
@@ -91,11 +126,33 @@ export function ProfessionalAvailabilityEditor({
   return (
     <div className="space-y-5">
       <section className="space-y-3 rounded-xl border border-border bg-background p-4">
-        <div>
-          <h3 className="text-sm font-semibold text-text-primary">Grade semanal</h3>
-          <p className="mt-1 text-xs text-text-secondary">
-            Esta grade se repete toda semana. Adicione mais de um turno para incluir intervalos.
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-text-primary">Grade semanal</h3>
+            <p className="mt-1 text-xs text-text-secondary">
+              Esta grade se repete toda semana. Adicione mais de um turno para incluir intervalos.
+            </p>
+          </div>
+          <div className="flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 sm:max-w-[390px]">
+            <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+            <Label htmlFor="professional-standard-schedule" className="flex-1 cursor-pointer space-y-1">
+              <span className="block text-sm font-medium">Horário padrão do spa</span>
+              <span className="block text-xs font-normal text-text-secondary">
+                Seg–Sex 07:30–20:00 · Sáb 07:30–18:00 · Dom 07:30–11:30. Selecionar substitui a grade atual.
+              </span>
+            </Label>
+            <Checkbox
+              id="professional-standard-schedule"
+              checked={standardScheduleSelected}
+              aria-label="Aplicar horário padrão do spa à grade semanal"
+              data-testid="checkbox-professional-standard-hours"
+              onCheckedChange={(checked) => {
+                const selected = checked === true;
+                setStandardScheduleSelected(selected);
+                if (selected) onWeeklyScheduleChange(createStandardSpaSchedule());
+              }}
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
