@@ -28,6 +28,8 @@ if (!apiKey) {
 export const openai = new OpenAI({
   apiKey,
   baseURL,
+  timeout: 12_000,
+  maxRetries: 0,
 });
 
 export type AudioFormat = "wav" | "mp3" | "webm" | "mp4" | "ogg" | "unknown";

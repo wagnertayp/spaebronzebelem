@@ -249,7 +249,6 @@ type WhatsappMessage = ReturnType<typeof ListWhatsappMessagesResponse.parse>[num
 type WhatsappAutomation = ReturnType<typeof GetWhatsappAutomationResponse.parse>;
 type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.parse>[number];
 type WhatsappConversationStatus = WhatsappConversation["status"];
-const FIRST_WHATSAPP_MESSAGE_DELAY_MS = 8_000;
 const OPENAI_TEXT_MODEL = process.env["OPENAI_API_KEY"] ? "gpt-5.4" : "gpt-5.6-luna";
 const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
 const processingWhatsappWebhookMessageIds = new Set<string>();
@@ -3391,17 +3390,23 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     currentInput = `Cliente: ${knownClientName}\nMensagem: ${text}`;
   }
   if (providerMessageId) {
-    const reactionResult = await sendEvolutionReaction(
+    void sendEvolutionReaction(
       phone,
       providerMessageId,
       reactionForWhatsappMessage(providerMessageId, text),
-    );
-    if (!reactionResult.ok) {
+    ).then((reactionResult) => {
+      if (!reactionResult.ok) {
+        logger.warn(
+          { err: reactionResult.error, phone, providerMessageId },
+          "WhatsApp reaction failed",
+        );
+      }
+    }).catch((error) => {
       logger.warn(
-        { err: reactionResult.error, phone, providerMessageId },
+        { err: error, phone, providerMessageId },
         "WhatsApp reaction failed",
       );
-    }
+    });
   }
 
   const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
@@ -3420,10 +3425,6 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   if (conversation?.status !== "agent") {
     await setWhatsappConversationStatus(phone, "agent");
   }
-  if (isFirstClientMessage) {
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, FIRST_WHATSAPP_MESSAGE_DELAY_MS));
-  }
-
   if (mediaError) {
     await sendWhatsappAgentReply(
       phone,
@@ -3569,11 +3570,16 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       }
     }
     if (createdAppointment) {
-      await sendWhatsappSessionPreparationImage(
+      void sendWhatsappSessionPreparationImage(
         createdAppointment,
         phone,
         client?.name ?? decision.appointment?.clientName ?? phone,
-      );
+      ).catch((error) => {
+        logger.error(
+          { err: error, phone, appointmentId: createdAppointment?.id },
+          "WhatsApp preparation image send failed",
+        );
+      });
     }
     return void res.json(ReceiveEvolutionWebhookResponse.parse({
       received: true,
@@ -3581,6 +3587,27 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     }));
   } catch (error) {
     logger.error({ err: error, phone }, "WhatsApp AI response failed");
+    try {
+      const fallbackMessage = await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        "Tive uma instabilidade técnica ao responder agora. Pode me enviar sua última mensagem novamente, por favor? 🤎",
+        "reply",
+        replyReference,
+      );
+      if (fallbackMessage.status === "failed") {
+        logger.warn(
+          { err: fallbackMessage.error, phone, messageId: fallbackMessage.id },
+          "WhatsApp AI fallback reply could not be delivered",
+        );
+      }
+    } catch (fallbackError) {
+      logger.error(
+        { err: fallbackError, phone },
+        "WhatsApp AI fallback reply failed",
+      );
+    }
     return void res.json(ReceiveEvolutionWebhookResponse.parse({
       received: true,
       action: "agent_error",

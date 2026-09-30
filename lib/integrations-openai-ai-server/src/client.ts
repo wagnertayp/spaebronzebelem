@@ -22,4 +22,6 @@ if (!apiKey) {
 export const openai = new OpenAI({
   apiKey,
   baseURL,
+  timeout: 14_000,
+  maxRetries: 0,
 });
