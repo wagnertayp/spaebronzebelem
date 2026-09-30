@@ -2549,73 +2549,78 @@ router.get("/archive", (_req, res) => {
 });
 
 router.post("/archive/bulk", async (req, res): Promise<void> => {
-  const input = ManageArchivedRecordsBody.parse(req.body);
-  const uniqueRefs = [...new Map(
-    input.records.map((record) => [`${record.entity}:${record.id}`, record]),
-  ).values()];
+  try {
+    const input = ManageArchivedRecordsBody.parse(req.body);
+    const uniqueRefs = [...new Map(
+      input.records.map((record) => [`${record.entity}:${record.id}`, record]),
+    ).values()];
 
-  if (input.action === "archive") {
-    const targets = await Promise.all(
-      uniqueRefs.map((record) => resolveArchiveTarget(record.entity, record.id)),
-    );
-    if (targets.some((target) => !target)) {
-      res.status(404).json({ error: "Um ou mais registros selecionados não foram encontrados. Nenhum item foi alterado." });
+    if (input.action === "archive") {
+      const targets = await Promise.all(
+        uniqueRefs.map((record) => resolveArchiveTarget(record.entity, record.id)),
+      );
+      if (targets.some((target) => !target)) {
+        res.status(404).json({ error: "Um ou mais registros selecionados não foram encontrados. Nenhum item foi alterado." });
+        return;
+      }
+      const resolvedTargets = [...new Map(
+        targets
+          .filter((target): target is ArchivedSpaRecord => target !== null)
+          .map((target) => [`${target.entity}:${target.id}`, target]),
+      ).values()];
+      await Promise.all(
+        resolvedTargets
+          .filter((target) => target.entity === "professional" && /^\d+$/.test(target.id))
+          .map((target) => disableStaffAccessForProfessional(Number(target.id))),
+      );
+      let changedCount = 0;
+      const records = resolvedTargets.map((target) => {
+        const result = archiveResolvedSpaRecord(target);
+        if (result.changed) changedCount += 1;
+        return result.entry;
+      });
+      res.json(ManageArchivedRecordsResponse.parse({
+        action: input.action,
+        changedCount,
+        records,
+      }));
       return;
     }
-    const resolvedTargets = [...new Map(
-      targets
-        .filter((target): target is ArchivedSpaRecord => target !== null)
-        .map((target) => [`${target.entity}:${target.id}`, target]),
-    ).values()];
-    await Promise.all(
-      resolvedTargets
-        .filter((target) => target.entity === "professional" && /^\d+$/.test(target.id))
-        .map((target) => disableStaffAccessForProfessional(Number(target.id))),
+
+    const restoringMarkers = uniqueRefs
+      .map((record) => {
+        const normalizedId = record.entity === "whatsappConversation"
+          ? normalizeWhatsappPhone(record.id)
+          : /^\d+$/.test(record.id) && Number.isSafeInteger(Number(record.id)) ? String(Number(record.id)) : record.id;
+        return archivedSpaRecords.find((entry) => entry.entity === record.entity && entry.id === normalizedId);
+      })
+      .filter((record): record is ArchivedSpaRecord => record !== undefined);
+    const restoringRuleIds = new Set(
+      restoringMarkers
+        .filter((record) => record.entity === "commissionRule")
+        .map((record) => Number(record.id)),
     );
-    let changedCount = 0;
-    const records = resolvedTargets.map((target) => {
-      const result = archiveResolvedSpaRecord(target);
-      if (result.changed) changedCount += 1;
-      return result.entry;
-    });
+    const activeRulesAfterRestore = commissionRules.filter(
+      (rule) => !isSpaRecordArchived("commissionRule", rule.id) || restoringRuleIds.has(rule.id),
+    );
+    const ruleKeys = activeRulesAfterRestore.map((rule) => `${rule.professionalId}:${rule.serviceId}`);
+    if (new Set(ruleKeys).size !== ruleKeys.length) {
+      res.status(409).json({ error: "Não foi possível restaurar as regras: já existe uma regra ativa para o mesmo serviço e profissional." });
+      return;
+    }
+
+    const restored = uniqueRefs
+      .map((record) => restoreSpaRecord(record.entity, record.id))
+      .filter((record): record is ArchivedSpaRecord => record !== null);
     res.json(ManageArchivedRecordsResponse.parse({
       action: input.action,
-      changedCount,
-      records,
+      changedCount: restored.length,
+      records: restored,
     }));
-    return;
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to archive or restore SPA records");
+    throw error;
   }
-
-  const restoringMarkers = uniqueRefs
-    .map((record) => {
-      const normalizedId = record.entity === "whatsappConversation"
-        ? normalizeWhatsappPhone(record.id)
-        : /^\d+$/.test(record.id) && Number.isSafeInteger(Number(record.id)) ? String(Number(record.id)) : record.id;
-      return archivedSpaRecords.find((entry) => entry.entity === record.entity && entry.id === normalizedId);
-    })
-    .filter((record): record is ArchivedSpaRecord => record !== undefined);
-  const restoringRuleIds = new Set(
-    restoringMarkers
-      .filter((record) => record.entity === "commissionRule")
-      .map((record) => Number(record.id)),
-  );
-  const activeRulesAfterRestore = commissionRules.filter(
-    (rule) => !isSpaRecordArchived("commissionRule", rule.id) || restoringRuleIds.has(rule.id),
-  );
-  const ruleKeys = activeRulesAfterRestore.map((rule) => `${rule.professionalId}:${rule.serviceId}`);
-  if (new Set(ruleKeys).size !== ruleKeys.length) {
-    res.status(409).json({ error: "Não foi possível restaurar as regras: já existe uma regra ativa para o mesmo serviço e profissional." });
-    return;
-  }
-
-  const restored = uniqueRefs
-    .map((record) => restoreSpaRecord(record.entity, record.id))
-    .filter((record): record is ArchivedSpaRecord => record !== null);
-  res.json(ManageArchivedRecordsResponse.parse({
-    action: input.action,
-    changedCount: restored.length,
-    records: restored,
-  }));
 });
 
 router.get("/appointments", (req, res) => {
