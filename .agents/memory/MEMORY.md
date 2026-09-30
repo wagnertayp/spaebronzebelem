@@ -8,3 +8,4 @@
 - [OpenAPI date codegen](openapi-date-codegen.md) — date-formatted strings can become `Date` in generated Zod types but stay strings in the React client.
 - [Drizzle migration generation](drizzle-migration-generation.md) — keep a package-relative `out` in config; this version rejects extra generate flags with `--config`.
 - [Auth session caching](auth-session-cache.md) — auth session requests must bypass HTTP caching; a conditional 304 can be mistaken for a signed-out session.
+- [Financial import dates](financial-import-dates.md) — customer lifetime totals and product expiry dates cannot populate a date-based monthly ledger.
