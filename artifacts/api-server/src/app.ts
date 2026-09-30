@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type ErrorRequestHandler, type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
@@ -57,5 +57,31 @@ if (process.env["NODE_ENV"] === "production") {
     });
   });
 }
+
+const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
+  logger.error(
+    { err: error, method: req.method, path: req.path },
+    "Unhandled request error",
+  );
+  if (res.headersSent) {
+    next(error);
+    return;
+  }
+
+  const candidate = error as { status?: unknown; statusCode?: unknown };
+  const errorStatus = candidate.statusCode ?? candidate.status;
+  const statusCode =
+    typeof errorStatus === "number" && errorStatus >= 400 && errorStatus < 500
+      ? errorStatus
+      : 500;
+  res.status(statusCode).json({
+    error:
+      statusCode === 500
+        ? "Erro interno do servidor."
+        : "Não foi possível processar a requisição.",
+  });
+};
+
+app.use(errorHandler);
 
 export default app;
