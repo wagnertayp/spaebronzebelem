@@ -1,8 +1,12 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 type StaffAccessEmailInput = {
   email: string;
   professionalName: string;
   username: string;
   temporaryPassword: string;
+  includeLoginLink?: boolean;
 };
 
 type ResendEmailConfig = {
@@ -13,7 +17,23 @@ type ResendEmailConfig = {
 
 type EmailDeliveryResult =
   | { sent: true }
-  | { sent: false; reason: "not_configured" | "provider_rejected" | "network_error" };
+  | {
+      sent: false;
+      reason: "not_configured" | "asset_unavailable" | "provider_rejected" | "network_error";
+    };
+
+const EMAIL_LOGO_FILENAME = "spa-bronze-email-logo.png";
+const EMAIL_LOGO_CONTENT_ID = "spa-bronze-email-logo";
+
+const loadEmailLogoBase64 = () => {
+  const candidates = [
+    resolve(process.cwd(), "assets", EMAIL_LOGO_FILENAME),
+    resolve(process.cwd(), "dist", "assets", EMAIL_LOGO_FILENAME),
+    resolve(process.cwd(), "artifacts", "api-server", "assets", EMAIL_LOGO_FILENAME),
+  ];
+  const assetPath = candidates.find(existsSync);
+  return assetPath ? readFileSync(assetPath).toString("base64") : null;
+};
 
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/gu, (character) => ({
@@ -44,13 +64,24 @@ const renderStaffAccessEmail = ({
   username,
   temporaryPassword,
   loginUrl,
-  logoUrl,
-}: StaffAccessEmailInput & { loginUrl: string; logoUrl: string }) => {
+}: StaffAccessEmailInput & { loginUrl: string | null }) => {
   const safeName = escapeHtml(professionalName);
   const safeUsername = escapeHtml(username);
   const safePassword = escapeHtml(temporaryPassword);
-  const safeLoginUrl = escapeHtml(loginUrl);
-  const safeLogoUrl = escapeHtml(logoUrl);
+  const loginSection = loginUrl
+    ? `<tr>
+        <td align="center" style="padding:22px 32px 12px;">
+          <a href="${escapeHtml(loginUrl)}" style="display:inline-block;padding:15px 28px;border-radius:9px;background-color:#8c552c;color:#ffffff;font-size:16px;font-weight:700;line-height:20px;text-decoration:none;">Acessar o sistema</a>
+        </td>
+      </tr>`
+    : `<tr>
+        <td style="padding:22px 32px 12px;color:#6e6258;font-size:14px;line-height:1.65;">
+          Para obter o endereço de acesso ao sistema, fale com a administração do spa.
+        </td>
+      </tr>`;
+  const accessInstruction = loginUrl
+    ? `Acesse o sistema: ${loginUrl}`
+    : "Para obter o endereço de acesso, fale com a administração do spa.";
 
   const html = `<!doctype html>
 <html lang="pt-BR">
@@ -67,7 +98,7 @@ const renderStaffAccessEmail = ({
           <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #eadfd2;border-radius:18px;overflow:hidden;">
             <tr>
               <td align="center" style="padding:30px 28px 22px;background-color:#fffaf4;">
-                <img src="${safeLogoUrl}" width="96" alt="Logotipo Spa e Bronze Belém" style="display:block;width:96px;max-width:100%;height:auto;border:0;">
+                <img src="cid:${EMAIL_LOGO_CONTENT_ID}" width="96" alt="Logotipo Spa e Bronze Belém" style="display:block;width:96px;max-width:100%;height:auto;border:0;">
                 <p style="margin:14px 0 0;color:#8c552c;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Spa e Bronze Belém</p>
               </td>
             </tr>
@@ -96,11 +127,7 @@ const renderStaffAccessEmail = ({
                 </table>
               </td>
             </tr>
-            <tr>
-              <td align="center" style="padding:22px 32px 12px;">
-                <a href="${safeLoginUrl}" style="display:inline-block;padding:15px 28px;border-radius:9px;background-color:#8c552c;color:#ffffff;font-size:16px;font-weight:700;line-height:20px;text-decoration:none;">Acessar o sistema</a>
-              </td>
-            </tr>
+            ${loginSection}
             <tr>
               <td style="padding:12px 32px 30px;color:#6e6258;font-size:14px;line-height:1.65;">
                 <p style="margin:0 0 10px;"><strong>Por segurança, você deverá criar uma nova senha no primeiro acesso.</strong></p>
@@ -126,7 +153,7 @@ const renderStaffAccessEmail = ({
     `Senha inicial: ${temporaryPassword}`,
     "",
     "No primeiro acesso, o sistema solicitará que você crie uma nova senha.",
-    `Acesse o sistema: ${loginUrl}`,
+    accessInstruction,
     "",
     "Se precisar de ajuda, fale com a administração do spa.",
   ].join("\n");
@@ -148,13 +175,15 @@ export async function sendStaffAccessCredentialsEmail(
   const apiKey = config.apiKey?.trim();
   const from = config.from?.trim();
   const loginUrl = normalizeLoginUrl(config.loginUrl);
-  if (!apiKey || !from || !loginUrl) return { sent: false, reason: "not_configured" };
-  const appPath = loginUrl.pathname.replace(/\/login\/?$/iu, "");
-  const logoUrl = new URL(`${appPath}/spa-bronze-email-logo.png`, loginUrl.origin).toString();
+  const shouldIncludeLoginLink = input.includeLoginLink !== false;
+  if (!apiKey || !from || (shouldIncludeLoginLink && !loginUrl)) {
+    return { sent: false, reason: "not_configured" };
+  }
+  const logoContent = loadEmailLogoBase64();
+  if (!logoContent) return { sent: false, reason: "asset_unavailable" };
   const content = renderStaffAccessEmail({
     ...input,
-    loginUrl: loginUrl.toString(),
-    logoUrl,
+    loginUrl: loginUrl?.toString() ?? null,
   });
 
   try {
@@ -170,6 +199,11 @@ export async function sendStaffAccessCredentialsEmail(
         subject: "Seu acesso ao Spa e Bronze Belém",
         text: content.text,
         html: content.html,
+        attachments: [{
+          filename: EMAIL_LOGO_FILENAME,
+          content: logoContent,
+          content_id: EMAIL_LOGO_CONTENT_ID,
+        }],
       }),
       signal: AbortSignal.timeout(10_000),
     });

@@ -35,8 +35,14 @@ test("sends initial credentials and first-login instructions through Resend", as
   assert.match(payload.text, /solicitará que você crie uma nova senha/);
   assert.match(payload.text, /https:\/\/spa\.example\.com\/login/);
   assert.match(payload.html, /<a href="https:\/\/spa\.example\.com\/login"/);
-  assert.match(payload.html, /https:\/\/spa\.example\.com\/spa-bronze-email-logo\.png/);
+  assert.match(payload.html, /<img src="cid:spa-bronze-email-logo"/);
   assert.match(payload.html, /Logotipo Spa e Bronze Belém/);
+  assert.equal(payload.attachments[0].filename, "spa-bronze-email-logo.png");
+  assert.equal(payload.attachments[0].content_id, "spa-bronze-email-logo");
+  assert.equal(
+    Buffer.from(payload.attachments[0].content, "base64").subarray(0, 8).toString("hex"),
+    "89504e470d0a1a0a",
+  );
 });
 
 test("escapes personalized values in the branded HTML template", async () => {
@@ -95,6 +101,25 @@ test("does not send credentials when the login URL is missing or insecure", asyn
     assert.deepEqual(result, { sent: false, reason: "not_configured" });
   }
   assert.equal(requestMade, false);
+});
+
+test("can send the branded email without a login button when explicitly requested", async () => {
+  let request;
+  const result = await sendStaffAccessCredentialsEmail(
+    { ...input, includeLoginLink: false },
+    { apiKey: "test-api-key", from: "acesso@example.com", loginUrl: undefined },
+    async (_url, options) => {
+      request = { options };
+      return new Response(null, { status: 200 });
+    },
+  );
+
+  assert.deepEqual(result, { sent: true });
+  const payload = JSON.parse(request.options.body);
+  assert.doesNotMatch(payload.html, /<a\s/i);
+  assert.match(payload.html, /src="cid:spa-bronze-email-logo"/);
+  assert.match(payload.text, /obter o endereço de acesso/);
+  assert.equal(payload.attachments[0].content_id, "spa-bronze-email-logo");
 });
 
 test("reports provider and network failures without exposing response details", async () => {
