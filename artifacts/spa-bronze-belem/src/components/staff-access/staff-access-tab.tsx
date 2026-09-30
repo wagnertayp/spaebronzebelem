@@ -1,8 +1,9 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Copy, KeyRound, UserPlus } from "lucide-react";
+import { Copy, KeyRound, Trash2, UserPlus } from "lucide-react";
 import {
   getListStaffAccessAccountsQueryKey,
   useCreateStaffAccessAccount,
+  useDeleteStaffAccessAccount,
   useListProfessionals,
   useListStaffAccessAccounts,
   useResetStaffAccessPassword,
@@ -59,6 +60,7 @@ export function StaffAccessTab() {
   });
   const { data: professionals, isLoading: professionalsLoading } = useListProfessionals();
   const createAccount = useCreateStaffAccessAccount();
+  const deleteAccountMutation = useDeleteStaffAccessAccount();
   const updateAccountMutation = useUpdateStaffAccessAccount();
   const resetPasswordMutation = useResetStaffAccessPassword();
 
@@ -146,6 +148,37 @@ export function StaffAccessTab() {
       setCredential({ username: account.username, password: result.temporaryPassword, kind: "reset" });
     } catch (error) {
       toast({ title: "Não foi possível redefinir a senha", description: apiErrorMessage(error), variant: "destructive" });
+    } finally {
+      setBusyAccountId(null);
+    }
+  };
+
+  const deleteAccess = async (account: StaffAccessAccount) => {
+    const professional = professionals?.find((item) => item.id === account.professionalId);
+    const professionalLabel = professional ? ` da profissional ${professional.name}` : "";
+    if (!window.confirm(
+      `Excluir definitivamente o acesso${professionalLabel} (${account.username})? ` +
+      "O login será removido e as sessões encerradas. O cadastro da profissional será mantido. Esta ação não pode ser desfeita.",
+    )) return;
+
+    setBusyAccountId(account.id);
+    try {
+      await deleteAccountMutation.mutateAsync({ id: account.id });
+      queryClient.setQueryData<StaffAccessAccount[]>(
+        getListStaffAccessAccountsQueryKey(),
+        (current) => current?.filter((item) => item.id !== account.id),
+      );
+      await queryClient.invalidateQueries({ queryKey: getListStaffAccessAccountsQueryKey() });
+      toast({
+        title: "Acesso excluído",
+        description: "O login foi removido. O cadastro da profissional permanece no sistema.",
+      });
+    } catch (error) {
+      toast({
+        title: "Não foi possível excluir o acesso",
+        description: apiErrorMessage(error),
+        variant: "destructive",
+      });
     } finally {
       setBusyAccountId(null);
     }
@@ -288,7 +321,7 @@ export function StaffAccessTab() {
         <div>
           <h2 className="font-semibold text-text-primary">Acessos cadastrados</h2>
           <p className="mt-1 text-sm text-text-secondary">
-            Alterações de permissão e desativação encerram as sessões abertas daquela conta.
+            Alterações de permissão e desativação encerram sessões. Excluir remove apenas o acesso, não o cadastro da profissional.
           </p>
         </div>
         {accountsLoading ? (
@@ -326,6 +359,17 @@ export function StaffAccessTab() {
                     >
                       <KeyRound className="mr-2 h-4 w-4" />
                       Redefinir senha
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      disabled={busy}
+                      data-testid={`button-delete-staff-access-${account.id}`}
+                      onClick={() => void deleteAccess(account)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Excluir acesso
                     </Button>
                     <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
                       <input

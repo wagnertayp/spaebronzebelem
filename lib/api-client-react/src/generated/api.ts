@@ -776,6 +776,77 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getUpdateStaffAccessAccountMutationOptions(options));
     }
 
+export const getDeleteStaffAccessAccountUrl = (id: number,) => {
+
+
+
+
+  return `/api/staff-access/${id}`
+}
+
+/**
+ * @summary Exclui definitivamente um acesso profissional
+ */
+export const deleteStaffAccessAccount = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteStaffAccessAccountUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteStaffAccessAccountMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStaffAccessAccount>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteStaffAccessAccount>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteStaffAccessAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteStaffAccessAccount>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteStaffAccessAccount(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteStaffAccessAccountMutationResult = NonNullable<Awaited<ReturnType<typeof deleteStaffAccessAccount>>>
+
+    export type DeleteStaffAccessAccountMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Exclui definitivamente um acesso profissional
+ */
+export const useDeleteStaffAccessAccount = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStaffAccessAccount>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteStaffAccessAccount>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteStaffAccessAccountMutationOptions(options));
+    }
+
 export const getResetStaffAccessPasswordUrl = (id: number,) => {
 
 

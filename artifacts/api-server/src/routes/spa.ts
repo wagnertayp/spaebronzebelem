@@ -130,6 +130,7 @@ import {
   PayCommissionPeriodBody,
   PayCommissionPeriodResponse,
   ListStaffAccessAccountsResponse,
+  DeleteStaffAccessAccountParams,
   CreateStaffAccessAccountBody,
   CreateStaffAccessAccountResponse,
   UpdateStaffAccessAccountParams,
@@ -3502,6 +3503,27 @@ router.patch("/staff-access/:id", async (req, res): Promise<void> => {
     return;
   }
   res.json(UpdateStaffAccessAccountResponse.parse(staffAccessAccountResponse(updated)));
+});
+
+router.delete("/staff-access/:id", async (req, res): Promise<void> => {
+  if (!isAdminRequest(res)) return;
+  const params = DeleteStaffAccessAccountParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [deleted] = await db
+    .delete(staffAccessAccountsTable)
+    .where(eq(staffAccessAccountsTable.id, params.data.id))
+    .returning({ id: staffAccessAccountsTable.id });
+  if (!deleted) {
+    res.status(404).json({ error: "Acesso não encontrado." });
+    return;
+  }
+
+  req.log.info({ staffAccessAccountId: deleted.id }, "Permanently deleted staff access account");
+  res.sendStatus(204);
 });
 
 router.post("/staff-access/:id/reset-password", async (req, res): Promise<void> => {

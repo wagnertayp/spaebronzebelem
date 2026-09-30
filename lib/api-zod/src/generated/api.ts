@@ -206,6 +206,16 @@ export const UpdateStaffAccessAccountResponse = zod.object({
 
 
 /**
+ * @summary Exclui definitivamente um acesso profissional
+ */
+export const DeleteStaffAccessAccountParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteStaffAccessAccountResponse = zod.void()
+
+
+/**
  * @summary Gera uma nova senha temporária e revoga sessões anteriores
  */
 export const ResetStaffAccessPasswordParams = zod.object({
