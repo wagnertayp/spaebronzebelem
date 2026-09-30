@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const sessionQuery = useGetAuthSession({
+    request: { cache: "no-store" },
     query: {
       queryKey: getGetAuthSessionQueryKey(),
       retry: false,

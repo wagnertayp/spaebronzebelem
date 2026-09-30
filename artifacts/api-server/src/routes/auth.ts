@@ -23,6 +23,13 @@ import {
 
 const router: IRouter = Router();
 
+router.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 router.post("/auth/login", async (req, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
