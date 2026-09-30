@@ -52,6 +52,16 @@ import {
   Save, MessageCircle, CalendarCheck, BellRing, RefreshCw
 } from 'lucide-react';
 
+const DEFAULT_BUSINESS_HOURS = [
+  'segunda-feira: 07:30–20:00',
+  'terça-feira: 07:30–20:00',
+  'quarta-feira: 07:30–20:00',
+  'quinta-feira: 07:30–20:00',
+  'sexta-feira: 07:30–20:00',
+  'sábado: 07:30–18:00',
+  'domingo: 07:30–11:30',
+].join('\n');
+
 export function WhatsApp() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -108,7 +118,7 @@ export function WhatsApp() {
     greeting: '',
     objective: '',
     instructions: '',
-    businessHours: '',
+    businessHours: DEFAULT_BUSINESS_HOURS,
     address: '',
     paymentMethods: '',
     bookingRules: '',
@@ -790,9 +800,10 @@ export function WhatsApp() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-text-primary">Horário de Funcionamento</label>
                       <textarea 
+                        data-testid="input-business-hours"
                         value={formData.businessHours}
                         onChange={e => setFormData(p => ({ ...p, businessHours: e.target.value }))}
-                        rows={3}
+                        rows={7}
                         className="w-full p-3 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm transition-all resize-none"
                       />
                     </div>

@@ -1871,6 +1871,16 @@ const services = [
 ];
 const packages = [{ id: 1, name: "Pacote Relax", price: 720, sessions: 4, serviceId: 1 }];
 
+const DEFAULT_BUSINESS_HOURS = [
+  "segunda-feira: 07:30–20:00",
+  "terça-feira: 07:30–20:00",
+  "quarta-feira: 07:30–20:00",
+  "quinta-feira: 07:30–20:00",
+  "sexta-feira: 07:30–20:00",
+  "sábado: 07:30–18:00",
+  "domingo: 07:30–11:30",
+].join("\n");
+
 let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
   active: false,
   name: "Luna",
@@ -1878,7 +1888,7 @@ let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
   greeting: "Olá! Sou a assistente virtual do Spa e Bronze Belém. Como posso ajudar?",
   objective: "Atender clientes, apresentar serviços e preços e orientar sobre agendamentos.",
   instructions: "Responda de forma clara, curta e cordial. Faça uma pergunta por vez. Não peça o nome na saudação inicial; pergunte-o naturalmente depois da primeira resposta se ainda não souber.",
-  businessHours: "Segunda a sábado, das 8h às 19h.",
+  businessHours: DEFAULT_BUSINESS_HOURS,
   address: "Belém - PA",
   paymentMethods: "Pix, cartão de crédito, cartão de débito e dinheiro.",
   bookingRules: "Confirme serviço, data, horário e nome da cliente antes de encaminhar o agendamento.",
