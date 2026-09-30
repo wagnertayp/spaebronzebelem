@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
-type TemporaryCredential = { username: string; password: string };
+type TemporaryCredential = { username: string; password: string; kind: "initial" | "reset" };
 type AgendaScope = "own" | "team";
 
 const toUsername = (name: string) =>
@@ -89,13 +89,13 @@ export function StaffAccessTab() {
         },
       });
       await queryClient.invalidateQueries({ queryKey: getListStaffAccessAccountsQueryKey() });
-      setCredential({ username: result.account.username, password: result.temporaryPassword });
+      setCredential({ username: result.account.username, password: result.temporaryPassword, kind: "initial" });
       setProfessionalId("");
       setUsername("");
       setCanAccessAgenda(true);
       setCanAccessCommissions(true);
       setAgendaScope("team");
-      toast({ title: "Acesso criado", description: "A senha temporária será exibida uma única vez." });
+      toast({ title: "Acesso criado", description: "A senha padrão é a parte do e-mail antes do @ e será exibida uma única vez." });
     } catch (error) {
       toast({ title: "Não foi possível criar o acesso", description: apiErrorMessage(error), variant: "destructive" });
     }
@@ -128,7 +128,7 @@ export function StaffAccessTab() {
           item.id === account.id ? { ...item, mustChangePassword: true } : item,
         ),
       );
-      setCredential({ username: account.username, password: result.temporaryPassword });
+      setCredential({ username: account.username, password: result.temporaryPassword, kind: "reset" });
     } catch (error) {
       toast({ title: "Não foi possível redefinir a senha", description: apiErrorMessage(error), variant: "destructive" });
     } finally {
@@ -139,7 +139,8 @@ export function StaffAccessTab() {
   const copyCredential = async () => {
     if (!credential) return;
     try {
-      await navigator.clipboard.writeText(`Usuário: ${credential.username}\nSenha temporária: ${credential.password}`);
+      const passwordLabel = credential.kind === "initial" ? "Senha padrão" : "Senha temporária";
+      await navigator.clipboard.writeText(`Usuário: ${credential.username}\n${passwordLabel}: ${credential.password}`);
       toast({ title: "Dados copiados" });
     } catch {
       toast({ title: "Não foi possível copiar", description: "Selecione e copie os dados exibidos.", variant: "destructive" });
@@ -156,7 +157,7 @@ export function StaffAccessTab() {
           <div>
             <h2 className="font-semibold text-text-primary">Criar acesso profissional</h2>
             <p className="mt-1 text-sm text-text-secondary">
-              Cada acesso fica vinculado a uma profissional. A senha temporária será mostrada só uma vez.
+              Cada acesso fica vinculado a uma profissional. A senha padrão é a parte do e-mail antes do @ e deverá ser trocada no primeiro acesso.
             </p>
           </div>
         </div>
@@ -377,9 +378,11 @@ export function StaffAccessTab() {
       <Dialog open={Boolean(credential)} onOpenChange={(open) => !open && setCredential(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Senha temporária</DialogTitle>
+            <DialogTitle>{credential?.kind === "initial" ? "Senha padrão" : "Senha temporária"}</DialogTitle>
             <DialogDescription>
-              Envie estes dados à profissional por um canal seguro. A senha será solicitada apenas nesta tela e deverá ser trocada no primeiro acesso.
+              {credential?.kind === "initial"
+                ? "A senha é a parte do e-mail profissional antes do @. Envie os dados por um canal seguro; a senha deverá ser trocada no primeiro acesso."
+                : "Envie estes dados à profissional por um canal seguro. A senha deverá ser trocada no próximo acesso."}
             </DialogDescription>
           </DialogHeader>
           {credential && (
@@ -389,7 +392,9 @@ export function StaffAccessTab() {
                 <p className="mt-1 font-medium text-text-primary">{credential.username}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Senha temporária</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  {credential.kind === "initial" ? "Senha padrão" : "Senha temporária"}
+                </p>
                 <code className="mt-1 block break-all rounded-lg bg-surface-soft p-3 font-mono text-sm text-text-primary">
                   {credential.password}
                 </code>

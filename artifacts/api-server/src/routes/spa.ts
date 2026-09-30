@@ -3358,6 +3358,14 @@ const staffAccessAccountResponse = (account: typeof staffAccessAccountsTable.$in
   mustChangePassword: account.mustChangePassword,
 });
 
+const defaultStaffPasswordFromEmail = (email: unknown): string | null => {
+  if (typeof email !== "string") return null;
+  const [localPart, domain, ...extraParts] = email.trim().split("@");
+  const password = localPart?.trim();
+  if (!password || !domain?.trim() || extraParts.length > 0) return null;
+  return password;
+};
+
 const isAdminRequest = (res: Response) => {
   if (requestSession(res).role === "admin") return true;
   res.status(403).json({ error: "Somente o administrador pode gerenciar acessos." });
@@ -3393,7 +3401,13 @@ router.post("/staff-access", async (req, res): Promise<void> => {
     res.status(409).json({ error: "Esse usuário já está reservado para o administrador." });
     return;
   }
-  const temporaryPassword = generateTemporaryPassword();
+  const temporaryPassword = defaultStaffPasswordFromEmail(professional.email);
+  if (!temporaryPassword) {
+    res.status(400).json({
+      error: "Cadastre um e-mail válido para esta profissional antes de criar o acesso.",
+    });
+    return;
+  }
   const passwordRecord = createPasswordRecord(temporaryPassword);
   const [created] = await db
     .insert(staffAccessAccountsTable)
