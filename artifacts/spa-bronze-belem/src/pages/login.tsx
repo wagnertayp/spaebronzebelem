@@ -24,7 +24,6 @@ export function Login() {
       <section className="w-full max-w-[430px] rounded-[32px] border border-border bg-surface p-8 shadow-container sm:p-10">
         <img src="/logo-clean.png" alt="Spa e Bronze Belém" className="mx-auto mb-10 h-[64px] w-auto object-contain" />
         <div className="mb-8 text-center">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Acesso administrativo</p>
           <h1 className="text-2xl font-bold text-text-primary">Bem-vindo de volta</h1>
           <p className="mt-2 text-sm text-text-secondary">Entre para cuidar da operação do seu spa.</p>
         </div>
