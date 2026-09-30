@@ -76,7 +76,7 @@ export function Financeiro() {
   const createMutation = useCreateFinancialMovement({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListFinancialMovementsQueryKey({ month: selectedMonth }) });
+        queryClient.invalidateQueries({ queryKey: getListFinancialMovementsQueryKey() });
         toast({ title: 'Movimentação adicionada com sucesso.' });
         setIsFormOpen(false);
       },
@@ -93,7 +93,7 @@ export function Financeiro() {
   const updateMutation = useUpdateFinancialMovement({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListFinancialMovementsQueryKey({ month: selectedMonth }) });
+        queryClient.invalidateQueries({ queryKey: getListFinancialMovementsQueryKey() });
         toast({ title: 'Movimentação atualizada com sucesso.' });
         setIsFormOpen(false);
       },
@@ -110,8 +110,7 @@ export function Financeiro() {
   const deleteMutation = useDeleteFinancialMovement({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListFinancialMovementsQueryKey({ month: selectedMonth }) });
-         queryClient.invalidateQueries();
+        queryClient.invalidateQueries({ queryKey: getListFinancialMovementsQueryKey() });
          toast({ title: 'Movimentação arquivada. Você pode restaurá-la em Arquivo.' });
         setDeletingId(null);
       },

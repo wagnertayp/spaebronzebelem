@@ -494,30 +494,7 @@ const commissionRules: CommissionRule[] = [];
 const commissionClosures: CommissionClosure[] = [];
 const commissionAudit: CommissionAudit[] = [];
 
-const financialMovements: FinancialMovement[] = [
-  { id: 1, type: "revenue", date: "2026-09-02", description: "Massagens", category: "Serviços", amount: 16400, status: "paid", client: "", service: "Massagem", professional: "Ana" },
-  { id: 2, type: "revenue", date: "2026-09-05", description: "Drenagens", category: "Serviços", amount: 12780, status: "paid", client: "", service: "Drenagem", professional: "Carla" },
-  { id: 3, type: "revenue", date: "2026-09-08", description: "Day Spa", category: "Serviços", amount: 10750, status: "paid", client: "", service: "Day Spa", professional: "Juliana" },
-  { id: 4, type: "revenue", date: "2026-09-12", description: "Bronzeamentos", category: "Serviços", amount: 15320, status: "paid", client: "", service: "Bronzeamento", professional: "Ana" },
-  { id: 5, type: "revenue", date: "2026-09-18", description: "Estética facial", category: "Serviços", amount: 13800, status: "paid", client: "", service: "Estética facial", professional: "Carla" },
-  { id: 6, type: "revenue", date: "2026-09-24", description: "Tratamentos corporais", category: "Serviços", amount: 18400, status: "paid", client: "", service: "Corporal", professional: "Juliana" },
-  { id: 7, type: "expense", date: "2026-09-05", description: "Comissões da equipe", category: "Comissões", amount: 12850, status: "paid", client: "", service: "", professional: "" },
-  { id: 8, type: "expense", date: "2026-09-09", description: "Compra de produtos", category: "Produtos", amount: 6400, status: "paid", client: "", service: "", professional: "" },
-  { id: 9, type: "expense", date: "2026-09-10", description: "Aluguel", category: "Aluguel", amount: 5000, status: "paid", client: "", service: "", professional: "" },
-  { id: 10, type: "expense", date: "2026-09-14", description: "Anúncios e divulgação", category: "Marketing", amount: 3200, status: "paid", client: "", service: "", professional: "" },
-  { id: 11, type: "expense", date: "2026-09-20", description: "Energia elétrica", category: "Energia", amount: 1830, status: "paid", client: "", service: "", professional: "" },
-  { id: 12, type: "expense", date: "2026-09-26", description: "Outras despesas", category: "Outros", amount: 2000, status: "paid", client: "", service: "", professional: "" },
-  { id: 13, type: "receivable", date: "2026-09-03", description: "Pagamento pendente", category: "Clientes", amount: 450, status: "pending", client: "Maria", service: "Massagem", professional: "Ana" },
-  { id: 14, type: "receivable", date: "2026-09-06", description: "Pagamento pendente", category: "Clientes", amount: 1200, status: "pending", client: "Ana", service: "Day Spa", professional: "Juliana" },
-  { id: 15, type: "receivable", date: "2026-09-08", description: "Pagamento pendente", category: "Clientes", amount: 280, status: "pending", client: "Carla", service: "Drenagem", professional: "Carla" },
-  { id: 16, type: "receivable", date: "2026-09-11", description: "Pagamento pendente", category: "Clientes", amount: 890, status: "pending", client: "Beatriz", service: "Estética facial", professional: "Carla" },
-  { id: 17, type: "receivable", date: "2026-09-13", description: "Pagamento pendente", category: "Clientes", amount: 1350, status: "pending", client: "Luana", service: "Day Spa", professional: "Juliana" },
-  { id: 18, type: "receivable", date: "2026-09-16", description: "Pagamento pendente", category: "Clientes", amount: 720, status: "pending", client: "Patrícia", service: "Massagem", professional: "Ana" },
-  { id: 19, type: "receivable", date: "2026-09-19", description: "Pagamento pendente", category: "Clientes", amount: 980, status: "pending", client: "Fernanda", service: "Corporal", professional: "Juliana" },
-  { id: 20, type: "receivable", date: "2026-09-22", description: "Pagamento pendente", category: "Clientes", amount: 1100, status: "pending", client: "Camila", service: "Bronzeamento", professional: "Ana" },
-  { id: 21, type: "receivable", date: "2026-09-25", description: "Pagamento pendente", category: "Clientes", amount: 650, status: "pending", client: "Juliana", service: "Drenagem", professional: "Carla" },
-  { id: 22, type: "receivable", date: "2026-09-28", description: "Pagamento pendente", category: "Clientes", amount: 800, status: "pending", client: "Renata", service: "Estética facial", professional: "Carla" },
-];
+const financialMovements: FinancialMovement[] = [];
 
 const clients = backup.clients.map((client) => ({
   id: client.id,
