@@ -3,7 +3,7 @@ import { Professional, useListProfessionals, useGetCommissionsSummary, useUpdate
 import { getCurrentMonthPeriod, formatCurrency } from "./utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, User, Edit, Settings2, FileText, Ban, CheckCircle2, TrendingUp, MoreVertical } from "lucide-react";
+import { MoreHorizontal, Edit, Settings2, FileText, Ban, CheckCircle2, TrendingUp, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -88,7 +88,7 @@ export function ProfessionalsTab({ onEdit, onConfigCommission, onViewCommissions
               <th className="py-3 px-4 font-medium text-right">PRODUÇÃO DO MÊS</th>
               <th className="py-3 px-4 font-medium text-right">COMISSÃO GERADA</th>
               <th className="py-3 px-4 font-medium text-center">STATUS</th>
-              <th className="py-3 px-4 font-medium text-center w-16">AÇÕES</th>
+              <th className="py-3 px-4 font-medium text-center w-28">AÇÕES</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -130,19 +130,32 @@ export function ProfessionalsTab({ onEdit, onConfigCommission, onViewCommissions
                     </span>
                   </td>
                   <td className="py-3 px-4 text-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48 bg-surface border-border">
-                        <DropdownMenuItem onClick={() => onEdit(prof)} className="gap-2 cursor-pointer">
-                          <User className="h-4 w-4" /> Ver perfil
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEdit(prof)} className="gap-2 cursor-pointer">
-                          <Edit className="h-4 w-4" /> Editar
-                        </DropdownMenuItem>
+                    <div className="flex items-center justify-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1 px-2 text-xs"
+                        aria-label={`Editar profissional ${prof.name}`}
+                        data-testid={`button-edit-professional-${prof.id}`}
+                        onClick={() => onEdit(prof)}
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                        Editar
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-text-muted hover:text-text-primary"
+                            aria-label={`Mais ações para ${prof.name}`}
+                            data-testid={`button-professional-actions-${prof.id}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 bg-surface border-border">
                         <DropdownMenuItem onClick={() => onConfigCommission(prof)} className="gap-2 cursor-pointer">
                           <Settings2 className="h-4 w-4" /> Configurar comissão
                         </DropdownMenuItem>
@@ -161,8 +174,9 @@ export function ProfessionalsTab({ onEdit, onConfigCommission, onViewCommissions
                             <><CheckCircle2 className="h-4 w-4 text-success" /> <span className="text-success">Ativar</span></>
                           )}
                         </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </td>
                 </tr>
               );
@@ -202,39 +216,52 @@ export function ProfessionalsTab({ onEdit, onConfigCommission, onViewCommissions
                   </span>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 -mr-2"
+                        aria-label={`Mais ações para ${prof.name}`}
+                        data-testid={`button-professional-actions-${prof.id}`}
+                      >
                         <MoreVertical className="h-4 w-4 text-text-muted" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 bg-surface border-border">
-                        <DropdownMenuItem onClick={() => onEdit(prof)} className="gap-2 cursor-pointer">
-                          <User className="h-4 w-4" /> Ver perfil
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEdit(prof)} className="gap-2 cursor-pointer">
-                          <Edit className="h-4 w-4" /> Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onConfigCommission(prof)} className="gap-2 cursor-pointer">
-                          <Settings2 className="h-4 w-4" /> Configurar comissão
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onViewCommissions(prof)} className="gap-2 cursor-pointer">
-                          <TrendingUp className="h-4 w-4" /> Ver produção
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onViewCommissions(prof)} className="gap-2 cursor-pointer">
-                          <FileText className="h-4 w-4" /> Ver comissões
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => toggleActive(prof)} className="gap-2 cursor-pointer">
-                          {prof.active ? (
-                            <><Ban className="h-4 w-4 text-error" /> <span className="text-error">Desativar</span></>
-                          ) : (
-                            <><CheckCircle2 className="h-4 w-4 text-success" /> <span className="text-success">Ativar</span></>
-                          )}
-                        </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onConfigCommission(prof)} className="gap-2 cursor-pointer">
+                        <Settings2 className="h-4 w-4" /> Configurar comissão
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onViewCommissions(prof)} className="gap-2 cursor-pointer">
+                        <TrendingUp className="h-4 w-4" /> Ver produção
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onViewCommissions(prof)} className="gap-2 cursor-pointer">
+                        <FileText className="h-4 w-4" /> Ver comissões
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => toggleActive(prof)} className="gap-2 cursor-pointer">
+                        {prof.active ? (
+                          <><Ban className="h-4 w-4 text-error" /> <span className="text-error">Desativar</span></>
+                        ) : (
+                          <><CheckCircle2 className="h-4 w-4 text-success" /> <span className="text-success">Ativar</span></>
+                        )}
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 w-full gap-2"
+                aria-label={`Editar profissional ${prof.name}`}
+                data-testid={`button-edit-professional-${prof.id}`}
+                onClick={() => onEdit(prof)}
+              >
+                <Edit className="h-4 w-4" />
+                Editar profissional
+              </Button>
               
               <div className="grid grid-cols-2 gap-2 text-[13px] pt-3 border-t border-border">
                 <div>
