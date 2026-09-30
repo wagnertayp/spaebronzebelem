@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:persistence": "node --experimental-strip-types --test ./test/spa-state-store.test.mjs",
     "test:client-deduplication": "node --experimental-strip-types --test ./test/client-deduplication.test.mjs",
+    "test:auth-cache": "node --experimental-strip-types --test ./test/auth-cache.test.mjs",
     "test:staff-access-password": "node --experimental-strip-types --test ./test/staff-access-password.test.mjs",
     "test:staff-access-email": "node --experimental-strip-types --test ./test/staff-access-email.test.mjs"
   },
