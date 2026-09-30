@@ -212,7 +212,7 @@ export function StaffAccessTab() {
                   required
                   minLength={3}
                   maxLength={40}
-                  pattern="[A-Za-z0-9._-]+"
+                  pattern={"[A-Za-z0-9._\\-]+"}
                   autoComplete="off"
                   value={username}
                   onChange={(event) => setUsername(event.target.value.toLocaleLowerCase("en-US"))}
