@@ -43,6 +43,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       res.status(401).json({ error: "Não foi possível iniciar a sessão." });
       return;
     }
+    req.log.info({ role: session.role }, "Authentication cookie issued");
     res.json(LoginResponse.parse({ user: publicAuthUser(session) }));
     return;
   }
@@ -73,6 +74,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Esta conta não está mais ativa." });
     return;
   }
+  req.log.info({ role: session.role }, "Authentication cookie issued");
   res.json(LoginResponse.parse({ user: publicAuthUser(session) }));
 });
 
@@ -82,7 +84,16 @@ router.post("/auth/logout", (_req, res) => {
 });
 
 router.get("/auth/session", async (req, res): Promise<void> => {
-  const session = await resolveSession(req.cookies?.[COOKIE_NAME]);
+  const token = req.cookies?.[COOKIE_NAME];
+  const session = await resolveSession(token);
+  req.log.info(
+    {
+      cookiePresent: Boolean(token),
+      sessionValid: Boolean(session),
+      role: session?.role ?? null,
+    },
+    "Authentication session checked",
+  );
   if (!session) {
     res.json(GetAuthSessionResponse.parse({ user: null }));
     return;
