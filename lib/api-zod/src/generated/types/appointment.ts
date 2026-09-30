@@ -21,4 +21,9 @@ export interface Appointment {
   status: AppointmentStatus;
   attendance: AppointmentAttendance;
   avatar: string;
+  /** @nullable */
+  quoteId?: number | null;
+  /** @nullable */
+  workOrderId?: number | null;
+  workOrderNumber?: string;
 }

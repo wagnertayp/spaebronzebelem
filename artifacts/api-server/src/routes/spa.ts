@@ -38,6 +38,8 @@ import {
   ListFinancialMovementsQueryParams,
   ListFinancialMovementsResponse,
   ListLeadsResponse,
+  ListWorkOrdersQueryParams,
+  ListWorkOrdersResponse,
   ListQuotesResponse,
   ListQuotesQueryParams,
   SendQuoteParams,
@@ -232,7 +234,12 @@ type Appointment = {
   status: AppointmentStatus;
   attendance: "pending" | "attended" | "no_show";
   avatar: string;
+  quoteId?: number | null;
+  workOrderId?: number | null;
+  workOrderNumber?: string;
 };
+
+type WorkOrder = ReturnType<typeof ListWorkOrdersResponse.parse>[number];
 
 type WhatsappMessage = ReturnType<typeof ListWhatsappMessagesResponse.parse>[number];
 type WhatsappAutomation = ReturnType<typeof GetWhatsappAutomationResponse.parse>;
@@ -1819,6 +1826,7 @@ type Quote = {
 };
 
 const quotes: Quote[] = [];
+const workOrders: WorkOrder[] = [];
 
 const services = [
   {
@@ -1948,6 +1956,55 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const nextId = (items: Array<{ id: number }>) =>
   Math.max(0, ...items.map((item) => item.id)) + 1;
 
+const createWorkOrderFromQuoteAppointment = (quote: Quote, appointment: Appointment) => {
+  const now = new Date().toISOString();
+  const id = nextId(workOrders);
+  const workOrder: WorkOrder = {
+    id,
+    number: `PED-${String(id).padStart(4, "0")}`,
+    quoteId: quote.id,
+    quoteNumber: quote.number,
+    appointmentId: appointment.id,
+    clientName: appointment.client,
+    service: appointment.service,
+    professionalId: appointment.professionalId,
+    professional: appointment.professional,
+    start: appointment.start,
+    end: appointment.end,
+    status: appointment.status,
+    attendance: appointment.attendance,
+    createdAt: now,
+    updatedAt: now,
+    completedAt: appointment.status === "completed" ? now : null,
+  };
+  workOrders.push(workOrder);
+  appointment.quoteId = quote.id;
+  appointment.workOrderId = workOrder.id;
+  appointment.workOrderNumber = workOrder.number;
+  return workOrder;
+};
+
+const syncWorkOrderFromAppointment = (appointment: Appointment) => {
+  const workOrder = workOrders.find((entry) => entry.appointmentId === appointment.id);
+  if (!workOrder) return;
+
+  const wasCompleted = workOrder.status === "completed";
+  Object.assign(workOrder, {
+    clientName: appointment.client,
+    service: appointment.service,
+    professionalId: appointment.professionalId,
+    professional: appointment.professional,
+    start: appointment.start,
+    end: appointment.end,
+    status: appointment.status,
+    attendance: appointment.attendance,
+    updatedAt: new Date().toISOString(),
+    completedAt: appointment.status === "completed"
+      ? wasCompleted ? workOrder.completedAt : new Date().toISOString()
+      : null,
+  });
+};
+
 const isSpaRecordArchived = (entity: ArchiveEntityType, id: string | number) =>
   archivedSpaRecords.some((entry) => entry.entity === entity && entry.id === String(id));
 
@@ -2051,6 +2108,7 @@ type SpaOperationalSnapshot = {
   clients: typeof clients;
   leads: Lead[];
   quotes: Quote[];
+  workOrders: WorkOrder[];
   services: typeof services;
   inventory: typeof inventory;
   archivedSpaRecords: ArchivedSpaRecord[];
@@ -2068,6 +2126,7 @@ const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
   clients: clone(clients),
   leads: clone(leads),
   quotes: clone(quotes),
+  workOrders: clone(workOrders),
   services: clone(services),
   inventory: clone(inventory),
   archivedSpaRecords: clone(archivedSpaRecords),
@@ -2095,12 +2154,16 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   if (
     candidate.version !== 1 ||
     collectionKeys.some((key) => !Array.isArray(candidate[key])) ||
+    (candidate.workOrders !== undefined && !Array.isArray(candidate.workOrders)) ||
     (candidate.archivedSpaRecords !== undefined && !Array.isArray(candidate.archivedSpaRecords))
   ) {
     throw new Error("Stored SPA operational state has an unsupported shape.");
   }
 
-  const snapshot = candidate as unknown as SpaOperationalSnapshot;
+  const snapshot = {
+    ...candidate,
+    workOrders: candidate.workOrders ?? [],
+  } as unknown as SpaOperationalSnapshot;
   const archiveEntries = (candidate.archivedSpaRecords ?? []) as ArchivedSpaRecord[];
   if (archiveEntries.some((entry) =>
     !entry ||
@@ -2124,6 +2187,7 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   replace(clients, snapshot.clients);
   replace(leads, snapshot.leads);
   replace(quotes, snapshot.quotes);
+  replace(workOrders, snapshot.workOrders);
   replace(services, snapshot.services);
   replace(inventory, snapshot.inventory);
   replace(archivedSpaRecords, archiveEntries);
@@ -2653,6 +2717,20 @@ router.get("/appointments", (req, res) => {
   res.json(ListAppointmentsResponse.parse(filtered));
 });
 
+router.get("/work-orders", (req, res) => {
+  const { quoteId } = ListWorkOrdersQueryParams.parse(req.query);
+  const session = requestSession(res);
+  let visibleWorkOrders = workOrders.filter((order) =>
+    quoteId === undefined || order.quoteId === quoteId,
+  );
+  if (session.role === "staff" && session.agendaScope === "own") {
+    visibleWorkOrders = visibleWorkOrders.filter(
+      (order) => order.professionalId === session.professionalId,
+    );
+  }
+  res.json(ListWorkOrdersResponse.parse(visibleWorkOrders));
+});
+
 router.post("/appointments", (req, res) => {
   const input = CreateAppointmentBody.parse(req.body);
   const session = requestSession(res);
@@ -2792,6 +2870,7 @@ router.patch("/appointments/:id", (req, res) => {
     { professional: nextProfessionalName, professionalId: nextProfessionalId },
     input.client ? { avatar: getInitials(input.client) } : {},
   );
+  syncWorkOrderFromAppointment(appointment);
   if (
     whatsappAutomation.enabled &&
     whatsappAutomation.confirmations &&
@@ -2819,6 +2898,15 @@ router.delete("/appointments/:id", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Horário bloqueado não encontrado." });
       return;
     }
+  }
+  if (
+    appointment &&
+    workOrders.some((order) => order.appointmentId === appointment.id) &&
+    appointment.status !== "completed" &&
+    appointment.status !== "cancelled"
+  ) {
+    appointment.status = "cancelled";
+    syncWorkOrderFromAppointment(appointment);
   }
   if (!await archiveSpaRecord("appointment", String(id))) {
     res.status(404).json({ error: "Agendamento não encontrado" });
@@ -3135,6 +3223,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   }
   if (appointment && normalizedText.includes("cancel")) {
     appointment.status = "cancelled";
+    syncWorkOrderFromAppointment(appointment);
     await sendWhatsappReply(phone, appointment.client, appointment.id, "Tudo bem, seu atendimento foi cancelado. Quando quiser, posso ajudar a encontrar um novo horário.", "reply", replyReference);
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "cancelled" }));
   }
@@ -3939,6 +4028,7 @@ router.post("/quotes/:id/appointment", (req, res) => {
     avatar: getInitials(quote.clientName),
   };
   appointments.push(appointment);
+  createWorkOrderFromQuoteAppointment(quote, appointment);
   res.status(201).json(appointment);
 });
 

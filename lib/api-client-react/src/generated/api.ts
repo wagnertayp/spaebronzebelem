@@ -67,6 +67,7 @@ import type {
   ListQuotesParams,
   ListWhatsappConversationsParams,
   ListWhatsappMessagesParams,
+  ListWorkOrdersParams,
   LoginCredentialsInput,
   Package,
   Professional,
@@ -94,7 +95,8 @@ import type {
   WhatsappDisconnectResponse,
   WhatsappDocumentInput,
   WhatsappMessage,
-  WhatsappReplyInput
+  WhatsappReplyInput,
+  WorkOrder
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -2538,6 +2540,90 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteAppointmentMutationOptions(options));
     }
+
+export const getListWorkOrdersUrl = (params?: ListWorkOrdersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/work-orders?${stringifiedParams}` : `/api/work-orders`
+}
+
+/**
+ * @summary Lista pedidos de serviço
+ */
+export const listWorkOrders = async (params?: ListWorkOrdersParams, options?: Parameters<typeof customFetch>[1]): Promise<WorkOrder[]> => {
+
+  return customFetch<WorkOrder[]>(getListWorkOrdersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWorkOrdersQueryKey = (params?: ListWorkOrdersParams,) => {
+    return [
+    `/api/work-orders`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListWorkOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listWorkOrders>>, TError = ErrorType<unknown>>(params?: ListWorkOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWorkOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWorkOrdersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWorkOrders>>> = ({ signal }) => listWorkOrders(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWorkOrders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWorkOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listWorkOrders>>>
+export type ListWorkOrdersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Lista pedidos de serviço
+ */
+
+export function useListWorkOrders<TData = Awaited<ReturnType<typeof listWorkOrders>>, TError = ErrorType<unknown>>(
+ params?: ListWorkOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWorkOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWorkOrdersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListClientsUrl = (params?: ListClientsParams,) => {
   const normalizedParams = new URLSearchParams();

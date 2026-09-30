@@ -626,7 +626,10 @@ export const GetDashboardResponse = zod.object({
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
   "attendance": zod.enum(['pending', 'attended', 'no_show']),
-  "avatar": zod.string()
+  "avatar": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "workOrderId": zod.number().int().nullish(),
+  "workOrderNumber": zod.string().optional()
 }),zod.null()])
 })
 
@@ -649,7 +652,10 @@ export const ListAppointmentsResponseItem = zod.object({
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
   "attendance": zod.enum(['pending', 'attended', 'no_show']),
-  "avatar": zod.string()
+  "avatar": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "workOrderId": zod.number().int().nullish(),
+  "workOrderNumber": zod.string().optional()
 })
 export const ListAppointmentsResponse = zod.array(ListAppointmentsResponseItem)
 
@@ -679,7 +685,10 @@ export const CreateAppointmentResponse = zod.object({
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
   "attendance": zod.enum(['pending', 'attended', 'no_show']),
-  "avatar": zod.string()
+  "avatar": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "workOrderId": zod.number().int().nullish(),
+  "workOrderNumber": zod.string().optional()
 })
 
 
@@ -710,7 +719,10 @@ export const UpdateAppointmentResponse = zod.object({
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
   "attendance": zod.enum(['pending', 'attended', 'no_show']),
-  "avatar": zod.string()
+  "avatar": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "workOrderId": zod.number().int().nullish(),
+  "workOrderNumber": zod.string().optional()
 })
 
 
@@ -719,6 +731,34 @@ export const DeleteAppointmentParams = zod.object({
 })
 
 export const DeleteAppointmentResponse = zod.void()
+
+
+/**
+ * @summary Lista pedidos de serviço
+ */
+export const ListWorkOrdersQueryParams = zod.object({
+  "quoteId": zod.coerce.number().int().optional()
+})
+
+export const ListWorkOrdersResponseItem = zod.object({
+  "id": zod.number().int(),
+  "number": zod.string(),
+  "quoteId": zod.number().int(),
+  "quoteNumber": zod.string(),
+  "appointmentId": zod.number().int(),
+  "clientName": zod.string(),
+  "service": zod.string(),
+  "professionalId": zod.number().int().nullable(),
+  "professional": zod.string(),
+  "start": zod.string(),
+  "end": zod.string(),
+  "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
+  "attendance": zod.enum(['pending', 'attended', 'no_show']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "completedAt": zod.string().nullable()
+})
+export const ListWorkOrdersResponse = zod.array(ListWorkOrdersResponseItem)
 
 
 /**
@@ -1572,7 +1612,10 @@ export const CreateQuoteAppointmentResponse = zod.object({
   "room": zod.string(),
   "status": zod.enum(['confirmed', 'in_progress', 'completed', 'cancelled']),
   "attendance": zod.enum(['pending', 'attended', 'no_show']),
-  "avatar": zod.string()
+  "avatar": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "workOrderId": zod.number().int().nullish(),
+  "workOrderNumber": zod.string().optional()
 })
 
 

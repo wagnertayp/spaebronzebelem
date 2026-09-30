@@ -1,4 +1,4 @@
-import { useListAppointments, useCreateAppointment, useUpdateAppointment, useDeleteAppointment, getListAppointmentsQueryKey, useListServices, useListProfessionals } from '@workspace/api-client-react';
+import { useListAppointments, useCreateAppointment, useUpdateAppointment, useDeleteAppointment, getListAppointmentsQueryKey, getListWorkOrdersQueryKey, useListServices, useListProfessionals } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -335,7 +335,9 @@ export function Agenda() {
                                 {app.client}
                               </div>
                               {app.client !== 'Horário bloqueado' && (
-                                <div className="text-[11px] opacity-80 leading-tight truncate">{app.service}</div>
+                                <div className="text-[11px] opacity-80 leading-tight truncate">
+                                  {app.service}{app.workOrderNumber ? ` · Pedido ${app.workOrderNumber}` : ''}
+                                </div>
                               )}
                               {app.client !== 'Horário bloqueado' && app.attendance !== 'pending' && (
                                 <div className={cn(
@@ -517,6 +519,7 @@ export function Agenda() {
               }, {
                 onSuccess: () => {
                   queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+                  queryClient.invalidateQueries({ queryKey: getListWorkOrdersQueryKey() });
                   setDialogState({ type: 'none' });
                   toast({ title: "Agendamento atualizado!" });
                 },

@@ -7,13 +7,14 @@ import {
   useDuplicateQuote,
   useCreateQuoteAppointment,
   useCreateQuotePayment,
+  useListWorkOrders,
   useListProfessionals,
   useListServices,
   QuotePaymentInputPaymentMethod,
   QuoteStatus
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { getListQuotesQueryKey, getListAppointmentsQueryKey, getListFinancialMovementsQueryKey } from '@workspace/api-client-react';
+import { getListQuotesQueryKey, getListAppointmentsQueryKey, getListFinancialMovementsQueryKey, getListWorkOrdersQueryKey } from '@workspace/api-client-react';
 import { 
   ArrowLeft, Edit, Send, Link as LinkIcon, Download, Copy, Ban, CheckCircle, 
   Calendar, DollarSign, Clock, FileText, Smartphone 
@@ -46,6 +47,7 @@ export function OrcamentoDetalhe() {
   const { data: quotes = [], isLoading } = useListQuotes({ search: quoteId.toString() });
   const { data: professionals = [] } = useListProfessionals();
   const { data: services = [] } = useListServices();
+  const { data: workOrders = [] } = useListWorkOrders({ quoteId });
   const quote = useMemo(() => quotes.find(q => q.id === quoteId), [quotes, quoteId]);
 
   const sendQuote = useSendQuote();
@@ -202,6 +204,7 @@ export function OrcamentoDetalhe() {
     }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListWorkOrdersQueryKey({ quoteId }) });
         setAppointmentDialog(false);
         toast({ title: 'Agendamento criado', description: 'Atendimento agendado na agenda com sucesso.' });
       },
@@ -348,6 +351,83 @@ export function OrcamentoDetalhe() {
             </button>
           </div>
         </div>
+      )}
+
+      {workOrders.length > 0 && (
+        <Card className="p-5 border-border/60 shadow-sm print:hidden">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-[16px] text-text-primary">Pedidos de serviço vinculados</h3>
+                <p className="text-sm text-text-secondary mt-1">
+                  Responsável, horário e andamento acompanham as alterações feitas na agenda. O pagamento continua controlado pelo orçamento.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLocation('/agenda')}
+                className="px-3 py-2 rounded-lg border border-border text-sm font-medium text-text-secondary hover:bg-surface-soft"
+              >
+                Abrir agenda
+              </button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {workOrders.map(order => (
+                <div key={order.id} className="rounded-xl border border-border/70 bg-surface-soft/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-text-primary">{order.number}</p>
+                      <p className="text-xs text-text-secondary">{order.service}</p>
+                    </div>
+                    <span className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-semibold border",
+                      order.status === 'completed'
+                        ? 'bg-success/10 text-success border-success/20'
+                        : order.status === 'cancelled'
+                          ? 'bg-error/10 text-error border-error/20'
+                          : order.status === 'in_progress'
+                            ? 'bg-primary/10 text-primary-dark border-primary/20'
+                            : 'bg-surface border-border text-text-secondary',
+                    )}>
+                      {order.status === 'confirmed' ? 'Confirmado'
+                        : order.status === 'in_progress' ? 'Em atendimento'
+                          : order.status === 'completed' ? 'Concluído' : 'Cancelado'}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="block text-xs text-text-secondary">Profissional</span>
+                      <span className="font-medium text-text-primary">{order.professional || 'Não definido'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-xs text-text-secondary">Comparecimento</span>
+                      <span className="font-medium text-text-primary">
+                        {order.attendance === 'attended' ? 'Compareceu'
+                          : order.attendance === 'no_show' ? 'Não compareceu' : 'Pendente'}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="block text-xs text-text-secondary">Agendamento</span>
+                      <span className="font-medium text-text-primary">
+                        {format(parseISO(order.start), "dd/MM/yyyy 'às' HH:mm")}
+                        {' – '}
+                        {format(parseISO(order.end), 'HH:mm')}
+                      </span>
+                    </div>
+                    {order.completedAt && (
+                      <div className="col-span-2">
+                        <span className="block text-xs text-text-secondary">Concluído em</span>
+                        <span className="font-medium text-text-primary">
+                          {format(parseISO(order.completedAt), "dd/MM/yyyy 'às' HH:mm")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
       )}
 
       {/* Print View Content */}

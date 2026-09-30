@@ -535,6 +535,25 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         "204": { description: Deleted appointment }
+  /work-orders:
+    get:
+      operationId: listWorkOrders
+      tags: [work-orders]
+      summary: Lista pedidos de serviço
+      parameters:
+        - name: quoteId
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Work orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkOrder"
   /clients:
     get:
       operationId: listClients
@@ -1531,6 +1550,9 @@ components:
         status: { type: string, enum: [confirmed, in_progress, completed, cancelled] }
         attendance: { type: string, enum: [pending, attended, no_show] }
         avatar: { type: string }
+        quoteId: { type: ["integer", "null"] }
+        workOrderId: { type: ["integer", "null"] }
+        workOrderNumber: { type: string }
       required: [id, start, end, client, service, professional, professionalId, room, status, attendance, avatar]
     AppointmentInput:
       type: object
@@ -1556,6 +1578,26 @@ components:
         room: { type: string }
         status: { type: string, enum: [confirmed, in_progress, completed, cancelled] }
         attendance: { type: string, enum: [pending, attended, no_show] }
+    WorkOrder:
+      type: object
+      properties:
+        id: { type: integer }
+        number: { type: string }
+        quoteId: { type: integer }
+        quoteNumber: { type: string }
+        appointmentId: { type: integer }
+        clientName: { type: string }
+        service: { type: string }
+        professionalId: { type: ["integer", "null"] }
+        professional: { type: string }
+        start: { type: string }
+        end: { type: string }
+        status: { type: string, enum: [confirmed, in_progress, completed, cancelled] }
+        attendance: { type: string, enum: [pending, attended, no_show] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        completedAt: { type: ["string", "null"] }
+      required: [id, number, quoteId, quoteNumber, appointmentId, clientName, service, professionalId, professional, start, end, status, attendance, createdAt, updatedAt, completedAt]
     Client:
       type: object
       properties:

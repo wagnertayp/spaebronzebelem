@@ -458,6 +458,11 @@ export interface Appointment {
   status: AppointmentStatus;
   attendance: AppointmentAttendance;
   avatar: string;
+  /** @nullable */
+  quoteId?: number | null;
+  /** @nullable */
+  workOrderId?: number | null;
+  workOrderNumber?: string;
 }
 
 export interface Dashboard {
@@ -521,6 +526,46 @@ export interface AppointmentUpdate {
   room?: string;
   status?: AppointmentUpdateStatus;
   attendance?: AppointmentUpdateAttendance;
+}
+
+export type WorkOrderStatus = typeof WorkOrderStatus[keyof typeof WorkOrderStatus];
+
+
+export const WorkOrderStatus = {
+  confirmed: 'confirmed',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export type WorkOrderAttendance = typeof WorkOrderAttendance[keyof typeof WorkOrderAttendance];
+
+
+export const WorkOrderAttendance = {
+  pending: 'pending',
+  attended: 'attended',
+  no_show: 'no_show',
+} as const;
+
+export interface WorkOrder {
+  id: number;
+  number: string;
+  quoteId: number;
+  quoteNumber: string;
+  appointmentId: number;
+  clientName: string;
+  service: string;
+  /** @nullable */
+  professionalId: number | null;
+  professional: string;
+  start: string;
+  end: string;
+  status: WorkOrderStatus;
+  attendance: WorkOrderAttendance;
+  createdAt: string;
+  updatedAt: string;
+  /** @nullable */
+  completedAt: string | null;
 }
 
 export type ClientStatus = typeof ClientStatus[keyof typeof ClientStatus];
@@ -1130,6 +1175,10 @@ limit?: number;
 
 export type ListAppointmentsParams = {
 date?: string;
+};
+
+export type ListWorkOrdersParams = {
+quoteId?: number;
 };
 
 export type ListClientsParams = {
