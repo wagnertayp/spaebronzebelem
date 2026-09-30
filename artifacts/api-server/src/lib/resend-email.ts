@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 type StaffAccessEmailInput = {
   email: string;
   professionalName: string;
@@ -16,11 +19,21 @@ type EmailDeliveryResult =
   | { sent: true }
   | {
       sent: false;
-      reason: "not_configured" | "provider_rejected" | "network_error";
+      reason: "not_configured" | "asset_unavailable" | "provider_rejected" | "network_error";
     };
 
-const EMAIL_LOGO_URL =
-  "https://i.ibb.co/qLwmTsFG/2a87de2a-dbde-443e-b771-0a6585ebcc85-removalai-preview.png";
+const EMAIL_LOGO_FILENAME = "spa-bronze-email-logo.png";
+const EMAIL_LOGO_CONTENT_ID = "spa-bronze-email-logo";
+
+const loadEmailLogoBase64 = () => {
+  const candidates = [
+    resolve(process.cwd(), "assets", EMAIL_LOGO_FILENAME),
+    resolve(process.cwd(), "dist", "assets", EMAIL_LOGO_FILENAME),
+    resolve(process.cwd(), "artifacts", "api-server", "assets", EMAIL_LOGO_FILENAME),
+  ];
+  const assetPath = candidates.find(existsSync);
+  return assetPath ? readFileSync(assetPath).toString("base64") : null;
+};
 
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/gu, (character) => ({
@@ -51,8 +64,7 @@ const renderStaffAccessEmail = ({
   username,
   temporaryPassword,
   loginUrl,
-  logoUrl,
-}: StaffAccessEmailInput & { loginUrl: string | null; logoUrl: string }) => {
+}: StaffAccessEmailInput & { loginUrl: string | null }) => {
   const safeName = escapeHtml(professionalName);
   const safeUsername = escapeHtml(username);
   const safePassword = escapeHtml(temporaryPassword);
@@ -86,7 +98,7 @@ const renderStaffAccessEmail = ({
           <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #eadfd2;border-radius:18px;overflow:hidden;">
             <tr>
               <td align="center" style="padding:30px 28px 22px;background-color:#fffaf4;">
-                <img src="${escapeHtml(logoUrl)}" width="96" alt="Logotipo Spa e Bronze Belém" style="display:block;width:96px;max-width:100%;height:auto;border:0;">
+                <img src="cid:${EMAIL_LOGO_CONTENT_ID}" width="96" alt="Logotipo Spa e Bronze Belém" style="display:block;width:96px;max-width:100%;height:auto;border:0;">
                 <p style="margin:14px 0 0;color:#8c552c;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Spa e Bronze Belém</p>
               </td>
             </tr>
@@ -167,10 +179,11 @@ export async function sendStaffAccessCredentialsEmail(
   if (!apiKey || !from || (shouldIncludeLoginLink && !loginUrl)) {
     return { sent: false, reason: "not_configured" };
   }
+  const logoContent = loadEmailLogoBase64();
+  if (!logoContent) return { sent: false, reason: "asset_unavailable" };
   const content = renderStaffAccessEmail({
     ...input,
     loginUrl: loginUrl?.toString() ?? null,
-    logoUrl: EMAIL_LOGO_URL,
   });
 
   try {
@@ -186,6 +199,11 @@ export async function sendStaffAccessCredentialsEmail(
         subject: "Seu acesso ao Spa e Bronze Belém",
         text: content.text,
         html: content.html,
+        attachments: [{
+          filename: EMAIL_LOGO_FILENAME,
+          content: logoContent,
+          content_id: EMAIL_LOGO_CONTENT_ID,
+        }],
       }),
       signal: AbortSignal.timeout(10_000),
     });
