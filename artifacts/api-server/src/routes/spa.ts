@@ -171,6 +171,10 @@ import {
 } from "../lib/auth";
 import { createSpaOperationalStateStore } from "../lib/spa-state-store";
 import {
+  deduplicateSeedClientRecords,
+  mergeKnownSnapshotClientDuplicates,
+} from "../lib/client-deduplication";
+import {
   acquireSpaOperationalStateLock,
   spaOperationalStateRepository,
 } from "../lib/spa-state-repository";
@@ -496,7 +500,11 @@ const commissionAudit: CommissionAudit[] = [];
 
 const financialMovements: FinancialMovement[] = [];
 
-const clients = backup.clients.map((client) => ({
+const backupClientCleanup = deduplicateSeedClientRecords(backup.clients);
+const deduplicatedBackupClients = backupClientCleanup.records;
+const trustedBackupClientDuplicateGroups = backupClientCleanup.groups;
+
+const rawBackupClientProfiles = backup.clients.map((client) => ({
   id: client.id,
   name: client.name,
   initials: client.initials,
@@ -508,6 +516,11 @@ const clients = backup.clients.map((client) => ({
   email: String((client as { email?: unknown }).email ?? ""),
   notes: String((client as { notes?: unknown }).notes ?? ""),
 }));
+const initialClientMerge = mergeKnownSnapshotClientDuplicates(
+  rawBackupClientProfiles,
+  trustedBackupClientDuplicateGroups,
+);
+const clients = initialClientMerge.clients;
 
 let whatsappAutomation: WhatsappAutomation = {
   enabled: false,
@@ -2056,7 +2069,20 @@ type ArchivedSpaRecord = {
   archivedAt: string;
   label: string;
 };
-const archivedSpaRecords: ArchivedSpaRecord[] = [];
+const seedClientDuplicateArchivedAt = new Date().toISOString();
+const archivedSpaRecords: ArchivedSpaRecord[] = initialClientMerge.mergedGroups.flatMap((group) =>
+  group.duplicateIds.flatMap((id) => {
+    const duplicate = clients.find((client) => client.id === id);
+    return duplicate
+      ? [{
+          entity: "client" as const,
+          id: String(id),
+          archivedAt: seedClientDuplicateArchivedAt,
+          label: duplicate.name.trim() || `Cliente ${id}`,
+        }]
+      : [];
+  }),
+);
 
 const getInitials = (name: string) =>
   name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
@@ -2207,6 +2233,7 @@ const restoreSpaRecord = (entity: ArchiveEntityType, id: string) => {
 
 type SpaOperationalSnapshot = {
   version: 1;
+  clientDeduplicationApplied: boolean;
   appointments: Appointment[];
   professionals: Professional[];
   commissionConfigs: CommissionConfig[];
@@ -2223,8 +2250,12 @@ type SpaOperationalSnapshot = {
   archivedSpaRecords: ArchivedSpaRecord[];
 };
 
+let clientDeduplicationMigrationPending = false;
+let clientDeduplicationMergedCount = 0;
+
 const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
   version: 1,
+  clientDeduplicationApplied: true,
   appointments: clone(appointments),
   professionals: clone(professionals),
   commissionConfigs: clone([...commissionConfigs.values()]),
@@ -2262,6 +2293,8 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   ] as const;
   if (
     candidate.version !== 1 ||
+    (candidate.clientDeduplicationApplied !== undefined &&
+      typeof candidate.clientDeduplicationApplied !== "boolean") ||
     collectionKeys.some((key) => !Array.isArray(candidate[key])) ||
     (candidate.workOrders !== undefined && !Array.isArray(candidate.workOrders)) ||
     (candidate.archivedSpaRecords !== undefined && !Array.isArray(candidate.archivedSpaRecords))
@@ -2272,8 +2305,9 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   const snapshot = {
     ...candidate,
     workOrders: candidate.workOrders ?? [],
+    clientDeduplicationApplied: candidate.clientDeduplicationApplied === true,
   } as unknown as SpaOperationalSnapshot;
-  const archiveEntries = (candidate.archivedSpaRecords ?? []) as ArchivedSpaRecord[];
+  const archiveEntries = [...(candidate.archivedSpaRecords ?? [])] as ArchivedSpaRecord[];
   if (archiveEntries.some((entry) =>
     !entry ||
     typeof entry !== "object" ||
@@ -2284,6 +2318,35 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   )) {
     throw new Error("Stored SPA archive state has an unsupported shape.");
   }
+  const archivedClientIds = new Set(
+    archiveEntries
+      .filter((entry) => entry.entity === "client" && /^\d+$/.test(entry.id))
+      .map((entry) => Number(entry.id))
+      .filter(Number.isSafeInteger),
+  );
+  const clientCleanup = snapshot.clientDeduplicationApplied
+    ? { clients: snapshot.clients, mergedGroups: [], duplicateCount: 0 }
+    : mergeKnownSnapshotClientDuplicates(
+        snapshot.clients,
+        trustedBackupClientDuplicateGroups,
+        archivedClientIds,
+      );
+  const migrationTimestamp = new Date().toISOString();
+  for (const group of clientCleanup.mergedGroups) {
+    for (const id of group.duplicateIds) {
+      if (archiveEntries.some((entry) => entry.entity === "client" && entry.id === String(id))) continue;
+      const duplicate = clientCleanup.clients.find((client) => client.id === id);
+      if (!duplicate) continue;
+      archiveEntries.push({
+        entity: "client",
+        id: String(id),
+        archivedAt: migrationTimestamp,
+        label: duplicate.name.trim() || `Cliente ${id}`,
+      });
+    }
+  }
+  clientDeduplicationMigrationPending = !snapshot.clientDeduplicationApplied;
+  clientDeduplicationMergedCount = clientCleanup.duplicateCount;
   const replace = <T>(target: T[], source: T[]) => {
     target.splice(0, target.length, ...source);
   };
@@ -2293,7 +2356,7 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   replace(commissionClosures, snapshot.commissionClosures);
   replace(commissionAudit, snapshot.commissionAudit);
   replace(financialMovements, snapshot.financialMovements);
-  replace(clients, snapshot.clients);
+   replace(clients, clientCleanup.clients);
   replace(leads, snapshot.leads);
   replace(quotes, snapshot.quotes);
   replace(workOrders, snapshot.workOrders);
@@ -2392,6 +2455,34 @@ const ensureSpaOperationalStateLoaded = async () => {
       "Imported the approved initial SPA dataset into PostgreSQL.",
     );
     spaStateImportLogged = true;
+  }
+
+  if (spaOperationalStateStore.status === "ready" && clientDeduplicationMigrationPending) {
+    const releaseProcessLock = await acquireSpaOperationalStateWriteLock();
+    let releaseDatabaseLock: (() => Promise<void>) | undefined;
+    try {
+      releaseDatabaseLock = await acquireSpaOperationalStateLock();
+      await spaOperationalStateStore.refresh();
+      if (spaOperationalStateStore.status === "ready" && clientDeduplicationMigrationPending) {
+        await spaOperationalStateStore.persist();
+        clientDeduplicationMigrationPending = false;
+        if (clientDeduplicationMergedCount > 0) {
+          logger.info(
+            { mergedDuplicateClients: clientDeduplicationMergedCount },
+            "Merged confirmed duplicate client profiles.",
+          );
+        }
+      }
+    } catch (error) {
+      if (postgresErrorCode(error) !== "42P01") throw error;
+      markSpaStateTableUnavailable();
+    } finally {
+      try {
+        await releaseDatabaseLock?.();
+      } finally {
+        releaseProcessLock();
+      }
+    }
   }
 };
 
@@ -4190,8 +4281,8 @@ router.get("/finance/summary", (_req, res) => {
       outflow: 0,
       net: backup.meta.totalRevenue,
       openAccounts: backup.meta.totalOrders,
-      newClients: backup.clients.filter((client) => client.orders === 1).length,
-      returningClients: backup.clients.filter((client) => client.orders > 1).length,
+      newClients: deduplicatedBackupClients.filter((client) => client.orders === 1).length,
+      returningClients: deduplicatedBackupClients.filter((client) => client.orders > 1).length,
     }),
   );
 });

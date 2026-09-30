@@ -9,3 +9,4 @@
 - [Drizzle migration generation](drizzle-migration-generation.md) — keep a package-relative `out` in config; this version rejects extra generate flags with `--config`.
 - [Auth session caching](auth-session-cache.md) — auth session requests must bypass HTTP caching; a conditional 304 can be mistaken for a signed-out session.
 - [Financial import dates](financial-import-dates.md) — customer lifetime totals and product expiry dates cannot populate a date-based monthly ledger.
+- [Client deduplication totals](client-deduplication-totals.md) — keep duplicate matching conservative; compare summed currency in cents to avoid binary-float drift.
