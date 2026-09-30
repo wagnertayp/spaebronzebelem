@@ -127,6 +127,7 @@ export interface StaffAccessAccountUpdate {
 export interface StaffAccessCredential {
   account: StaffAccessAccount;
   temporaryPassword: string;
+  emailSent: boolean;
 }
 
 export interface StaffAccessPassword {

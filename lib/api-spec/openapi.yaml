@@ -1283,7 +1283,8 @@ components:
       properties:
         account: { $ref: "#/components/schemas/StaffAccessAccount" }
         temporaryPassword: { type: string }
-      required: [account, temporaryPassword]
+        emailSent: { type: boolean }
+      required: [account, temporaryPassword, emailSent]
     StaffAccessPassword:
       type: object
       properties:

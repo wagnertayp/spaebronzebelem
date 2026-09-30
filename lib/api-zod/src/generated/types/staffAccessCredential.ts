@@ -10,4 +10,5 @@ import type { StaffAccessAccount } from './staffAccessAccount';
 export interface StaffAccessCredential {
   account: StaffAccessAccount;
   temporaryPassword: string;
+  emailSent: boolean;
 }

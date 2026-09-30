@@ -23,7 +23,12 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
-type TemporaryCredential = { username: string; password: string; kind: "initial" | "reset" };
+type TemporaryCredential = {
+  username: string;
+  password: string;
+  kind: "initial" | "reset";
+  emailSent?: boolean;
+};
 type AgendaScope = "own" | "team";
 
 const toUsername = (name: string) =>
@@ -89,13 +94,23 @@ export function StaffAccessTab() {
         },
       });
       await queryClient.invalidateQueries({ queryKey: getListStaffAccessAccountsQueryKey() });
-      setCredential({ username: result.account.username, password: result.temporaryPassword, kind: "initial" });
+      setCredential({
+        username: result.account.username,
+        password: result.temporaryPassword,
+        kind: "initial",
+        emailSent: result.emailSent,
+      });
       setProfessionalId("");
       setUsername("");
       setCanAccessAgenda(true);
       setCanAccessCommissions(true);
       setAgendaScope("team");
-      toast({ title: "Acesso criado", description: "A senha padrão é a parte do e-mail antes do @ e será exibida uma única vez." });
+      toast({
+        title: "Acesso criado",
+        description: result.emailSent
+          ? "Os dados de acesso também foram enviados para o e-mail cadastrado."
+          : "O e-mail não foi enviado. Compartilhe os dados exibidos por um canal seguro.",
+      });
     } catch (error) {
       toast({ title: "Não foi possível criar o acesso", description: apiErrorMessage(error), variant: "destructive" });
     }
@@ -381,7 +396,9 @@ export function StaffAccessTab() {
             <DialogTitle>{credential?.kind === "initial" ? "Senha padrão" : "Senha temporária"}</DialogTitle>
             <DialogDescription>
               {credential?.kind === "initial"
-                ? "A senha é a parte do e-mail profissional antes do @. Envie os dados por um canal seguro; a senha deverá ser trocada no primeiro acesso."
+                ? credential.emailSent
+                  ? "Os dados foram enviados para o e-mail cadastrado. A senha deverá ser trocada no primeiro acesso."
+                  : "O e-mail não foi enviado. Compartilhe os dados exibidos por um canal seguro; a senha deverá ser trocada no primeiro acesso."
                 : "Envie estes dados à profissional por um canal seguro. A senha deverá ser trocada no próximo acesso."}
             </DialogDescription>
           </DialogHeader>

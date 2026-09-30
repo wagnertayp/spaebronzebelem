@@ -157,6 +157,7 @@ import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-op
 import backup from "../data/spa-backup.json";
 import { logger } from "../lib/logger";
 import { defaultStaffPasswordFromEmail } from "../lib/staff-access-password";
+import { sendStaffAccessCredentialsEmail } from "../lib/resend-email";
 import {
   createPasswordRecord,
   generateTemporaryPassword,
@@ -3422,9 +3423,23 @@ router.post("/staff-access", async (req, res): Promise<void> => {
     return;
   }
 
+  const emailDelivery = await sendStaffAccessCredentialsEmail({
+    email: professional.email,
+    professionalName: professional.name,
+    username,
+    temporaryPassword,
+  });
+  if (!emailDelivery.sent) {
+    logger.warn(
+      { professionalId: professional.id, reason: emailDelivery.reason },
+      "Could not send initial staff access email",
+    );
+  }
+
   res.status(201).json(CreateStaffAccessAccountResponse.parse({
     account: staffAccessAccountResponse(created),
     temporaryPassword,
+    emailSent: emailDelivery.sent,
   }));
 });
 

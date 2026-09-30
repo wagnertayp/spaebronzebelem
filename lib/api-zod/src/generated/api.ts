@@ -177,7 +177,8 @@ export const CreateStaffAccessAccountResponse = zod.object({
   "agendaScope": zod.enum(['own', 'team']),
   "mustChangePassword": zod.boolean()
 }),
-  "temporaryPassword": zod.string()
+  "temporaryPassword": zod.string(),
+  "emailSent": zod.boolean()
 })
 
 
