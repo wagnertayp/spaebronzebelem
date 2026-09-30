@@ -305,7 +305,7 @@ export function Dashboard() {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border/60">
         <div>
           <h1 className="text-[32px] md:text-[40px] font-bold tracking-tight text-dark leading-[1.08]">
-            {getGreeting()}, <span className="text-primary whitespace-nowrap">Wagner.</span>
+            {getGreeting()}, <span className="text-primary whitespace-nowrap">Fabiana Xavier</span>
           </h1>
           <p className="text-text-secondary mt-2 text-[15px] font-medium">
             Aqui está o resumo das suas operações de bem-estar de hoje.
