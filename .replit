@@ -29,6 +29,6 @@ packages = ["freetype", "gumbo", "harfbuzz", "jbig2dec", "libjpeg_turbo", "mupdf
 EVOLUTION_API_URL = "https://api.sincrostudio.pro"
 EVOLUTION_TIMEZONE = "America/Belem"
 EVOLUTION_INSTANCE = "spa-08c7cff6"
-RESEND_FROM_EMAIL = "login.kalidigital.com.br"
+RESEND_FROM_EMAIL = "Spa e Bronze Belém <acesso@login.kalidigital.com.br>"
 
 [userenv.development]
