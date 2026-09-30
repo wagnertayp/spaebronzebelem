@@ -1185,7 +1185,9 @@ const parseAgentDecision = (content: string): AgentDecision => {
   try {
     const value = JSON.parse(cleaned) as Record<string, unknown>;
     const rawAppointment = value.appointment;
-    const document = value.document === "menu" || value.document === "advanced"
+    const document = value.document === "menu"
+      || value.document === "advanced"
+      || value.document === "portfolio"
       ? value.document
       : null;
     const audioClip = value.audioClip === "combos" || value.audioClip === "bronze"
@@ -1345,11 +1347,12 @@ REGRAS OBRIGATÓRIAS:
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
 - Para agendar, conduza a cliente passo a passo: confirme serviço, data, horário exato e nome, perguntando apenas o próximo item que faltar. “Amanhã” sem horário não é confirmação; pergunte qual horário ela prefere. Só crie appointment depois de confirmação explícita e sempre envie uma resposta curta.
 - No appointment, use exatamente o nome de um serviço cadastrado e o nome de um profissional ativo; deixe professional vazio se a cliente não tiver preferência. Nunca invente nomes.
+- Se a duração de um serviço estiver como "A definir", não confirme nem crie agendamento para ele. Explique que a duração ainda precisa ser confirmada.
 - Use start como data ISO local completa (AAAA-MM-DDTHH:mm), no fuso informado, somente quando a cliente tiver informado data e horário exatos e confirmado que deseja agendar.
 - Não envie end: o sistema calcula o término usando a duração cadastrada do serviço.
 - Consulte a AGENDA ATUAL antes de propor ou confirmar um horário. Nunca crie appointment em um horário ocupado; se houver conflito, explique que o horário não está disponível e peça outra opção.
 - Nunca marque appointment quando faltar serviço, data, horário ou confirmação explícita.
-- Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Caso contrário, document deve ser null.
+- Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Se pedir o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
 - Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
   - audioClip "combos": gravação que explica os combos do Spa e Bronze.
   - audioClip "bronze": gravação sobre bronzeamento.
@@ -1877,7 +1880,136 @@ const services = [
     price: "R$ 320",
     accent: "olive",
   },
+  {
+    id: 7,
+    name: "Power Glúteo (60 ml)",
+    category: "Harmonização corporal",
+    duration: "A definir",
+    price: "R$ 2.000",
+    accent: "olive",
+  },
+  {
+    id: 8,
+    name: "Glúteo Max",
+    category: "Harmonização corporal",
+    duration: "A definir",
+    price: "R$ 350 por sessão; pacote de 5 sessões por R$ 1.500",
+    accent: "olive",
+  },
+  {
+    id: 9,
+    name: "Glúteo Duo (30 ml)",
+    category: "Harmonização corporal",
+    duration: "A definir",
+    price: "R$ 800",
+    accent: "olive",
+  },
+  {
+    id: 10,
+    name: "Bioestimulador (8 ml)",
+    category: "Harmonização facial",
+    duration: "A definir",
+    price: "R$ 1.200",
+    accent: "clay",
+  },
+  {
+    id: 11,
+    name: "Ácido Hialurônico (3 ml)",
+    category: "Harmonização facial",
+    duration: "A definir",
+    price: "R$ 550",
+    accent: "clay",
+  },
+  {
+    id: 12,
+    name: "Enzima Localizada",
+    category: "Estética corporal",
+    duration: "A definir",
+    price: "R$ 120 por área",
+    accent: "olive",
+  },
+  {
+    id: 13,
+    name: "Enzima Sistêmica",
+    category: "Estética corporal",
+    duration: "A definir",
+    price: "R$ 200",
+    accent: "olive",
+  },
+  {
+    id: 14,
+    name: "Acelerador Metabólico",
+    category: "Estética corporal",
+    duration: "A definir",
+    price: "R$ 200",
+    accent: "olive",
+  },
+  {
+    id: 15,
+    name: "Detox Hepático",
+    category: "Estética corporal",
+    duration: "A definir",
+    price: "R$ 200",
+    accent: "olive",
+  },
+  {
+    id: 16,
+    name: "Vitaminas (D, CoQ10, C e B12)",
+    category: "Estética corporal",
+    duration: "A definir",
+    price: "R$ 130",
+    accent: "olive",
+  },
+  {
+    id: 17,
+    name: "Jato de Plasma para Estrias",
+    category: "Jato de plasma",
+    duration: "A definir",
+    price: "R$ 400 por área",
+    accent: "clay",
+  },
+  {
+    id: 18,
+    name: "Jato de Plasma para Remoção de Sinais",
+    category: "Jato de plasma",
+    duration: "A definir",
+    price: "A partir de R$ 300",
+    accent: "clay",
+  },
+  {
+    id: 19,
+    name: "Blefaroplastia sem Corte",
+    category: "Estética facial",
+    duration: "A definir",
+    price: "R$ 700",
+    accent: "clay",
+  },
+  {
+    id: 20,
+    name: "Peeling Clareador",
+    category: "Estética facial",
+    duration: "A definir",
+    price: "R$ 350",
+    accent: "clay",
+  },
+  {
+    id: 21,
+    name: "Microagulhamento",
+    category: "Estética facial",
+    duration: "A definir",
+    price: "R$ 350",
+    accent: "clay",
+  },
+  {
+    id: 22,
+    name: "Enzimas + Ultrassom + Vibrocell + Corrente Russa",
+    category: "Estética corporal",
+    duration: "A definir",
+    price: "R$ 250 por sessão",
+    accent: "olive",
+  },
 ];
+const defaultServices = services.map((service) => ({ ...service }));
 const packages = [{ id: 1, name: "Pacote Relax", price: 720, sessions: 4, serviceId: 1 }];
 
 const DEFAULT_BUSINESS_HOURS = [
@@ -2188,7 +2320,27 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   replace(leads, snapshot.leads);
   replace(quotes, snapshot.quotes);
   replace(workOrders, snapshot.workOrders);
-  replace(services, snapshot.services);
+   const restoredServices = snapshot.services.map((service) => ({ ...service }));
+   const restoredServiceNames = new Set(
+     restoredServices.map((service) => normalizeCatalogLabel(service.name)),
+   );
+   const archivedServiceNames = new Set(
+     archiveEntries
+       .filter((entry) => entry.entity === "service")
+       .map((entry) => normalizeCatalogLabel(entry.label)),
+   );
+   for (const service of defaultServices) {
+     const normalizedName = normalizeCatalogLabel(service.name);
+     if (restoredServiceNames.has(normalizedName) || archivedServiceNames.has(normalizedName)) {
+       continue;
+     }
+     const id = restoredServices.some((entry) => entry.id === service.id)
+       ? nextId(restoredServices)
+       : service.id;
+     restoredServices.push({ ...service, id });
+     restoredServiceNames.add(normalizedName);
+   }
+   replace(services, restoredServices);
   replace(inventory, snapshot.inventory);
   replace(archivedSpaRecords, archiveEntries);
   commissionConfigs.clear();
@@ -3289,7 +3441,9 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
         decision.document,
         decision.document === "menu"
           ? "Segue o nosso cardápio de serviços e bronzeamento."
-          : "Segue o nosso catálogo de serviços de estética avançada.",
+          : decision.document === "portfolio"
+            ? "Segue o portfólio de procedimentos faciais."
+            : "Segue o nosso catálogo de serviços de estética avançada.",
         createdAppointment?.id ?? appointment?.id ?? null,
         replyReference,
       );

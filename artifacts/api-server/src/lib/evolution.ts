@@ -28,7 +28,7 @@ export type EvolutionSendResult = {
   error: string | null;
 };
 
-export type WhatsappDocument = "menu" | "advanced";
+export type WhatsappDocument = "menu" | "advanced" | "portfolio";
 export type EvolutionReplyReference = {
   remoteJid: string;
   fromMe: boolean;
@@ -44,6 +44,10 @@ const documentFiles: Record<WhatsappDocument, { path: string; fileName: string }
   advanced: {
     path: "Catálogo_-_Serviços_estéticos_avançados_compressed_1790165039392.pdf",
     fileName: "Catalogo-Estetica-Avancada-Spa-e-Bronze-Belem.pdf",
+  },
+  portfolio: {
+    path: "portfolio_procedimentos_1790768629311.pdf",
+    fileName: "Portfolio-Harmonizacao-Orofacial-Spa-e-Bronze-Belem.pdf",
   },
 };
 

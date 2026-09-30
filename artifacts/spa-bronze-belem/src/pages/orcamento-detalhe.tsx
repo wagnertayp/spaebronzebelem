@@ -155,7 +155,7 @@ export function OrcamentoDetalhe() {
     const start = firstService?.scheduledTime || '14:00';
     setAptTime(start);
     
-    let durationMinutes = 60;
+    let durationMinutes: number | null = 60;
     if (firstService?.refId) {
       const serviceInfo = services.find(s => s.id === firstService.refId);
       if (serviceInfo?.duration) {
@@ -165,16 +165,22 @@ export function OrcamentoDetalhe() {
           if (serviceInfo.duration.toLowerCase().includes('h') && !serviceInfo.duration.toLowerCase().includes('m')) {
             durationMinutes *= 60;
           }
+        } else {
+          durationMinutes = null;
         }
       }
     }
     
-    try {
-      const today = new Date(`2000-01-01T${start}:00`);
-      const end = new Date(today.getTime() + durationMinutes * 60000);
-      setAptEndTime(format(end, 'HH:mm'));
-    } catch (e) {
-      setAptEndTime('15:00');
+    if (durationMinutes === null) {
+      setAptEndTime('');
+    } else {
+      try {
+        const today = new Date(`2000-01-01T${start}:00`);
+        const end = new Date(today.getTime() + durationMinutes * 60000);
+        setAptEndTime(format(end, 'HH:mm'));
+      } catch (e) {
+        setAptEndTime('15:00');
+      }
     }
     
     setAptProf(firstService?.professionalId || '');
