@@ -33,7 +33,36 @@ test("sends initial credentials and first-login instructions through Resend", as
   assert.match(payload.text, /Usuário: marina\.silva/);
   assert.match(payload.text, /Senha inicial: marina/);
   assert.match(payload.text, /solicitará que você crie uma nova senha/);
-  assert.match(payload.text, /https:\/\/spa\.example\.com/);
+  assert.match(payload.text, /https:\/\/spa\.example\.com\/login/);
+  assert.match(payload.html, /<a href="https:\/\/spa\.example\.com\/login"/);
+  assert.match(payload.html, /https:\/\/spa\.example\.com\/spa-bronze-email-logo\.png/);
+  assert.match(payload.html, /Logotipo Spa e Bronze Belém/);
+});
+
+test("escapes personalized values in the branded HTML template", async () => {
+  let request;
+  await sendStaffAccessCredentialsEmail(
+    {
+      ...input,
+      professionalName: "<Ana & Paulo>",
+      username: "user<name",
+      temporaryPassword: "a&b<",
+    },
+    {
+      apiKey: "test-api-key",
+      from: "acesso@example.com",
+      loginUrl: "https://spa.example.com/login",
+    },
+    async (_url, options) => {
+      request = { options };
+      return new Response(null, { status: 200 });
+    },
+  );
+
+  const payload = JSON.parse(request.options.body);
+  assert.match(payload.html, /Olá, &lt;Ana &amp; Paulo&gt;!/);
+  assert.match(payload.html, /user&lt;name/);
+  assert.match(payload.html, /a&amp;b&lt;/);
 });
 
 test("reports missing Resend configuration without making a request", async () => {
@@ -51,15 +80,32 @@ test("reports missing Resend configuration without making a request", async () =
   assert.equal(requestMade, false);
 });
 
+test("does not send credentials when the login URL is missing or insecure", async () => {
+  let requestMade = false;
+  for (const loginUrl of [undefined, "http://spa.example.com"]) {
+    const result = await sendStaffAccessCredentialsEmail(
+      input,
+      { apiKey: "test-api-key", from: "acesso@example.com", loginUrl },
+      async () => {
+        requestMade = true;
+        return new Response(null, { status: 200 });
+      },
+    );
+
+    assert.deepEqual(result, { sent: false, reason: "not_configured" });
+  }
+  assert.equal(requestMade, false);
+});
+
 test("reports provider and network failures without exposing response details", async () => {
   const rejected = await sendStaffAccessCredentialsEmail(
     input,
-    { apiKey: "test-api-key", from: "acesso@example.com", loginUrl: undefined },
+    { apiKey: "test-api-key", from: "acesso@example.com", loginUrl: "https://spa.example.com/login" },
     async () => new Response("private provider details", { status: 401 }),
   );
   const networkFailure = await sendStaffAccessCredentialsEmail(
     input,
-    { apiKey: "test-api-key", from: "acesso@example.com", loginUrl: undefined },
+    { apiKey: "test-api-key", from: "acesso@example.com", loginUrl: "https://spa.example.com/login" },
     async () => {
       throw new Error("network failure");
     },
