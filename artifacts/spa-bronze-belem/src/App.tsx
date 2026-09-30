@@ -1,9 +1,8 @@
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, lazy, Suspense, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import NotFound from '@/pages/not-found';
 import {
   Route,
   Switch,
@@ -12,23 +11,25 @@ import {
 } from 'wouter';
 
 import { AppShell } from '@/components/layout/app-shell';
-import { Dashboard } from '@/pages/dashboard';
-import { Agenda } from '@/pages/agenda';
-import { Clientes } from '@/pages/clientes';
-import { Usuarios } from '@/pages/usuarios';
-import { WhatsApp } from '@/pages/whatsapp';
-import { Servicos } from '@/pages/servicos';
-import { OrcamentoDetalhe } from '@/pages/orcamento-detalhe';
-import { OrcamentoPublico } from '@/pages/orcamento-publico';
-import { Financeiro } from '@/pages/financeiro';
-import { Estoque } from '@/pages/estoque';
-import { Relatorios } from '@/pages/relatorios';
-import { Configuracoes } from '@/pages/configuracoes';
-import { Arquivo } from '@/pages/arquivo';
-import { Login } from '@/pages/login';
-import { ChangePassword } from '@/pages/change-password';
 import { AuthGuard, AuthProvider } from '@/hooks/use-auth';
 import { useAuth } from '@/hooks/use-auth';
+
+const NotFound = lazy(() => import('@/pages/not-found'));
+const Dashboard = lazy(() => import('@/pages/dashboard').then((module) => ({ default: module.Dashboard })));
+const Agenda = lazy(() => import('@/pages/agenda').then((module) => ({ default: module.Agenda })));
+const Clientes = lazy(() => import('@/pages/clientes').then((module) => ({ default: module.Clientes })));
+const Usuarios = lazy(() => import('@/pages/usuarios').then((module) => ({ default: module.Usuarios })));
+const WhatsApp = lazy(() => import('@/pages/whatsapp').then((module) => ({ default: module.WhatsApp })));
+const Servicos = lazy(() => import('@/pages/servicos').then((module) => ({ default: module.Servicos })));
+const OrcamentoDetalhe = lazy(() => import('@/pages/orcamento-detalhe').then((module) => ({ default: module.OrcamentoDetalhe })));
+const OrcamentoPublico = lazy(() => import('@/pages/orcamento-publico').then((module) => ({ default: module.OrcamentoPublico })));
+const Financeiro = lazy(() => import('@/pages/financeiro').then((module) => ({ default: module.Financeiro })));
+const Estoque = lazy(() => import('@/pages/estoque').then((module) => ({ default: module.Estoque })));
+const Relatorios = lazy(() => import('@/pages/relatorios').then((module) => ({ default: module.Relatorios })));
+const Configuracoes = lazy(() => import('@/pages/configuracoes').then((module) => ({ default: module.Configuracoes })));
+const Arquivo = lazy(() => import('@/pages/arquivo').then((module) => ({ default: module.Arquivo })));
+const Login = lazy(() => import('@/pages/login').then((module) => ({ default: module.Login })));
+const ChangePassword = lazy(() => import('@/pages/change-password').then((module) => ({ default: module.ChangePassword })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -102,23 +103,34 @@ function App() {
   return (
     <TooltipProvider>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-        <Switch>
-          <Route path="/login"><Login /></Route>
-          <Route path="/change-password">
-            <AuthGuard><ChangePassword /></AuthGuard>
-          </Route>
-          <Route path="/proposta/:token">
-            <RoutedErrorBoundary>
-              <OrcamentoPublico />
-            </RoutedErrorBoundary>
-          </Route>
-          <Route>
-            <AuthGuard><Router /></AuthGuard>
-          </Route>
-        </Switch>
+        <Suspense fallback={<PageLoading />}>
+          <Switch>
+            <Route path="/login"><Login /></Route>
+            <Route path="/change-password">
+              <AuthGuard><ChangePassword /></AuthGuard>
+            </Route>
+            <Route path="/proposta/:token">
+              <RoutedErrorBoundary>
+                <OrcamentoPublico />
+              </RoutedErrorBoundary>
+            </Route>
+            <Route>
+              <AuthGuard><Router /></AuthGuard>
+            </Route>
+          </Switch>
+        </Suspense>
       </WouterRouter>
       <Toaster />
     </TooltipProvider>
+  );
+}
+
+function PageLoading() {
+  return (
+    <main className="flex min-h-[50vh] items-center justify-center gap-3 text-sm font-medium text-text-secondary" role="status">
+      <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
+      Carregando página…
+    </main>
   );
 }
 

@@ -84,15 +84,55 @@ function MetricTrend({ trend, change }: { trend: string; change: string }) {
 const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
 function MetricCard({ 
-  title, icon: Icon, current, prev, subLabel1, subValue1, subLabel2, subValue2, isCurrency, highlight = false, invalid = false
+  title, icon: Icon, current, prev, subLabel1, subValue1, subLabel2, subValue2, isCurrency, highlight = false, invalid = false,
+  isLoading = false, isError = false, onRetry, testId
 }: { 
-  title: string; icon: React.ElementType; current: number; prev: number; subLabel1?: string; subValue1?: number | string; subLabel2?: string; subValue2?: number | string; isCurrency?: boolean; highlight?: boolean; invalid?: boolean
+  title: string; icon: React.ElementType; current: number; prev: number; subLabel1?: string; subValue1?: number | string; subLabel2?: string; subValue2?: number | string; isCurrency?: boolean; highlight?: boolean; invalid?: boolean;
+  isLoading?: boolean; isError?: boolean; onRetry?: () => void; testId: string
 }) {
   const trend = invalid ? { trend: 'neutral', text: '-' } : getTrend(current, prev);
   const displayValue = isCurrency ? formatCurrency(current) : current;
+
+  if (isLoading || isError) {
+    return (
+      <div
+        className="relative flex min-h-[205px] flex-col justify-between px-6 py-7 lg:px-7"
+        data-testid={isLoading ? `status-loading-${testId}` : `status-error-${testId}`}
+        role={isError ? 'alert' : 'status'}
+        aria-live="polite"
+      >
+        <div className="mb-6 flex items-center gap-2.5 pr-16 text-text-secondary">
+          <Icon className={cn("h-[18px] w-[18px]", highlight ? "text-primary" : "text-text-muted")} />
+          <span className="text-[13px] font-semibold">{title}</span>
+        </div>
+        {isLoading ? (
+          <div className="animate-pulse space-y-4" aria-label={`Carregando ${title}`}>
+            <div className="h-10 w-2/3 rounded-lg bg-surface-soft" />
+            <div className="h-10 border-t border-border/80 pt-4">
+              <div className="h-3 w-1/2 rounded bg-surface-soft" />
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-start gap-3 text-[13px] text-text-secondary">
+            <span>Não foi possível carregar este indicador.</span>
+            {onRetry && (
+              <button
+                type="button"
+                className="font-semibold text-primary underline-offset-4 hover:underline"
+                onClick={onRetry}
+                data-testid={`button-retry-${testId}`}
+              >
+                Tentar novamente
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
   
   return (
-    <div className="relative flex min-h-[205px] flex-col justify-between px-6 py-7 lg:px-7">
+    <div className="relative flex min-h-[205px] flex-col justify-between px-6 py-7 lg:px-7" data-testid={`metric-${testId}`}>
       <div className="absolute right-5 top-6">
         <MetricTrend trend={trend.trend} change={trend.text} />
       </div>
@@ -130,6 +170,40 @@ function MetricCard({
   );
 }
 
+function DashboardSectionState({
+  message,
+  loading = false,
+  onRetry,
+  testId,
+}: {
+  message: string;
+  loading?: boolean;
+  onRetry?: () => void;
+  testId: string;
+}) {
+  return (
+    <div
+      className="flex min-h-[250px] flex-col items-center justify-center gap-3 px-6 text-center"
+      data-testid={testId}
+      role={loading ? 'status' : 'alert'}
+      aria-live="polite"
+    >
+      {loading && <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />}
+      <p className="text-[13px] font-medium text-text-secondary">{message}</p>
+      {onRetry && (
+        <button
+          type="button"
+          className="text-[13px] font-semibold text-primary underline-offset-4 hover:underline"
+          onClick={onRetry}
+          data-testid={`button-retry-${testId.replace('status-error-', '')}`}
+        >
+          Tentar novamente
+        </button>
+      )}
+    </div>
+  );
+}
+
 const getGreeting = () => {
   const hour = new Date().getHours();
   if (hour < 12) return 'Bom dia';
@@ -147,12 +221,30 @@ export function Dashboard() {
   
   const [agendaDate, setAgendaDate] = useState<Date>(new Date());
 
-  const { data: allAppointments = [], isLoading: isAppointmentsLoading } = useListAppointments();
-  const { data: allQuotes = [], isLoading: isQuotesLoading } = useListQuotes();
-  const { data: allLeads = [], isLoading: isLeadsLoading } = useListLeads();
-  const { data: allClients = [], isLoading: isClientsLoading } = useListClients();
-
-  const isLoading = isAppointmentsLoading || isQuotesLoading || isLeadsLoading || isClientsLoading;
+  const {
+    data: allAppointments = [],
+    isLoading: isAppointmentsLoading,
+    isError: isAppointmentsError,
+    refetch: refetchAppointments,
+  } = useListAppointments();
+  const {
+    data: allQuotes = [],
+    isLoading: isQuotesLoading,
+    isError: isQuotesError,
+    refetch: refetchQuotes,
+  } = useListQuotes();
+  const {
+    data: allLeads = [],
+    isLoading: isLeadsLoading,
+    isError: isLeadsError,
+    refetch: refetchLeads,
+  } = useListLeads();
+  const {
+    data: allClients = [],
+    isLoading: isClientsLoading,
+    isError: isClientsError,
+    refetch: refetchClients,
+  } = useListClients();
 
   const { from, to, prevFrom, prevTo, isValid } = useMemo(() => {
     let f: Date, t: Date;
@@ -282,24 +374,6 @@ export function Dashboard() {
     return timeA - timeB;
   });
 
-  if (isLoading) {
-    return (
-      <div className="animate-pulse space-y-8 max-w-[1400px] mx-auto pb-12">
-        <div className="h-16 w-1/3 bg-surface-soft rounded-2xl" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-[240px] bg-surface-soft rounded-lg" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-4 h-[500px] bg-surface-soft rounded-lg" />
-          <div className="lg:col-span-4 h-[500px] bg-surface-soft rounded-lg" />
-          <div className="lg:col-span-4 h-[500px] bg-surface-soft rounded-lg" />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-12 max-w-[1400px] mx-auto pb-16 relative">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border/60">
@@ -382,6 +456,10 @@ export function Dashboard() {
             subLabel2="Cancelados"
             subValue2={metrics.agendamentos.cancelled}
             invalid={!isValid} 
+            isLoading={isAppointmentsLoading}
+            isError={isAppointmentsError}
+            onRetry={() => { void refetchAppointments(); }}
+            testId="appointments"
           />
           <MetricCard 
             title="Clientes Ativos" 
@@ -393,6 +471,10 @@ export function Dashboard() {
             subLabel2="Retorno"
             subValue2={metrics.clientes.current - metrics.clientes.newClients}
             invalid={!isValid} 
+            isLoading={isClientsLoading}
+            isError={isClientsError}
+            onRetry={() => { void refetchClients(); }}
+            testId="clients"
           />
           <MetricCard 
             title="Orçamentos" 
@@ -404,6 +486,10 @@ export function Dashboard() {
             subLabel2="Aguardando"
             subValue2={metrics.orcamentos.current - metrics.orcamentos.approved}
             invalid={!isValid} 
+            isLoading={isQuotesLoading}
+            isError={isQuotesError}
+            onRetry={() => { void refetchQuotes(); }}
+            testId="quotes"
           />
           <MetricCard 
             title="Receita Projetada" 
@@ -415,6 +501,10 @@ export function Dashboard() {
             subLabel1="Aprovada"
             subValue1={formatCurrency(metrics.orcamentos.approvedVal)}
             invalid={!isValid} 
+            isLoading={isQuotesLoading}
+            isError={isQuotesError}
+            onRetry={() => { void refetchQuotes(); }}
+            testId="projected-revenue"
           />
         </div>
       </section>
@@ -429,6 +519,16 @@ export function Dashboard() {
               </h2>
             </div>
             <div className="p-6 md:p-8 space-y-6 flex-1">
+              {isLeadsLoading ? (
+                <DashboardSectionState message="Carregando dados comerciais…" loading testId="status-loading-leads" />
+              ) : isLeadsError ? (
+                <DashboardSectionState
+                  message="Não foi possível carregar os leads."
+                  onRetry={() => { void refetchLeads(); }}
+                  testId="status-error-leads"
+                />
+              ) : (
+                <>
               <div 
                 className="flex items-center justify-between p-5 rounded-2xl bg-surface-soft/70 border border-border cursor-pointer hover:border-primary/25 hover:bg-primary-soft/45 hover:shadow-sm transition-all group"
                 onClick={() => setLocation('/whatsapp')}
@@ -484,6 +584,8 @@ export function Dashboard() {
                   )}
                 </div>
               </div>
+                </>
+              )}
             </div>
           </div>
         </section>
@@ -496,11 +598,19 @@ export function Dashboard() {
                 Em atendimento
               </h2>
               <span className="text-[11px] font-medium bg-surface-soft px-3 py-1.5 rounded-full text-text-secondary border border-border">
-                {inProgressAppts.length} agora
+                {isAppointmentsLoading ? 'Carregando…' : isAppointmentsError ? 'Indisponível' : `${inProgressAppts.length} agora`}
               </span>
             </div>
             <div className="p-6 md:p-8 flex-1 relative z-10 bg-surface-soft/30">
-              {inProgressAppts.length === 0 ? (
+              {isAppointmentsLoading ? (
+                <DashboardSectionState message="Carregando atendimentos…" loading testId="status-loading-live-appointments" />
+              ) : isAppointmentsError ? (
+                <DashboardSectionState
+                  message="Não foi possível carregar os atendimentos."
+                  onRetry={() => { void refetchAppointments(); }}
+                  testId="status-error-live-appointments"
+                />
+              ) : inProgressAppts.length === 0 ? (
                 <div className="h-full min-h-[250px] flex flex-col items-center justify-center text-center">
                   <div className="w-16 h-16 rounded-full bg-surface flex items-center justify-center mb-6 shadow-sm border border-border">
                     <Clock className="w-6 h-6 text-text-muted" strokeWidth={2.5} />
@@ -575,7 +685,15 @@ export function Dashboard() {
               </div>
             </div>
             <div className="p-0 flex-1">
-              {agendaAppts.length === 0 ? (
+              {isAppointmentsLoading ? (
+                <DashboardSectionState message="Carregando agenda…" loading testId="status-loading-agenda-appointments" />
+              ) : isAppointmentsError ? (
+                <DashboardSectionState
+                  message="Não foi possível carregar a agenda."
+                  onRetry={() => { void refetchAppointments(); }}
+                  testId="status-error-agenda-appointments"
+                />
+              ) : agendaAppts.length === 0 ? (
                 <div className="h-full min-h-[250px] flex flex-col items-center justify-center text-center p-8 bg-surface-soft/30">
                   <div className="w-16 h-16 rounded-full bg-surface flex items-center justify-center mb-6 shadow-sm border border-border">
                     <CalendarIcon className="w-6 h-6 text-text-muted" strokeWidth={2.5} />
