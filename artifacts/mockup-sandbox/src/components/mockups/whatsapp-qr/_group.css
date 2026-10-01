@@ -1,0 +1,48 @@
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--text);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-foreground: #ffffff;
+  --color-text-primary: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --font-sans: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --shadow-button: 0 4px 12px rgba(122, 92, 67, 0.2);
+}
+
+:root {
+  --background: #fdfbf8;
+  --surface: #ffffff;
+  --surface-soft: #f4f1ea;
+  --primary: #7a5c43;
+  --primary-dark: #4a3525;
+  --primary-soft: #d6c5b3;
+  --text: #2c2119;
+  --text-muted: #a3968c;
+  --border: #e8dfd5;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+}
+
+.dark {
+  --background: #1c1510;
+  --surface: #261d17;
+  --surface-soft: #382b22;
+  --primary: #c5b09c;
+  --primary-dark: #e1d0c1;
+  --primary-soft: #423429;
+  --text: #fdfbf8;
+  --text-muted: #857568;
+  --border: #382b22;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --error: #f87171;
+}
