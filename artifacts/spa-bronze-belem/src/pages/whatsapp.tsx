@@ -170,10 +170,15 @@ export function WhatsApp() {
         onSuccess: (data) => {
           queryClient.invalidateQueries({ queryKey: getGetWhatsappConnectionQueryKey() });
           if (data.qrCode) setQrCode(data.qrCode);
+          const connectionSucceeded = data.connected || Boolean(data.qrCode);
           toast({
-            title: data.connected ? 'WhatsApp conectado' : data.qrCode ? 'QR Code gerado' : 'Instância criada',
+            title: data.connected
+              ? 'WhatsApp conectado'
+              : data.qrCode
+                ? 'QR Code gerado'
+                : 'Não foi possível gerar o QR Code',
             description: data.message,
-            variant: data.connected ? 'default' : 'destructive',
+            variant: connectionSucceeded ? 'default' : 'destructive',
           });
         },
         onError: () => toast({ title: 'Erro', description: 'Não foi possível gerar o QR Code.', variant: 'destructive' }),

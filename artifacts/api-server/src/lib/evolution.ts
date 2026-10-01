@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { evolutionInstanceStore } from "./evolution-instance-repository";
+import { logger } from "./logger";
 
 type EvolutionConfig = {
   baseUrl: string;
@@ -11,8 +12,12 @@ type EvolutionConfig = {
 };
 
 const PROVIDER_TIMEOUT_MS = 8_000;
+const CONNECTION_ACTION_TIMEOUT_MS = 15_000;
 const VOICE_NOTE_RECORDING_DELAY_MS = 30_000;
 const VOICE_NOTE_SEND_TIMEOUT_MS = PROVIDER_TIMEOUT_MS + VOICE_NOTE_RECORDING_DELAY_MS;
+
+const errorName = (error: unknown) =>
+  error instanceof Error ? error.name : "UnknownError";
 
 export type EvolutionInstance = {
   name: string;
@@ -139,13 +144,19 @@ export const configureEvolutionWebhook = async (instance: string) => {
       }),
     });
     if (!response.ok) {
-      console.warn(`[Evolution] Não foi possível configurar o webhook da instância (HTTP ${response.status})`);
+      logger.warn(
+        { status: response.status },
+        "[Evolution] Não foi possível configurar o webhook",
+      );
       return false;
     }
     configuredWebhookInstance = instance;
     return true;
-  } catch {
-    console.warn("[Evolution] Não foi possível alcançar o endpoint de configuração do webhook");
+  } catch (error) {
+    logger.warn(
+      { errorName: errorName(error), timeoutMs: PROVIDER_TIMEOUT_MS },
+      "[Evolution] Não foi possível alcançar o endpoint de configuração do webhook",
+    );
     return false;
   }
 };
@@ -170,7 +181,7 @@ export const connectEvolutionInstance = async () => {
     if (config.instance) {
       response = await fetch(
         `${config.baseUrl}/instance/connect/${encodeURIComponent(instance)}`,
-        { headers: { apikey: config.apiKey }, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) },
+        { headers: { apikey: config.apiKey }, signal: AbortSignal.timeout(CONNECTION_ACTION_TIMEOUT_MS) },
       );
     } else {
       response = await fetch(`${config.baseUrl}/instance/create`, {
@@ -179,7 +190,7 @@ export const connectEvolutionInstance = async () => {
           "Content-Type": "application/json",
           apikey: config.apiKey,
         },
-        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        signal: AbortSignal.timeout(CONNECTION_ACTION_TIMEOUT_MS),
         body: JSON.stringify({
           instanceName: instance,
           integration: "WHATSAPP-BAILEYS",
@@ -189,6 +200,10 @@ export const connectEvolutionInstance = async () => {
     }
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) {
+      logger.warn(
+        { status: response.status },
+        "[Evolution] Não foi possível iniciar a conexão do WhatsApp",
+      );
       return {
         created: false,
         instance,
@@ -201,7 +216,6 @@ export const connectEvolutionInstance = async () => {
     }
 
     await evolutionInstanceStore.setSelectedInstance(instance);
-    await configureEvolutionWebhook(instance);
     const qrCode = qrCodeFromResponse(body);
     const pairingCode = pairingCodeFromResponse(body);
     const status = String(
@@ -216,11 +230,17 @@ export const connectEvolutionInstance = async () => {
       state: status,
       message: qrCode
         ? "QR Code gerado. Escaneie com o WhatsApp."
-        : "Instância criada. Aguarde a conexão do WhatsApp.",
+        : pairingCode
+          ? "Código de pareamento gerado."
+          : "A Evolution API não retornou o QR Code. Tente gerar novamente.",
       qrCode,
       pairingCode,
     };
   } catch (error) {
+    logger.warn(
+      { errorName: errorName(error), timeoutMs: CONNECTION_ACTION_TIMEOUT_MS },
+      "[Evolution] Falha ao iniciar a conexão do WhatsApp",
+    );
     return {
       created: false,
       instance,
@@ -250,10 +270,14 @@ export const disconnectEvolutionInstance = async () => {
       {
         method: "DELETE",
         headers: { apikey: config.apiKey },
-        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        signal: AbortSignal.timeout(CONNECTION_ACTION_TIMEOUT_MS),
       },
     );
     if (!response.ok) {
+      logger.warn(
+        { status: response.status },
+        "[Evolution] A solicitação de desconexão não foi aceita",
+      );
       const connection = await getEvolutionConnection({ configureWebhook: false });
       if (["close", "closed", "disconnected", "offline", "instance_not_found"].includes(connection.state.toLowerCase())) {
         await evolutionInstanceStore.setSelectedInstance(null);
@@ -278,7 +302,11 @@ export const disconnectEvolutionInstance = async () => {
       instance,
       message: "WhatsApp desconectado. Gere um novo QR Code para conectar outro número.",
     };
-  } catch {
+  } catch (error) {
+    logger.warn(
+      { errorName: errorName(error), timeoutMs: CONNECTION_ACTION_TIMEOUT_MS },
+      "[Evolution] Falha ao desconectar o WhatsApp",
+    );
     return {
       disconnected: false,
       instance,
@@ -720,6 +748,12 @@ export const getEvolutionConnection = async ({
       `${config.baseUrl}/instance/connectionState/${encodeURIComponent(config.instance)}`,
       { headers: { apikey: config.apiKey }, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) },
     );
+    if (!response.ok) {
+      logger.warn(
+        { status: response.status },
+        "[Evolution] Não foi possível consultar o status da conexão",
+      );
+    }
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (response.status === 404) {
       const instancesResponse = await fetch(`${config.baseUrl}/instance/fetchInstances`, {
@@ -774,7 +808,11 @@ export const getEvolutionConnection = async ({
           ? "Não foi possível autenticar a conexão do WhatsApp"
           : "Não foi possível consultar o status do WhatsApp",
     };
-  } catch {
+  } catch (error) {
+    logger.warn(
+      { errorName: errorName(error), timeoutMs: PROVIDER_TIMEOUT_MS },
+      "[Evolution] Falha ao consultar o status da conexão",
+    );
     return {
       configured: true,
       connected: false,
