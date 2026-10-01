@@ -72,6 +72,7 @@ export function WhatsApp() {
   const [qrImageFailed, setQrImageFailed] = useState(false);
   const [qrRefreshFailed, setQrRefreshFailed] = useState(false);
   const qrRefreshInFlight = useRef(false);
+  const qrRequestVersion = useRef(0);
 
   const { data: config, isLoading: isConfigLoading } = useGetAiAgentConfig();
   const updateConfig = useUpdateAiAgentConfig();
@@ -173,11 +174,15 @@ export function WhatsApp() {
   };
 
   const handleConnectWhatsapp = () => {
+    if (qrRefreshInFlight.current || isConnectPending) return;
+    qrRefreshInFlight.current = true;
+    const requestVersion = ++qrRequestVersion.current;
     setQrRefreshFailed(false);
     requestWhatsappQr(
       undefined,
       {
         onSuccess: (data) => {
+          if (requestVersion !== qrRequestVersion.current) return;
           queryClient.invalidateQueries({ queryKey: getGetWhatsappConnectionQueryKey() });
           if (data.connected) {
             setQrCode(null);
@@ -206,8 +211,12 @@ export function WhatsApp() {
           });
         },
         onError: () => {
+          if (requestVersion !== qrRequestVersion.current) return;
           setQrRefreshFailed(true);
           toast({ title: 'Erro', description: 'Não foi possível gerar o QR Code.', variant: 'destructive' });
+        },
+        onSettled: () => {
+          qrRefreshInFlight.current = false;
         },
       },
     );
@@ -217,10 +226,12 @@ export function WhatsApp() {
     if ((!qrCode && !pairingCode) || whatsappConnection?.connected) return;
 
     const intervalId = window.setInterval(() => {
-      if (qrRefreshInFlight.current) return;
+      if (qrRefreshInFlight.current || isConnectPending) return;
       qrRefreshInFlight.current = true;
+      const requestVersion = qrRequestVersion.current;
       requestWhatsappQr(undefined, {
         onSuccess: (data) => {
+          if (requestVersion !== qrRequestVersion.current) return;
           queryClient.invalidateQueries({ queryKey: getGetWhatsappConnectionQueryKey() });
           if (data.connected) {
             setQrCode(null);
@@ -240,7 +251,9 @@ export function WhatsApp() {
             setQrRefreshFailed(true);
           }
         },
-        onError: () => setQrRefreshFailed(true),
+        onError: () => {
+          if (requestVersion === qrRequestVersion.current) setQrRefreshFailed(true);
+        },
         onSettled: () => {
           qrRefreshInFlight.current = false;
         },
@@ -252,6 +265,7 @@ export function WhatsApp() {
     qrCode,
     pairingCode,
     whatsappConnection?.connected,
+    isConnectPending,
     queryClient,
     requestWhatsappQr,
     toast,
@@ -259,6 +273,7 @@ export function WhatsApp() {
 
   useEffect(() => {
     if (!whatsappConnection?.connected || (!qrCode && !pairingCode)) return;
+    qrRequestVersion.current += 1;
     setQrCode(null);
     setPairingCode(null);
     setQrImageFailed(false);
@@ -806,6 +821,7 @@ export function WhatsApp() {
         open={Boolean(qrCode || pairingCode)}
         onOpenChange={(open) => {
           if (!open) {
+            qrRequestVersion.current += 1;
             setQrCode(null);
             setPairingCode(null);
             setQrImageFailed(false);
