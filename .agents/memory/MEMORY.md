@@ -7,7 +7,7 @@
 - [WhatsApp webhook reliability](whatsapp-webhook-idempotency.md) — dedupe and validate bookings, bound AI calls below Heroku's 30-second limit, and use a durable inbox for crash-safe processing.
 - [OpenAPI date codegen](openapi-date-codegen.md) — date-formatted strings can become `Date` in generated Zod types but stay strings in the React client.
 - [Drizzle migration generation](drizzle-migration-generation.md) — keep a package-relative `out` in config; this version rejects extra generate flags with `--config`.
-- [Auth session caching](auth-session-cache.md) — auth session requests must bypass HTTP caching; a conditional 304 can be mistaken for a signed-out session.
+- [Auth session caching](auth-session-cache.md) — prevent conditional 304s and premature login redirects while the session is being restored.
 - [Financial import dates](financial-import-dates.md) — customer lifetime totals and product expiry dates cannot populate a date-based monthly ledger.
 - [Client deduplication totals](client-deduplication-totals.md) — keep duplicate matching conservative; compare summed currency in cents to avoid binary-float drift.
 - [Dashboard reads during AI writes](dashboard-read-during-ai-writes.md) — serve the latest committed snapshot without waiting on the webhook write queue.

@@ -1,16 +1,28 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Eye, EyeOff, LockKeyhole, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 export function Login() {
   const [, navigate] = useLocation();
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user) navigate("/", { replace: true });
+  }, [loading, user, navigate]);
+
+  if (loading || user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background text-sm text-text-secondary" role="status">
+        Carregando sessão…
+      </main>
+    );
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setError(""); setBusy(true);

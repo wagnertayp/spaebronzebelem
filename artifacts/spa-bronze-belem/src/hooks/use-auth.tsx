@@ -34,6 +34,7 @@ const errorMessage = (error: unknown, fallback: string) => {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [sessionHydrated, setSessionHydrated] = useState(false);
   const sessionQuery = useGetAuthSession({
     request: { cache: "no-store" },
     query: {
@@ -47,7 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const changePasswordMutation = useChangeStaffPassword();
 
   useEffect(() => {
-    if (sessionQuery.isFetched) setUser(sessionQuery.data?.user ?? null);
+    if (!sessionQuery.isFetched) return;
+    setUser(sessionQuery.data?.user ?? null);
+    setSessionHydrated(true);
   }, [sessionQuery.data, sessionQuery.isFetched]);
 
   const login = async (username: string, password: string) => {
@@ -81,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading: sessionQuery.isLoading, login, logout, changePassword }}>
+    <AuthContext.Provider value={{ user, loading: sessionQuery.isLoading || !sessionHydrated, login, logout, changePassword }}>
       {children}
     </AuthContext.Provider>
   );
