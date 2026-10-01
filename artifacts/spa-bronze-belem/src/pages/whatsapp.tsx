@@ -49,7 +49,7 @@ import {
   BrainCircuit, Sparkles, Settings2, Database, 
   Plus, Edit2, Trash2, SendHorizontal, Trash, 
   CheckCircle2, XCircle, Clock, Loader2, Bot, AlertTriangle,
-  Save, MessageCircle, CalendarCheck, BellRing, RefreshCw
+  Save, MessageCircle, CalendarCheck, BellRing, RefreshCw, QrCode
 } from 'lucide-react';
 
 const DEFAULT_BUSINESS_HOURS = [
@@ -387,52 +387,102 @@ export function WhatsApp() {
         description="Configuração do assistente virtual inteligente."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card className="p-4 flex items-center gap-4">
-          <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", formData.active ? "bg-success/10 text-success" : "bg-text-muted/10 text-text-muted")}>
-            <Bot className="w-6 h-6" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Card className="group relative flex min-h-[176px] flex-col justify-between overflow-hidden rounded-[22px] border-border/70 bg-surface p-5 shadow-[0_8px_28px_-24px_rgba(44,33,25,0.34)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_18px_40px_-28px_rgba(44,33,25,0.34)]">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-primary/[0.045] blur-2xl transition-transform duration-500 group-hover:scale-125" />
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">Status do agente</p>
+              <p data-testid="status-ai-agent" className="mt-2 text-xl font-semibold tracking-tight text-text-primary">
+                {formData.active ? 'Ativo' : 'Inativo'}
+              </p>
+            </div>
+            <span className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset",
+              formData.active ? "bg-success/10 text-success ring-success/10" : "bg-surface-soft text-text-secondary ring-border/60",
+            )}>
+              <Bot className="h-5 w-5" strokeWidth={1.8} />
+            </span>
           </div>
-          <div>
-            <div className="text-[13px] text-text-muted font-medium uppercase tracking-wider mb-1">Status do Agente</div>
-            <div className="font-semibold text-text-primary text-lg">{formData.active ? 'Ativo' : 'Inativo'}</div>
-          </div>
-        </Card>
-        
-        <Card className="p-4 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <Database className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-[13px] text-text-muted font-medium uppercase tracking-wider mb-1">Base de Conhecimento</div>
-            <div className="font-semibold text-text-primary text-lg">{services.length} serviços</div>
+          <div className="relative mt-5 flex items-center gap-2 border-t border-border/70 pt-3.5 text-xs font-medium text-text-muted">
+            <span className={cn("h-2 w-2 rounded-full", formData.active ? "bg-success" : "bg-text-muted/50")} />
+            <span>{formData.active ? 'Agente pronto para atender' : 'Respostas automáticas pausadas'}</span>
           </div>
         </Card>
 
-        <Card className="p-4 flex items-center gap-4">
-          <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", whatsappConnection?.connected ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>
-            <MessageCircle className="w-6 h-6" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px] text-text-muted font-medium uppercase tracking-wider mb-1">WhatsApp</div>
-            <div className="font-semibold text-text-primary text-lg">
-              {isConnectionLoading ? 'Verificando...' : whatsappConnection?.connected ? 'WhatsApp conectado' : 'Não conectado'}
+        <Card className="group relative flex min-h-[176px] flex-col justify-between overflow-hidden rounded-[22px] border-border/70 bg-surface p-5 shadow-[0_8px_28px_-24px_rgba(44,33,25,0.34)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_18px_40px_-28px_rgba(44,33,25,0.34)]">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-primary/[0.045] blur-2xl transition-transform duration-500 group-hover:scale-125" />
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">Base de conhecimento</p>
+              <p data-testid="text-service-count" className="mt-2 text-xl font-semibold tracking-tight text-text-primary">
+                {isServicesLoading ? 'Carregando...' : `${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`}
+              </p>
             </div>
-            <div className="text-xs text-text-muted truncate mb-3">{whatsappConnection?.message || 'Gere um QR Code para conectar o WhatsApp'}</div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={handleConnectWhatsapp} disabled={connectWhatsapp.isPending || disconnectWhatsapp.isPending} className="gap-2">
-                {connectWhatsapp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
-                {whatsappConnection?.connected ? 'Gerar QR Code novamente' : 'Gerar QR Code'}
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/10">
+              <Database className="h-5 w-5" strokeWidth={1.8} />
+            </span>
+          </div>
+          <div className="relative mt-5 flex items-center gap-2 border-t border-border/70 pt-3.5 text-xs font-medium text-text-muted">
+            <Database className="h-3.5 w-3.5 text-primary" />
+            <span>{services.length ? 'Conteúdo disponível para o agente' : 'Cadastre serviços para o agente'}</span>
+          </div>
+        </Card>
+
+        <Card className="relative overflow-hidden rounded-[22px] border-primary/20 bg-gradient-to-br from-surface via-surface to-primary-soft/25 p-5 shadow-[0_10px_32px_-24px_rgba(44,33,25,0.38)] transition-all duration-300 hover:border-primary/35 hover:shadow-[0_18px_42px_-28px_rgba(44,33,25,0.4)] md:col-span-2 xl:col-span-1">
+          <div className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full bg-primary/[0.07] blur-3xl" />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col">
+            <div className="flex min-w-0 items-start gap-3.5">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+                <MessageCircle className="h-5 w-5" strokeWidth={1.8} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">WhatsApp</p>
+                  <span className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+                    isConnectionLoading
+                      ? "border-border bg-surface/70 text-text-secondary"
+                      : whatsappConnection?.connected
+                        ? "border-success/20 bg-success/10 text-success"
+                        : "border-warning/20 bg-warning/10 text-warning",
+                  )}>
+                    <span className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      isConnectionLoading ? "bg-text-muted/60" : whatsappConnection?.connected ? "bg-success" : "bg-warning",
+                    )} />
+                    {isConnectionLoading ? 'Verificando...' : whatsappConnection?.connected ? 'Conectado' : 'Não conectado'}
+                  </span>
+                </div>
+                <p data-testid="text-whatsapp-connection-message" className="mt-2 line-clamp-2 break-words text-sm leading-relaxed text-text-secondary">
+                  {whatsappConnection?.message || 'Gere um QR Code para conectar o WhatsApp'}
+                </p>
+              </div>
+            </div>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[190px] sm:flex-row sm:flex-wrap xl:w-full xl:flex-col">
+              <Button
+                type="button"
+                onClick={handleConnectWhatsapp}
+                disabled={connectWhatsapp.isPending || disconnectWhatsapp.isPending}
+                className="min-h-12 w-full justify-center gap-2.5 rounded-xl px-4 text-sm font-semibold shadow-[0_8px_18px_-10px_rgba(74,53,37,0.72)] transition-all duration-200 hover:shadow-[0_12px_22px_-10px_rgba(74,53,37,0.72)] active:translate-y-0 active:scale-[0.99] sm:flex-1 xl:w-full xl:flex-none"
+                data-testid="button-generate-whatsapp-qr"
+              >
+                {connectWhatsapp.isPending
+                  ? <Loader2 className="h-[18px] w-[18px] shrink-0 animate-spin" />
+                  : <QrCode className="h-[18px] w-[18px] shrink-0" strokeWidth={2} />}
+                <span>{connectWhatsapp.isPending ? 'Gerando QR Code...' : whatsappConnection?.connected ? 'Gerar QR Code novamente' : 'Gerar QR Code'}</span>
               </Button>
               {whatsappConnection?.instance && (
                 <Button
-                  size="sm"
+                  type="button"
                   variant="outline"
                   onClick={handleDisconnectWhatsapp}
                   disabled={disconnectWhatsapp.isPending || connectWhatsapp.isPending}
-                  className="gap-2"
+                  className="min-h-11 w-full justify-center gap-2 whitespace-normal rounded-xl border-border/80 bg-surface/70 px-4 text-center text-xs font-semibold leading-snug text-text-secondary transition-colors hover:border-primary/35 hover:bg-primary/5 hover:text-primary sm:flex-1 xl:w-full xl:flex-none"
+                  data-testid="button-disconnect-whatsapp"
                 >
-                  {disconnectWhatsapp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                  {whatsappConnection.connected ? 'Desconectar e trocar número' : 'Liberar instância e trocar número'}
+                  {disconnectWhatsapp.isPending ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <XCircle className="h-4 w-4 shrink-0" />}
+                  <span>{whatsappConnection.connected ? 'Desconectar e trocar número' : 'Liberar instância e trocar número'}</span>
                 </Button>
               )}
             </div>
@@ -665,15 +715,15 @@ export function WhatsApp() {
       </Card>
 
       <Dialog open={Boolean(qrCode)} onOpenChange={(open) => !open && setQrCode(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Conectar WhatsApp</DialogTitle>
             <DialogDescription>
               Abra o WhatsApp no celular, entre em <strong>Aparelhos conectados</strong> e escaneie este QR Code.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            {qrCode && <img src={qrCode} alt="QR Code para conectar o WhatsApp" className="w-64 h-64 rounded-xl border border-border p-2" />}
+          <div className="flex flex-col items-center gap-4 py-3">
+            {qrCode && <img src={qrCode} alt="QR Code para conectar o WhatsApp" className="aspect-square w-full max-w-64 rounded-2xl border border-border bg-white p-2 object-contain shadow-sm" />}
             <p className="text-xs text-center text-text-muted">
               Depois de escanear, esta janela pode levar alguns segundos para atualizar o status da conexão.
             </p>

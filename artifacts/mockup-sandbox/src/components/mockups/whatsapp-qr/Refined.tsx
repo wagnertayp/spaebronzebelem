@@ -1,5 +1,5 @@
 import "./_group.css";
-import { Bot, Check, Database, Loader2, MessageCircle, QrCode, XCircle } from "lucide-react";
+import { Bot, Database, MessageCircle, QrCode, XCircle } from "lucide-react";
 
 type MetricCardProps = {
   icon: typeof Bot;
@@ -51,7 +51,7 @@ export function Refined() {
 
         <article className="relative overflow-hidden rounded-[22px] border border-primary/20 bg-gradient-to-br from-surface via-surface to-primary-soft/25 p-5 shadow-[0_10px_32px_-24px_rgba(44,33,25,0.38)] transition-all duration-300 hover:border-primary/35 hover:shadow-[0_18px_42px_-28px_rgba(44,33,25,0.4)] md:col-span-2 xl:col-span-1">
           <div className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full bg-primary/[0.07] blur-3xl" />
-          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between xl:flex-col">
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col">
             <div className="flex min-w-0 items-start gap-3.5">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
                 <MessageCircle className="h-5 w-5" strokeWidth={1.8} />
@@ -87,10 +87,6 @@ export function Refined() {
                 <span>Liberar instância e trocar número</span>
               </button>
             </div>
-          </div>
-          <div className="relative mt-4 flex items-start gap-2 border-t border-border/65 pt-3.5 text-xs leading-relaxed text-text-muted">
-            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary/75" />
-            <span>A conexão atual é preservada até você confirmar a troca do número.</span>
           </div>
         </article>
       </section>
