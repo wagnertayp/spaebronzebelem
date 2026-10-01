@@ -62,12 +62,16 @@ const DEFAULT_BUSINESS_HOURS = [
   'domingo: 07:30–11:30',
 ].join('\n');
 
+const QR_REFRESH_INTERVAL_MS = 15_000;
+
 export function WhatsApp() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [qrImageFailed, setQrImageFailed] = useState(false);
+  const [qrRefreshFailed, setQrRefreshFailed] = useState(false);
+  const qrRefreshInFlight = useRef(false);
 
   const { data: config, isLoading: isConfigLoading } = useGetAiAgentConfig();
   const updateConfig = useUpdateAiAgentConfig();
@@ -78,7 +82,7 @@ export function WhatsApp() {
       refetchInterval: qrCode || pairingCode ? 5_000 : 30_000,
     },
   });
-  const connectWhatsapp = useConnectWhatsapp();
+  const { mutate: requestWhatsappQr, isPending: isConnectPending } = useConnectWhatsapp();
   const disconnectWhatsapp = useDisconnectWhatsapp();
   const { data: whatsappAutomation } = useGetWhatsappAutomation();
   const updateWhatsappAutomation = useUpdateWhatsappAutomation();
@@ -169,7 +173,8 @@ export function WhatsApp() {
   };
 
   const handleConnectWhatsapp = () => {
-    connectWhatsapp.mutate(
+    setQrRefreshFailed(false);
+    requestWhatsappQr(
       undefined,
       {
         onSuccess: (data) => {
@@ -178,10 +183,14 @@ export function WhatsApp() {
             setQrCode(null);
             setPairingCode(null);
             setQrImageFailed(false);
+            setQrRefreshFailed(false);
           } else if (data.qrCode || data.pairingCode) {
             setQrCode(data.qrCode);
             setPairingCode(data.pairingCode);
             setQrImageFailed(false);
+            setQrRefreshFailed(false);
+          } else {
+            setQrRefreshFailed(true);
           }
           const connectionSucceeded = data.connected || Boolean(data.qrCode || data.pairingCode);
           toast({
@@ -196,16 +205,64 @@ export function WhatsApp() {
             variant: connectionSucceeded ? 'default' : 'destructive',
           });
         },
-        onError: () => toast({ title: 'Erro', description: 'Não foi possível gerar o QR Code.', variant: 'destructive' }),
+        onError: () => {
+          setQrRefreshFailed(true);
+          toast({ title: 'Erro', description: 'Não foi possível gerar o QR Code.', variant: 'destructive' });
+        },
       },
     );
   };
+
+  useEffect(() => {
+    if ((!qrCode && !pairingCode) || whatsappConnection?.connected) return;
+
+    const intervalId = window.setInterval(() => {
+      if (qrRefreshInFlight.current) return;
+      qrRefreshInFlight.current = true;
+      requestWhatsappQr(undefined, {
+        onSuccess: (data) => {
+          queryClient.invalidateQueries({ queryKey: getGetWhatsappConnectionQueryKey() });
+          if (data.connected) {
+            setQrCode(null);
+            setPairingCode(null);
+            setQrImageFailed(false);
+            setQrRefreshFailed(false);
+            toast({
+              title: 'WhatsApp conectado',
+              description: 'A conexão foi confirmada pela Evolution API.',
+            });
+          } else if (data.qrCode || data.pairingCode) {
+            setQrCode(data.qrCode);
+            setPairingCode(data.pairingCode);
+            setQrImageFailed(false);
+            setQrRefreshFailed(false);
+          } else {
+            setQrRefreshFailed(true);
+          }
+        },
+        onError: () => setQrRefreshFailed(true),
+        onSettled: () => {
+          qrRefreshInFlight.current = false;
+        },
+      });
+    }, QR_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [
+    qrCode,
+    pairingCode,
+    whatsappConnection?.connected,
+    queryClient,
+    requestWhatsappQr,
+    toast,
+  ]);
 
   useEffect(() => {
     if (!whatsappConnection?.connected || (!qrCode && !pairingCode)) return;
     setQrCode(null);
     setPairingCode(null);
     setQrImageFailed(false);
+    setQrRefreshFailed(false);
     toast({
       title: 'WhatsApp conectado',
       description: 'A conexão foi confirmada pela Evolution API.',
@@ -494,21 +551,21 @@ export function WhatsApp() {
               <Button
                 type="button"
                 onClick={handleConnectWhatsapp}
-                disabled={connectWhatsapp.isPending || disconnectWhatsapp.isPending}
+                disabled={isConnectPending || disconnectWhatsapp.isPending}
                 className="min-h-12 w-full justify-center gap-2.5 rounded-xl px-4 text-sm font-semibold shadow-[0_8px_18px_-10px_rgba(74,53,37,0.72)] transition-all duration-200 hover:shadow-[0_12px_22px_-10px_rgba(74,53,37,0.72)] active:translate-y-0 active:scale-[0.99] sm:flex-1 xl:w-full xl:flex-none"
                 data-testid="button-generate-whatsapp-qr"
               >
-                {connectWhatsapp.isPending
+                {isConnectPending
                   ? <Loader2 className="h-[18px] w-[18px] shrink-0 animate-spin" />
                   : <QrCode className="h-[18px] w-[18px] shrink-0" strokeWidth={2} />}
-                <span>{connectWhatsapp.isPending ? 'Gerando QR Code...' : whatsappConnection?.connected ? 'Gerar QR Code novamente' : 'Gerar QR Code'}</span>
+                <span>{isConnectPending ? 'Gerando QR Code...' : whatsappConnection?.connected ? 'Gerar QR Code novamente' : 'Gerar QR Code'}</span>
               </Button>
               {whatsappConnection?.instance && (
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleDisconnectWhatsapp}
-                  disabled={disconnectWhatsapp.isPending || connectWhatsapp.isPending}
+                  disabled={disconnectWhatsapp.isPending || isConnectPending}
                   className="min-h-11 w-full justify-center gap-2 whitespace-normal rounded-xl border-border/80 bg-surface/70 px-4 text-center text-xs font-semibold leading-snug text-text-secondary transition-colors hover:border-primary/35 hover:bg-primary/5 hover:text-primary sm:flex-1 xl:w-full xl:flex-none"
                   data-testid="button-disconnect-whatsapp"
                 >
@@ -776,6 +833,11 @@ export function WhatsApp() {
                 O WhatsApp não conseguiu carregar a imagem do QR Code. Gere outro código antes de tentar novamente.
               </p>
             )}
+            {qrRefreshFailed && (
+              <p role="status" className="max-w-sm text-center text-sm text-warning">
+                Não foi possível renovar o QR Code. Tente atualizar manualmente antes de escanear.
+              </p>
+            )}
             {pairingCode && (
               <div className="w-full rounded-xl border border-border bg-surface/70 p-4 text-center">
                 <p className="text-xs text-text-muted">Código de pareamento alternativo</p>
@@ -792,10 +854,10 @@ export function WhatsApp() {
               type="button"
               variant="outline"
               onClick={handleConnectWhatsapp}
-              disabled={connectWhatsapp.isPending || disconnectWhatsapp.isPending}
+              disabled={isConnectPending || disconnectWhatsapp.isPending}
               className="w-full"
             >
-              {connectWhatsapp.isPending
+              {isConnectPending
                 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 : <RefreshCw className="mr-2 h-4 w-4" />}
               Atualizar QR Code
