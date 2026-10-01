@@ -585,8 +585,12 @@ const disableStaffAccessForProfessional = async (professionalId: number) => {
     })
     .where(eq(staffAccessAccountsTable.professionalId, professionalId));
 };
-const appointmentBelongsToProfessional = (appointment: Appointment, professionalId: number) => {
-  const professional = professionals.find((item) => item.id === professionalId);
+const appointmentBelongsToProfessional = (
+  appointment: Appointment,
+  professionalId: number,
+  professionalRecords = professionals,
+) => {
+  const professional = professionalRecords.find((item) => item.id === professionalId);
   return appointment.professionalId === professionalId ||
     (appointment.professionalId == null &&
       Boolean(professional) &&
@@ -1355,6 +1359,9 @@ ou, quando houver agendamento confirmado:
       ...(await getConversationHistory(phone)).slice(0, -1),
       { role: "user", content: currentInput },
     ],
+  }, {
+    maxRetries: 0,
+    timeout: 12_000,
   });
   return parseAgentDecision(response.choices[0]?.message?.content ?? "");
 };
@@ -2271,6 +2278,75 @@ const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
   archivedSpaRecords: clone(archivedSpaRecords),
 });
 
+type DashboardOperationalSnapshot = Pick<
+  SpaOperationalSnapshot,
+  "appointments" | "professionals" | "clients" | "leads" | "quotes" | "archivedSpaRecords"
+>;
+
+const loadDashboardOperationalSnapshot = async (): Promise<DashboardOperationalSnapshot | null> => {
+  const record = await spaOperationalStateRepository.load();
+  if (!record) return null;
+  if (record.version !== 1) {
+    throw new Error(`Unsupported SPA state version ${record.version}; expected 1.`);
+  }
+  if (!record.payload || typeof record.payload !== "object" || Array.isArray(record.payload)) {
+    throw new Error("Stored SPA operational state is not an object.");
+  }
+
+  const candidate = record.payload as Record<string, unknown>;
+  const dashboardCollections = [
+    "appointments",
+    "professionals",
+    "clients",
+    "leads",
+    "quotes",
+  ] as const;
+  const archiveEntries = candidate.archivedSpaRecords ?? [];
+  if (
+    candidate.version !== 1 ||
+    dashboardCollections.some((key) => !Array.isArray(candidate[key])) ||
+    !Array.isArray(archiveEntries) ||
+    archiveEntries.some((entry) =>
+      !entry ||
+      typeof entry !== "object" ||
+      typeof entry.entity !== "string" ||
+      typeof entry.id !== "string" ||
+      typeof entry.archivedAt !== "string" ||
+      typeof entry.label !== "string"
+    )
+  ) {
+    throw new Error("Stored SPA operational state has an unsupported dashboard shape.");
+  }
+
+  return {
+    appointments: candidate.appointments as SpaOperationalSnapshot["appointments"],
+    professionals: candidate.professionals as SpaOperationalSnapshot["professionals"],
+    clients: candidate.clients as SpaOperationalSnapshot["clients"],
+    leads: candidate.leads as SpaOperationalSnapshot["leads"],
+    quotes: candidate.quotes as SpaOperationalSnapshot["quotes"],
+    archivedSpaRecords: archiveEntries as SpaOperationalSnapshot["archivedSpaRecords"],
+  };
+};
+
+const activeDashboardRecords = <T extends { id: number }>(
+  snapshot: DashboardOperationalSnapshot,
+  entity: ArchiveEntityType,
+  records: T[],
+) => {
+  const archivedIds = new Set(
+    snapshot.archivedSpaRecords
+      .filter((entry) => entry.entity === entity)
+      .map((entry) => entry.id),
+  );
+  return records.filter((record) => !archivedIds.has(String(record.id)));
+};
+
+const dashboardSnapshotForResponse = (res: Response): DashboardOperationalSnapshot => {
+  const snapshot = (res.locals as Record<string, unknown>)["spaOperationalReadSnapshot"];
+  if (snapshot && typeof snapshot === "object") return snapshot as DashboardOperationalSnapshot;
+  return { appointments, professionals, clients, leads, quotes, archivedSpaRecords };
+};
+
 const restoreSpaOperationalSnapshot = (value: unknown) => {
   if (!value || typeof value !== "object") {
     throw new Error("Stored SPA operational state is not an object.");
@@ -2653,6 +2729,8 @@ const mutatesOperationalState = (req: Request) =>
     (req.path.startsWith("/public/quotes/") ||
       /^\/professionals\/\d+\/commission-config$/.test(req.path)));
 
+const dashboardSnapshotPaths = new Set(["/appointments", "/clients", "/leads", "/quotes"]);
+
 router.use(async (req, res, next) => {
   let releaseProcessLock: (() => void) | undefined;
   let releaseDatabaseLock: (() => Promise<void>) | undefined;
@@ -2693,6 +2771,39 @@ router.use(async (req, res, next) => {
   try {
     await ensureSpaOperationalStateLoaded();
     const isMutation = mutatesOperationalState(req);
+
+    // Dashboard reads use the last committed snapshot rather than waiting behind provider-backed writes.
+    if (req.method === "GET" && dashboardSnapshotPaths.has(req.path)) {
+      if (spaOperationalStateStore.status !== "ready") {
+        if (spaStateMemoryFallbackEnabled) {
+          next();
+          return;
+        }
+        respondStateNotInitialized();
+        return;
+      }
+
+      try {
+        const snapshot = await loadDashboardOperationalSnapshot();
+        if (!snapshot) {
+          respondStateNotInitialized();
+          return;
+        }
+        (res.locals as Record<string, unknown>)["spaOperationalReadSnapshot"] = snapshot;
+      } catch (error) {
+        if (postgresErrorCode(error) !== "42P01") throw error;
+        markSpaStateTableUnavailable();
+        if (spaStateMemoryFallbackEnabled) {
+          next();
+          return;
+        }
+        respondStateNotInitialized();
+        return;
+      }
+
+      next();
+      return;
+    }
 
     if (!isMutation && spaOperationalStateStore.status === "ready") {
       await spaOperationalStateWriteQueue;
@@ -2919,12 +3030,13 @@ router.post("/archive/bulk", async (req, res): Promise<void> => {
 
 router.get("/appointments", (req, res) => {
   const session = requestSession(res);
+  const snapshot = dashboardSnapshotForResponse(res);
   const { date } = ListAppointmentsQueryParams.parse(req.query);
   const today = new Date().toLocaleDateString("sv-SE");
-  let visibleAppointments = activeSpaRecords("appointment", appointments);
+  let visibleAppointments = activeDashboardRecords(snapshot, "appointment", snapshot.appointments);
   if (session.role === "staff" && session.agendaScope === "own") {
     visibleAppointments = visibleAppointments.filter((appointment) =>
-      appointmentBelongsToProfessional(appointment, session.professionalId!),
+      appointmentBelongsToProfessional(appointment, session.professionalId!, snapshot.professionals),
     );
   }
   const filtered = date
@@ -3616,9 +3728,10 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
 });
 
 router.get("/clients", (req, res) => {
+  const snapshot = dashboardSnapshotForResponse(res);
   const { search } = ListClientsQueryParams.parse(req.query);
   const normalized = search?.trim().toLocaleLowerCase("pt-BR");
-  const visibleClients = activeSpaRecords("client", clients);
+  const visibleClients = activeDashboardRecords(snapshot, "client", snapshot.clients);
   const filtered = normalized
     ? visibleClients.filter((client) =>
         `${client.name} ${client.service} ${client.source}`
@@ -3660,7 +3773,8 @@ router.delete("/clients/:id", async (req, res): Promise<void> => {
 });
 
 router.get("/leads", (_req, res) => {
-  res.json(ListLeadsResponse.parse(activeSpaRecords("lead", leads)));
+  const snapshot = dashboardSnapshotForResponse(res);
+  res.json(ListLeadsResponse.parse(activeDashboardRecords(snapshot, "lead", snapshot.leads)));
 });
 
 router.post("/leads", (req, res) => {
@@ -4122,9 +4236,10 @@ router.delete("/services/:id", async (req, res): Promise<void> => {
 });
 
 router.get("/quotes", (req, res) => {
+  const snapshot = dashboardSnapshotForResponse(res);
   const { search, status, from, to } = ListQuotesQueryParams.parse(req.query);
   const normalized = search?.toLocaleLowerCase("pt-BR");
-  const filtered = activeSpaRecords("quote", quotes).filter((quote) =>
+  const filtered = activeDashboardRecords(snapshot, "quote", snapshot.quotes).filter((quote) =>
     (!normalized || `${quote.number} ${quote.clientName} ${quote.phone}`.toLocaleLowerCase("pt-BR").includes(normalized)) &&
     (!status || quote.status === status) &&
     (!from || quote.createdAt.slice(0, 10) >= from) &&

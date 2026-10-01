@@ -10,3 +10,4 @@
 - [Auth session caching](auth-session-cache.md) — auth session requests must bypass HTTP caching; a conditional 304 can be mistaken for a signed-out session.
 - [Financial import dates](financial-import-dates.md) — customer lifetime totals and product expiry dates cannot populate a date-based monthly ledger.
 - [Client deduplication totals](client-deduplication-totals.md) — keep duplicate matching conservative; compare summed currency in cents to avoid binary-float drift.
+- [Dashboard reads during AI writes](dashboard-read-during-ai-writes.md) — serve the latest committed snapshot without waiting on the webhook write queue.
