@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { db, staffAccessAccountsTable } from "@workspace/db";
 
 const COOKIE_NAME = "spa_session";
-const SESSION_TTL_SECONDS = 60 * 60 * 12;
+const STAFF_SESSION_TTL_SECONDS = 60 * 60 * 12;
+const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 const isProduction = process.env["NODE_ENV"] === "production";
 const configuredUsername = process.env["SPA_ADMIN_USERNAME"]?.trim();
 const configuredPassword = process.env["SPA_ADMIN_PASSWORD"];
@@ -43,10 +44,16 @@ const getSecret = () => {
 };
 const encode = (value: string) => Buffer.from(value).toString("base64url");
 
+const getAdminCredentialVersion = () =>
+  createHmac("sha256", getSecret())
+    .update(`spa-admin-session-v1\0${USERNAME}\0${configuredPassword ?? PASSWORD_DIGEST.toString("hex")}`)
+    .digest("base64url");
+
 export type SessionClaims = {
   username: string;
   exp: number;
   role: "admin" | "staff";
+  adminCredentialVersion?: string;
   userId?: number;
   sessionVersion?: number;
 };
@@ -68,11 +75,17 @@ export type AuthenticatedSession = AuthUser & {
 };
 
 export function createSession(
-  identity: Omit<SessionClaims, "exp">,
+  identity: Omit<SessionClaims, "exp" | "adminCredentialVersion">,
 ) {
+  const ttlSeconds = identity.role === "admin"
+    ? ADMIN_SESSION_TTL_SECONDS
+    : STAFF_SESSION_TTL_SECONDS;
   const payload: SessionClaims = {
     ...identity,
-    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+    ...(identity.role === "admin"
+      ? { adminCredentialVersion: getAdminCredentialVersion() }
+      : {}),
+    exp: Math.floor(Date.now() / 1000) + ttlSeconds,
   };
   const body = encode(JSON.stringify(payload));
   const signature = createHmac("sha256", getSecret()).update(body).digest("base64url");
@@ -90,7 +103,17 @@ export function readSession(token: string | undefined): SessionClaims | null {
     const session = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as SessionClaims;
     if (session.exp <= Math.floor(Date.now() / 1000)) return null;
     if (session.role === "admin") {
-      return session.username === USERNAME ? session : null;
+      if (session.username !== USERNAME) return null;
+      if (session.adminCredentialVersion !== undefined) {
+        if (typeof session.adminCredentialVersion !== "string") return null;
+        const expectedVersion = Buffer.from(getAdminCredentialVersion(), "base64url");
+        const receivedVersion = Buffer.from(session.adminCredentialVersion, "base64url");
+        if (
+          expectedVersion.length !== receivedVersion.length ||
+          !timingSafeEqual(expectedVersion, receivedVersion)
+        ) return null;
+      }
+      return session;
     }
     if (
       session.role === "staff" &&
@@ -223,18 +246,23 @@ export function isStaffSpaRequestAllowed(
   return false;
 }
 
-export function setSessionCookie(res: Response, token: string) {
+export function setSessionCookie(res: Response, token: string, role: "admin" | "staff") {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: SESSION_TTL_SECONDS * 1000,
+    secure: isProduction,
+    maxAge: (role === "admin" ? ADMIN_SESSION_TTL_SECONDS : STAFF_SESSION_TTL_SECONDS) * 1000,
     path: "/",
   });
 }
 
 export function clearSessionCookie(res: Response) {
-  res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: "lax", path: "/" });
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+  });
 }
 
 export async function requireSession(req: Request, res: Response, next: NextFunction) {

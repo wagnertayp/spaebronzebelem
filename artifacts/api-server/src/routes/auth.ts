@@ -36,7 +36,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const password = parsed.data.password;
   if (verifyCredentials(username, password)) {
     const token = createSession({ username: getAdminUsername(), role: "admin" });
-    setSessionCookie(res, token);
+    setSessionCookie(res, token, "admin");
     const session = await resolveSession(token);
     if (!session) {
       clearSessionCookie(res);
@@ -67,7 +67,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     userId: account.id,
     sessionVersion: account.sessionVersion,
   });
-  setSessionCookie(res, token);
+  setSessionCookie(res, token, "staff");
   const session = await resolveSession(token);
   if (!session) {
     clearSessionCookie(res);
@@ -153,7 +153,7 @@ router.post("/auth/change-password", async (req, res): Promise<void> => {
     userId: updated.id,
     sessionVersion: updated.sessionVersion,
   });
-  setSessionCookie(res, token);
+  setSessionCookie(res, token, "staff");
   const updatedSession = await resolveSession(token);
   if (!updatedSession) {
     clearSessionCookie(res);
