@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { evolutionInstanceStore } from "./evolution-instance-repository";
+import { pairingCodeFromResponse, qrCodeFromResponse } from "./evolution-qr";
 import { logger } from "./logger";
 
 type EvolutionConfig = {
@@ -97,19 +98,6 @@ export const getEvolutionConfig = async (): Promise<EvolutionConfig | null> => {
   if (!baseUrl || !apiKey) return null;
   const instance = await evolutionInstanceStore.getSelectedInstance();
   return { baseUrl, instance, apiKey };
-};
-
-const qrCodeFromResponse = (body: Record<string, unknown>): string | null => {
-  const qr = body.qrcode as Record<string, unknown> | undefined;
-  const value = qr?.base64 ?? qr?.base64Image ?? body.base64;
-  if (typeof value !== "string" || !value) return null;
-  return value.startsWith("data:image") ? value : `data:image/png;base64,${value}`;
-};
-
-const pairingCodeFromResponse = (body: Record<string, unknown>): string | null => {
-  const qr = body.qrcode as Record<string, unknown> | undefined;
-  const value = qr?.pairingCode ?? body.pairingCode;
-  return typeof value === "string" && value ? value : null;
 };
 
 const getEvolutionWebhookUrl = () => {
@@ -223,16 +211,25 @@ export const connectEvolutionInstance = async () => {
       body.state ??
       (qrCode ? "qr_pending" : "created"),
     );
+    const connected = ["open", "connected"].includes(status.toLowerCase());
+    if (!connected && !qrCode && !pairingCode) {
+      logger.warn(
+        { instance, state: status, responseKeys: Object.keys(body).sort() },
+        "[Evolution] Resposta de conexão sem QR Code válido ou código de pareamento",
+      );
+    }
     return {
       created: !config.instance,
       instance,
-      connected: ["open", "connected"].includes(status.toLowerCase()),
+      connected,
       state: status,
-      message: qrCode
-        ? "QR Code gerado. Escaneie com o WhatsApp."
-        : pairingCode
-          ? "Código de pareamento gerado."
-          : "A Evolution API não retornou o QR Code. Tente gerar novamente.",
+      message: connected
+        ? "WhatsApp já conectado."
+        : qrCode
+          ? "QR Code gerado. Escaneie com o WhatsApp."
+          : pairingCode
+            ? "Código de pareamento gerado."
+            : "A Evolution API não retornou um QR Code válido. Tente gerar novamente.",
       qrCode,
       pairingCode,
     };

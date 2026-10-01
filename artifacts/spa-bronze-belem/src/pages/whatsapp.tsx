@@ -65,12 +65,18 @@ const DEFAULT_BUSINESS_HOURS = [
 export function WhatsApp() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [qrImageFailed, setQrImageFailed] = useState(false);
 
   const { data: config, isLoading: isConfigLoading } = useGetAiAgentConfig();
   const updateConfig = useUpdateAiAgentConfig();
   const testAgent = useTestAiAgent();
   const { data: whatsappConnection, isLoading: isConnectionLoading } = useGetWhatsappConnection({
-    query: { queryKey: getGetWhatsappConnectionQueryKey(), refetchInterval: 30_000 },
+    query: {
+      queryKey: getGetWhatsappConnectionQueryKey(),
+      refetchInterval: qrCode || pairingCode ? 5_000 : 30_000,
+    },
   });
   const connectWhatsapp = useConnectWhatsapp();
   const disconnectWhatsapp = useDisconnectWhatsapp();
@@ -106,7 +112,6 @@ export function WhatsApp() {
     followUp30m: true,
     timezone: 'America/Belem',
   });
-  const [qrCode, setQrCode] = useState<string | null>(null);
   const [selectedPhone, setSelectedPhone] = useState('');
   const [manualReply, setManualReply] = useState('');
 
@@ -169,14 +174,24 @@ export function WhatsApp() {
       {
         onSuccess: (data) => {
           queryClient.invalidateQueries({ queryKey: getGetWhatsappConnectionQueryKey() });
-          if (data.qrCode) setQrCode(data.qrCode);
-          const connectionSucceeded = data.connected || Boolean(data.qrCode);
+          if (data.connected) {
+            setQrCode(null);
+            setPairingCode(null);
+            setQrImageFailed(false);
+          } else if (data.qrCode || data.pairingCode) {
+            setQrCode(data.qrCode);
+            setPairingCode(data.pairingCode);
+            setQrImageFailed(false);
+          }
+          const connectionSucceeded = data.connected || Boolean(data.qrCode || data.pairingCode);
           toast({
             title: data.connected
               ? 'WhatsApp conectado'
               : data.qrCode
                 ? 'QR Code gerado'
-                : 'Não foi possível gerar o QR Code',
+                : data.pairingCode
+                  ? 'Código de pareamento gerado'
+                  : 'QR Code inválido ou indisponível',
             description: data.message,
             variant: connectionSucceeded ? 'default' : 'destructive',
           });
@@ -185,6 +200,17 @@ export function WhatsApp() {
       },
     );
   };
+
+  useEffect(() => {
+    if (!whatsappConnection?.connected || (!qrCode && !pairingCode)) return;
+    setQrCode(null);
+    setPairingCode(null);
+    setQrImageFailed(false);
+    toast({
+      title: 'WhatsApp conectado',
+      description: 'A conexão foi confirmada pela Evolution API.',
+    });
+  }, [whatsappConnection?.connected, qrCode, pairingCode, toast]);
 
   const handleDisconnectWhatsapp = () => {
     if (!whatsappConnection?.instance || disconnectWhatsapp.isPending) return;
@@ -719,7 +745,16 @@ export function WhatsApp() {
         </div>
       </Card>
 
-      <Dialog open={Boolean(qrCode)} onOpenChange={(open) => !open && setQrCode(null)}>
+      <Dialog
+        open={Boolean(qrCode || pairingCode)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setQrCode(null);
+            setPairingCode(null);
+            setQrImageFailed(false);
+          }
+        }}
+      >
         <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Conectar WhatsApp</DialogTitle>
@@ -728,10 +763,43 @@ export function WhatsApp() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-3">
-            {qrCode && <img src={qrCode} alt="QR Code para conectar o WhatsApp" className="aspect-square w-full max-w-64 rounded-2xl border border-border bg-white p-2 object-contain shadow-sm" />}
+            {qrCode && !qrImageFailed && (
+              <img
+                src={qrCode}
+                alt="QR Code para conectar o WhatsApp"
+                onError={() => setQrImageFailed(true)}
+                className="aspect-square w-full max-w-64 rounded-2xl border border-border bg-white p-2 object-contain shadow-sm"
+              />
+            )}
+            {qrImageFailed && (
+              <p role="alert" className="max-w-sm text-center text-sm text-destructive">
+                O WhatsApp não conseguiu carregar a imagem do QR Code. Gere outro código antes de tentar novamente.
+              </p>
+            )}
+            {pairingCode && (
+              <div className="w-full rounded-xl border border-border bg-surface/70 p-4 text-center">
+                <p className="text-xs text-text-muted">Código de pareamento alternativo</p>
+                <p className="mt-1 font-mono text-xl font-bold tracking-wider text-text-primary">{pairingCode}</p>
+                <p className="mt-2 text-xs leading-relaxed text-text-secondary">
+                  Se preferir, use a opção de conectar com número de telefone em Aparelhos conectados.
+                </p>
+              </div>
+            )}
             <p className="text-xs text-center text-text-muted">
-              Depois de escanear, esta janela pode levar alguns segundos para atualizar o status da conexão.
+              O status é verificado automaticamente. Se o QR Code expirar ou não for aceito, atualize-o e tente novamente.
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleConnectWhatsapp}
+              disabled={connectWhatsapp.isPending || disconnectWhatsapp.isPending}
+              className="w-full"
+            >
+              {connectWhatsapp.isPending
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : <RefreshCw className="mr-2 h-4 w-4" />}
+              Atualizar QR Code
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

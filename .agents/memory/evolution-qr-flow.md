@@ -5,6 +5,8 @@ description: Provider behavior and connection UX for WhatsApp onboarding.
 
 The onboarding flow should create an Evolution instance and present its returned QR Code instead of asking users to choose an existing instance. The connection state may remain `connecting` while the QR is waiting to be scanned.
 
+Validate provider QR responses as image data before presenting them: normalize supported base64 envelopes, check the decoded image signature, and let the browser report image decode failures. Surface a returned pairing code as an alternative, refresh the connection state while the dialog is open, and provide an explicit refresh action. Avoid timer-driven calls to the connect endpoint because provider versions can differ and a new QR may invalidate the one currently being scanned.
+
 **Why:** The account can contain several unrelated instances, so selecting from a shared list is ambiguous and does not match the intended operator workflow.
 
-**How to apply:** Keep the provider API key server-side, create a generated instance name per connection, show the QR returned by `instance/create`, and treat `connecting` as a normal pending state rather than an error.
+**How to apply:** Keep the provider API key server-side, create a generated instance name per connection, show only a valid image returned by `instance/create` or `instance/connect`, and treat `connecting` as a normal pending state rather than an error. Never log QR contents or pairing codes.
