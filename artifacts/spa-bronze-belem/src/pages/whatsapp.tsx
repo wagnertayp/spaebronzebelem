@@ -62,8 +62,6 @@ const DEFAULT_BUSINESS_HOURS = [
   'domingo: 07:30–11:30',
 ].join('\n');
 
-const QR_REFRESH_INTERVAL_MS = 15_000;
-
 export function WhatsApp() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -221,55 +219,6 @@ export function WhatsApp() {
       },
     );
   };
-
-  useEffect(() => {
-    if ((!qrCode && !pairingCode) || whatsappConnection?.connected) return;
-
-    const intervalId = window.setInterval(() => {
-      if (qrRefreshInFlight.current || isConnectPending) return;
-      qrRefreshInFlight.current = true;
-      const requestVersion = qrRequestVersion.current;
-      requestWhatsappQr(undefined, {
-        onSuccess: (data) => {
-          if (requestVersion !== qrRequestVersion.current) return;
-          queryClient.invalidateQueries({ queryKey: getGetWhatsappConnectionQueryKey() });
-          if (data.connected) {
-            setQrCode(null);
-            setPairingCode(null);
-            setQrImageFailed(false);
-            setQrRefreshFailed(false);
-            toast({
-              title: 'WhatsApp conectado',
-              description: 'A conexão foi confirmada pela Evolution API.',
-            });
-          } else if (data.qrCode || data.pairingCode) {
-            setQrCode(data.qrCode);
-            setPairingCode(data.pairingCode);
-            setQrImageFailed(false);
-            setQrRefreshFailed(false);
-          } else {
-            setQrRefreshFailed(true);
-          }
-        },
-        onError: () => {
-          if (requestVersion === qrRequestVersion.current) setQrRefreshFailed(true);
-        },
-        onSettled: () => {
-          qrRefreshInFlight.current = false;
-        },
-      });
-    }, QR_REFRESH_INTERVAL_MS);
-
-    return () => window.clearInterval(intervalId);
-  }, [
-    qrCode,
-    pairingCode,
-    whatsappConnection?.connected,
-    isConnectPending,
-    queryClient,
-    requestWhatsappQr,
-    toast,
-  ]);
 
   useEffect(() => {
     if (!whatsappConnection?.connected || (!qrCode && !pairingCode)) return;
@@ -851,7 +800,7 @@ export function WhatsApp() {
             )}
             {qrRefreshFailed && (
               <p role="status" className="max-w-sm text-center text-sm text-warning">
-                Não foi possível renovar o QR Code. Tente atualizar manualmente antes de escanear.
+                Não foi possível gerar outro QR Code. O atual continua na tela; tente novamente se necessário.
               </p>
             )}
             {pairingCode && (
@@ -864,7 +813,7 @@ export function WhatsApp() {
               </div>
             )}
             <p className="text-xs text-center text-text-muted">
-              O status é verificado automaticamente. Se o QR Code expirar ou não for aceito, atualize-o e tente novamente.
+              O QR Code não será trocado automaticamente. O status é verificado automaticamente; se o QR expirar, use o botão para gerar outro.
             </p>
             <Button
               type="button"
