@@ -109,14 +109,17 @@ const getEvolutionWebhookUrl = () => {
   return devDomain ? `https://${devDomain}/api/integrations/evolution/webhook` : null;
 };
 
-export const configureEvolutionWebhook = async (instance: string) => {
+export const configureEvolutionWebhook = async (
+  instance: string,
+  { force = false }: { force?: boolean } = {},
+) => {
   const config = await getEvolutionConfig();
   const webhookUrl = getEvolutionWebhookUrl();
   if (!config) return false;
   if (!webhookUrl) {
     if (warnedMissingWebhookInstance !== instance) {
       logger.warn(
-        { instance, production: process.env["NODE_ENV"] === "production" },
+        { production: process.env["NODE_ENV"] === "production" },
         "[Evolution] EVOLUTION_WEBHOOK_URL não configurada; mensagens recebidas não chegarão ao agente",
       );
       warnedMissingWebhookInstance = instance;
@@ -124,7 +127,7 @@ export const configureEvolutionWebhook = async (instance: string) => {
     return false;
   }
   warnedMissingWebhookInstance = null;
-  if (configuredWebhookInstance === instance) return true;
+  if (!force && configuredWebhookInstance === instance) return true;
 
   try {
     const response = await fetch(`${config.baseUrl}/webhook/set/${encodeURIComponent(instance)}`, {
@@ -152,6 +155,7 @@ export const configureEvolutionWebhook = async (instance: string) => {
       return false;
     }
     configuredWebhookInstance = instance;
+    logger.info({ webhookEnabled: true }, "[Evolution] Webhook de mensagens configurado");
     return true;
   } catch (error) {
     logger.warn(
@@ -217,6 +221,7 @@ export const connectEvolutionInstance = async () => {
     }
 
     await evolutionInstanceStore.setSelectedInstance(instance);
+    const webhookReady = await configureEvolutionWebhook(instance, { force: true });
     const qrCode = qrCodeFromResponse(body);
     const pairingCode = pairingCodeFromResponse(body);
     const status = String(
@@ -225,6 +230,13 @@ export const connectEvolutionInstance = async () => {
       (qrCode ? "qr_pending" : "created"),
     );
     const connected = ["open", "connected"].includes(status.toLowerCase());
+    const connectionMessage = connected
+      ? "WhatsApp já conectado."
+      : qrCode
+        ? "QR Code gerado. Escaneie com o WhatsApp."
+        : pairingCode
+          ? "Código de pareamento gerado."
+          : "A Evolution API não retornou um QR Code válido. Tente gerar novamente.";
     if (!connected && !qrCode && !pairingCode) {
       logger.warn(
         { instance, state: status, responseKeys: Object.keys(body).sort() },
@@ -236,13 +248,9 @@ export const connectEvolutionInstance = async () => {
       instance,
       connected,
       state: status,
-      message: connected
-        ? "WhatsApp já conectado."
-        : qrCode
-          ? "QR Code gerado. Escaneie com o WhatsApp."
-          : pairingCode
-            ? "Código de pareamento gerado."
-            : "A Evolution API não retornou um QR Code válido. Tente gerar novamente.",
+      message: webhookReady
+        ? connectionMessage
+        : `${connectionMessage} Atenção: o webhook de mensagens não foi configurado; a IA não receberá novas mensagens.`,
       qrCode,
       pairingCode,
     };
@@ -789,12 +797,19 @@ export const getEvolutionConnection = async ({
         }
         const nested = match.instance as Record<string, unknown> | undefined;
         const state = String(match.connectionStatus ?? nested?.connectionStatus ?? nested?.state ?? "unknown");
+        const connected = ["open", "connected"].includes(state.toLowerCase());
+        const webhookReady =
+          connected && configureWebhook
+            ? await configureEvolutionWebhook(config.instance)
+            : null;
         return {
           configured: true,
-          connected: ["open", "connected"].includes(state.toLowerCase()),
+          connected,
           instance: config.instance,
           state,
-          message: `Status do WhatsApp: ${state}`,
+          message: connected && webhookReady === false
+            ? "WhatsApp conectado, mas o webhook de mensagens não está configurado. A IA não receberá novas mensagens."
+            : `Status do WhatsApp: ${state}`,
         };
       }
     }
