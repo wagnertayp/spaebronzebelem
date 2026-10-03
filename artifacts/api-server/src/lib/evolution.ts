@@ -27,6 +27,7 @@ export type EvolutionInstance = {
 };
 
 let configuredWebhookInstance: string | null = null;
+let warnedMissingWebhookInstance: string | null = null;
 
 export type EvolutionSendResult = {
   ok: boolean;
@@ -111,7 +112,19 @@ const getEvolutionWebhookUrl = () => {
 export const configureEvolutionWebhook = async (instance: string) => {
   const config = await getEvolutionConfig();
   const webhookUrl = getEvolutionWebhookUrl();
-  if (!config || !webhookUrl || configuredWebhookInstance === instance) return false;
+  if (!config) return false;
+  if (!webhookUrl) {
+    if (warnedMissingWebhookInstance !== instance) {
+      logger.warn(
+        { instance, production: process.env["NODE_ENV"] === "production" },
+        "[Evolution] EVOLUTION_WEBHOOK_URL não configurada; mensagens recebidas não chegarão ao agente",
+      );
+      warnedMissingWebhookInstance = instance;
+    }
+    return false;
+  }
+  warnedMissingWebhookInstance = null;
+  if (configuredWebhookInstance === instance) return true;
 
   try {
     const response = await fetch(`${config.baseUrl}/webhook/set/${encodeURIComponent(instance)}`, {
@@ -791,14 +804,19 @@ export const getEvolutionConnection = async ({
       (response.ok ? "unknown" : `http_${response.status}`),
     );
     const connected = response.ok && ["open", "connected"].includes(state.toLowerCase());
-    if (connected && configureWebhook) await configureEvolutionWebhook(config.instance);
+    const webhookReady =
+      connected && configureWebhook
+        ? await configureEvolutionWebhook(config.instance)
+        : null;
     return {
       configured: true,
       connected,
       instance: config.instance,
       state,
       message: connected
-        ? "WhatsApp conectado"
+        ? webhookReady === false
+          ? "WhatsApp conectado, mas o webhook de mensagens não está configurado. A IA não receberá novas mensagens."
+          : "WhatsApp conectado"
         : response.ok && ["connecting", "qr_pending", "created"].includes(state.toLowerCase())
           ? "Aguardando leitura do QR Code"
         : response.status === 401 || response.status === 403

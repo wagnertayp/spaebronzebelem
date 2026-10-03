@@ -3348,10 +3348,19 @@ router.post("/whatsapp/appointments/:id/confirmation", async (req, res) => {
 });
 
 router.post("/integrations/evolution/webhook", async (req, res) => {
-  await loadWhatsappSettings();
   const body = ReceiveEvolutionWebhookBody.parse(req.body);
   const data = (body["data"] as Record<string, unknown> | undefined) ?? body;
   const key = (data["key"] as Record<string, unknown> | undefined) ?? {};
+  req.log.info(
+    {
+      event: typeof body["event"] === "string" ? body["event"] : null,
+      fromMe: key["fromMe"] === true,
+      hasRemoteJid: typeof key["remoteJid"] === "string",
+      hasMessageId: typeof key["id"] === "string",
+    },
+    "Evolution webhook received",
+  );
+  await loadWhatsappSettings();
   if (key["fromMe"] === true) {
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_from_me" }));
   }
@@ -3561,6 +3570,10 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "cancelled" }));
   }
   if (!aiAgentConfig.active) {
+    req.log.warn(
+      { aiAgentActive: false },
+      "WhatsApp message received but the AI agent is inactive",
+    );
     return void res.json(ReceiveEvolutionWebhookResponse.parse({
       received: true,
       action: "automation_disabled",
