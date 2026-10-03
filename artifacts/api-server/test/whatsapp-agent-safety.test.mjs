@@ -54,11 +54,14 @@ test("recognizes Spa Infantil questions, including the common spelling in chat",
 });
 
 test("does not infer an unsolicited bronze clip and attempts an approved clip only once", () => {
-  assert.equal(resolveRequestedWhatsappAudioClip(null, "bronze"), null);
+  const inferredBronzeClip = resolveRequestedWhatsappAudioClip(null, "bronze");
+  assert.equal(inferredBronzeClip, null);
+  assert.equal(shouldSendBronzeAudio(inferredBronzeClip === "bronze", false), false);
   assert.equal(resolveRequestedWhatsappAudioClip(null, "combos"), "combos");
-  assert.equal(resolveRequestedWhatsappAudioClip("bronze", "bronze"), "bronze");
-  assert.equal(shouldSendBronzeAudio(true, false), true);
-  assert.equal(shouldSendBronzeAudio(true, true), false);
+  const selectedBronzeClip = resolveRequestedWhatsappAudioClip("bronze", "bronze");
+  assert.equal(selectedBronzeClip, "bronze");
+  assert.equal(shouldSendBronzeAudio(selectedBronzeClip === "bronze", false), true);
+  assert.equal(shouldSendBronzeAudio(selectedBronzeClip === "bronze", true), false);
   assert.equal(shouldSendBronzeAudio(false, false), false);
   assert.equal(shouldSendBronzeAudio(true, false, true), false);
   assert.match(bronzeMethodDifferenceReply, /exposição solar/i);
