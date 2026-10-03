@@ -2,11 +2,26 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   bookingFitsScheduleIntervals,
+  formatWhatsappBookingSlotChoices,
   getWhatsappBookingMessageSignals,
   mergeWhatsappBookingDraft,
   normalizeLocalBookingDate,
   normalizeLocalBookingTime,
 } from "../src/lib/whatsapp-booking.ts";
+
+test("groups offered times by professional instead of repeating each name", () => {
+  const choices = formatWhatsappBookingSlotChoices([
+    { time: "07:30", professional: "Gabriela Silva" },
+    { time: "08:00", professional: "Gabriela Silva" },
+    { time: "08:30", professional: "Gabriela Silva" },
+    { time: "09:00", professional: "Paula Costa" },
+  ], (time) => time);
+
+  assert.equal(
+    choices,
+    "com Gabriela Silva: 07:30, 08:00, 08:30; com Paula Costa: 09:00",
+  );
+});
 
 test("resolve relative dates in the configured local calendar", () => {
   assert.equal(normalizeLocalBookingDate("amanhã", "2026-10-03"), "2026-10-04");

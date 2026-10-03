@@ -22,6 +22,22 @@ export type WhatsappScheduleInterval = {
   end: string;
 };
 
+export const formatWhatsappBookingSlotChoices = (
+  slots: Array<{ time: string; professional: string }>,
+  formatTime: (time: string) => string,
+) => {
+  const byProfessional = new Map<string, string[]>();
+  for (const slot of slots) {
+    const times = byProfessional.get(slot.professional) ?? [];
+    times.push(formatTime(slot.time));
+    byProfessional.set(slot.professional, times);
+  }
+
+  return [...byProfessional]
+    .map(([professional, times]) => `com ${professional}: ${times.join(", ")}`)
+    .join("; ");
+};
+
 const normalizeText = (value: string) =>
   value
     .trim()

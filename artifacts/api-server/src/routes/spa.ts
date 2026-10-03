@@ -163,6 +163,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import {
   bookingFitsScheduleIntervals,
+  formatWhatsappBookingSlotChoices,
   getWhatsappBookingMessageSignals,
   mergeWhatsappBookingDraft,
   normalizeLocalBookingDate,
@@ -1501,7 +1502,13 @@ TENTATIVA DE ENVIO DO ÁUDIO DE BRONZE JÁ REGISTRADA NESTA CONVERSA:
 ${bronzeAudioAlreadyAttempted ? "Sim" : "Não"}
 HORÁRIOS QUE O SISTEMA VALIDOU COMO LIVRES:
 ${availableSlots.length
-  ? availableSlots.slice(0, 6).map((slot) => `${slot.start} | ${slot.professional}`).join("\n")
+  ? formatWhatsappBookingSlotChoices(
+      availableSlots.slice(0, 6).map((slot) => ({
+        time: slot.start.slice(11, 16),
+        professional: slot.professional,
+      })),
+      (time) => time,
+    )
   : "Nenhum horário disponível para os dados atuais."}
 AGENDA ATUAL:
 ${getFutureAgendaContext()}
@@ -1527,6 +1534,7 @@ REGRAS OBRIGATÓRIAS:
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
 - Para agendar, leia o histórico e o rascunho salvo antes de responder. Preserve serviço, data, horário e preferência profissional já informados; pergunte apenas o próximo dado que realmente faltar. Nunca reinicie a coleta nem peça de novo um dado que a cliente já forneceu.
+- Ao oferecer horários, agrupe-os por profissional e mencione cada nome uma única vez (por exemplo, “com Gabriela: 7h30, 8h e 8h30”); não repita o mesmo nome após cada horário.
 - O Spa Infantil atende crianças de 2 a 10 anos; é um banho à base de hidratante e açúcar, sem chumbo ou amônia. Ao perguntarem, explique isso e depois encaminhe para uma atendente. Não afirme que é “sem química” nem invente garantias de segurança.
 - Retorne bookingUpdate cumulativo quando a cliente iniciar ou continuar um agendamento. Use exatamente um serviço cadastrado; date deve ser AAAA-MM-DD no fuso local; time deve ser HH:mm; professional só deve conter um profissional ativo explicitamente escolhido. Se um dado não mudou, mantenha o valor salvo na resposta cumulativa; use null somente se ainda não foi informado ou se foi removido explicitamente.
 - Use bookingUpdate somente se a mensagem atual iniciar, continuar ou cancelar um agendamento. Se a cliente falar de outro assunto, retorne null e responda ao assunto atual sem reabrir o agendamento.
@@ -1768,10 +1776,14 @@ const whatsappBookingSlotsReply = (
   slots: AppointmentSlotCandidate[],
   prefix = "",
 ) => {
-  const choices = slots.slice(0, 6)
-    .map((slot) => `${formatBookingTime(slot.start.slice(11, 16))} com ${slot.professional}`)
-    .join(", ");
-  return `${prefix ? `${prefix} ` : ""}Para ${service} em ${formatBookingDate(date)}, tenho ${choices}. Qual horário você prefere? 🤎`;
+  const choices = formatWhatsappBookingSlotChoices(
+    slots.slice(0, 6).map((slot) => ({
+      time: slot.start.slice(11, 16),
+      professional: slot.professional,
+    })),
+    formatBookingTime,
+  );
+  return `${prefix ? `${prefix} ` : ""}Para ${service} em ${formatBookingDate(date)}, tenho horários ${choices}. Qual horário você prefere? 🤎`;
 };
 
 const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) => {
