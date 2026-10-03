@@ -10,8 +10,10 @@ export const mentionsPregnancy = (value: string) =>
     normalizeSafetyText(value),
   );
 
-export const isTanningService = (value: string) =>
-  /\b(?:bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizeSafetyText(value));
+export const isTanningService = (value: string, category = "") =>
+  /\b(?:bronze(?:amento|adas?)?|marquinhas?)\b/.test(
+    normalizeSafetyText(`${value} ${category}`),
+  );
 
 export const pregnancyTanningRefusal =
   "Por cuidado, não realizamos bronzeamento durante a gravidez. Se quiser, posso te informar sobre outros serviços, sem avaliar se são indicados para você. 🤎";

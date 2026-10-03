@@ -1289,7 +1289,9 @@ const askWhatsappAgent = async (
   text: string,
   isFirstClientMessage = false,
   currentInput: WhatsappAgentInput = `Cliente: ${clientName}\nMensagem: ${text}`,
+  conversationHistory?: Awaited<ReturnType<typeof getConversationHistory>>,
 ): Promise<AgentDecision> => {
+  const history = conversationHistory ?? await getConversationHistory(phone);
   const serviceTable = activeSpaRecords("service", services)
     .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
     .join("\n");
@@ -1370,7 +1372,7 @@ REGRAS OBRIGATÓRIAS:
 ou, quando houver agendamento confirmado:
  {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":{"clientName":"nome informado","service":"nome exato do serviço","professional":"","start":"AAAA-MM-DDTHH:mm","confirmed":true}}. Se a cliente informou o nome, retorne-o como string em clientName; caso contrário, mantenha null.`,
       },
-      ...(await getConversationHistory(phone)).slice(0, -1),
+      ...history.slice(0, -1),
       { role: "user", content: currentInput },
     ],
   }, {
@@ -3769,12 +3771,14 @@ const processWhatsappWebhookPayload = async (
   }
 
   try {
+    const conversationHistory = await getConversationHistory(phone);
     const decision = await askWhatsappAgent(
       phone,
       knownClientName,
       text,
       isFirstClientMessage,
       currentInput,
+      conversationHistory,
     );
     await saveWhatsappClientName(
       phone,
@@ -3782,10 +3786,18 @@ const processWhatsappWebhookPayload = async (
     );
     const replyClientName = (await getWhatsappConversation(phone))?.clientName ?? knownClientName;
     let createdAppointment: Appointment | null = null;
+    const requestedService = decision.appointment
+      ? services.find((service) =>
+          normalizeCatalogLabel(service.name) ===
+          normalizeCatalogLabel(decision.appointment!.service),
+        )
+      : undefined;
     if (
       decision.appointment &&
-      mentionsPregnancy(text) &&
-      isTanningService(decision.appointment.service)
+      conversationHistory.some((message) =>
+        message.role === "user" && mentionsPregnancy(message.content),
+      ) &&
+      isTanningService(decision.appointment.service, requestedService?.category)
     ) {
       ensureWhatsappDelivery(await sendWhatsappAgentReply(
         phone,
