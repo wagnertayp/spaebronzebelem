@@ -3,11 +3,13 @@
 - [WhatsApp PTT audio](whatsapp-ptt-audio.md) — Evolution’s voice-audio endpoint marks the chat as recording and converts source audio to Opus for voice-note delivery.
 - [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
 - [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own the greeting; server-side prefixes can duplicate it.
+- [WhatsApp agent availability](whatsapp-agent-availability.md) — user requirement: the WhatsApp AI agent must not stop, for any reason.
 - [WhatsApp PDF assets](whatsapp-pdf-assets.md) — API workflow runs below the workspace root, so document lookup needs an asset-path fallback.
 - [Human handoff rule](human-handoff-rule.md) — keep the AI in the conversation unless the client explicitly asks for a human.
 - [WhatsApp webhook reliability](whatsapp-webhook-idempotency.md) — dedupe and validate bookings, bound AI calls below Heroku's 30-second limit, and use a durable inbox for crash-safe processing.
 - [OpenAPI date codegen](openapi-date-codegen.md) — date-formatted strings can become `Date` in generated Zod types but stay strings in the React client.
 - [Drizzle migration generation](drizzle-migration-generation.md) — keep a package-relative `out` in config; this version rejects extra generate flags with `--config`.
+- [Legacy dev migration state](legacy-dev-migration-state.md) — this workspace's existing tables are not tracked in the Drizzle ledger; don't replay migrations blindly.
 - [Auth session caching](auth-session-cache.md) — prevent conditional 304s and premature login redirects while the session is being restored.
 - [Financial import dates](financial-import-dates.md) — customer lifetime totals and product expiry dates cannot populate a date-based monthly ledger.
 - [Client deduplication totals](client-deduplication-totals.md) — keep duplicate matching conservative; compare summed currency in cents to avoid binary-float drift.

@@ -75,7 +75,11 @@ export function WhatsApp() {
   const qrRefreshInFlight = useRef(false);
   const qrRequestVersion = useRef(0);
 
-  const { data: config, isLoading: isConfigLoading } = useGetAiAgentConfig();
+  const {
+    data: config,
+    isLoading: isConfigLoading,
+    isError: isConfigError,
+  } = useGetAiAgentConfig();
   const updateConfig = useUpdateAiAgentConfig();
   const testAgent = useTestAiAgent();
   const { data: whatsappConnection, isLoading: isConnectionLoading } = useGetWhatsappConnection({
@@ -108,7 +112,13 @@ export function WhatsApp() {
   const updateWhatsappConversation = useUpdateWhatsappConversation();
   const archiveRecords = useManageArchivedRecords();
   
-  const { data: services = [], isLoading: isServicesLoading } = useListServices();
+  const {
+    data: services = [],
+    isLoading: isServicesLoading,
+    isError: isServicesError,
+  } = useListServices();
+  const agentStatusKnown = Boolean(config) && !isConfigLoading && !isConfigError;
+  const agentIsActive = agentStatusKnown && Boolean(config?.active);
   const createService = useCreateService();
   const updateService = useUpdateService();
   const conversationArchiveSelection = useBulkArchiveSelection({
@@ -488,19 +498,33 @@ export function WhatsApp() {
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">Status do agente</p>
               <p data-testid="status-ai-agent" className="mt-2 text-xl font-semibold tracking-tight text-text-primary">
-                {formData.active ? 'Ativo' : 'Inativo'}
+                {isConfigLoading
+                  ? 'Verificando...'
+                  : !agentStatusKnown
+                    ? 'Indisponível'
+                    : config?.active
+                      ? 'Ativo'
+                      : 'Inativo'}
               </p>
             </div>
             <span className={cn(
               "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset",
-              formData.active ? "bg-success/10 text-success ring-success/10" : "bg-surface-soft text-text-secondary ring-border/60",
+              agentIsActive ? "bg-success/10 text-success ring-success/10" : "bg-surface-soft text-text-secondary ring-border/60",
             )}>
               <Bot className="h-5 w-5" strokeWidth={1.8} />
             </span>
           </div>
           <div className="relative mt-5 flex items-center gap-2 border-t border-border/70 pt-3.5 text-xs font-medium text-text-muted">
-            <span className={cn("h-2 w-2 rounded-full", formData.active ? "bg-success" : "bg-text-muted/50")} />
-            <span>{formData.active ? 'Agente pronto para atender' : 'Respostas automáticas pausadas'}</span>
+            <span className={cn("h-2 w-2 rounded-full", agentIsActive ? "bg-success" : "bg-text-muted/50")} />
+            <span>
+              {isConfigLoading
+                ? 'Consultando a configuração do agente'
+                : !agentStatusKnown
+                  ? 'Não foi possível verificar o status atual'
+                  : config?.active
+                    ? 'Agente pronto para atender'
+                    : 'Respostas automáticas pausadas'}
+            </span>
           </div>
         </Card>
 
@@ -510,7 +534,11 @@ export function WhatsApp() {
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">Base de conhecimento</p>
               <p data-testid="text-service-count" className="mt-2 text-xl font-semibold tracking-tight text-text-primary">
-                {isServicesLoading ? 'Carregando...' : `${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`}
+                {isServicesLoading
+                  ? 'Carregando...'
+                  : isServicesError
+                    ? 'Indisponível'
+                    : `${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`}
               </p>
             </div>
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/10">
@@ -519,7 +547,15 @@ export function WhatsApp() {
           </div>
           <div className="relative mt-5 flex items-center gap-2 border-t border-border/70 pt-3.5 text-xs font-medium text-text-muted">
             <Database className="h-3.5 w-3.5 text-primary" />
-            <span>{services.length ? 'Conteúdo disponível para o agente' : 'Cadastre serviços para o agente'}</span>
+            <span>
+              {isServicesLoading
+                ? 'Consultando serviços'
+                : isServicesError
+                  ? 'Não foi possível verificar o catálogo'
+                  : services.length
+                    ? 'Conteúdo disponível para o agente'
+                    : 'Cadastre serviços para o agente'}
+            </span>
           </div>
         </Card>
 
@@ -962,6 +998,13 @@ export function WhatsApp() {
               <div className="flex items-center justify-center h-64 text-text-muted">
                 <Loader2 className="w-8 h-8 animate-spin" />
               </div>
+            ) : isConfigError || !config ? (
+              <div
+                role="alert"
+                className="rounded-xl border border-border bg-surface-soft p-4 text-sm text-text-secondary"
+              >
+                Não foi possível consultar a configuração. O status real do agente é desconhecido; tente novamente antes de alterar as opções.
+              </div>
             ) : (
               <>
                 <Card className="p-6 space-y-6">
@@ -1161,6 +1204,12 @@ export function WhatsApp() {
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center text-text-muted">
                           <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                        </td>
+                      </tr>
+                    ) : isServicesError ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-text-muted">
+                          Não foi possível carregar o catálogo. Tente novamente; isso não significa que os serviços foram apagados.
                         </td>
                       </tr>
                     ) : services.length === 0 ? (

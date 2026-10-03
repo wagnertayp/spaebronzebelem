@@ -29,6 +29,13 @@
       "when": 1790739439322,
       "tag": "0003_unusual_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791035530082,
+      "tag": "0004_chief_hellion",
+      "breakpoints": true
     }
   ]
 }

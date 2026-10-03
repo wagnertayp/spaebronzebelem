@@ -156,7 +156,7 @@ import {
   whatsappMessagesTable,
   whatsappSettingsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gt, inArray, lte, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lte, ne, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
@@ -198,6 +198,12 @@ import {
   sendEvolutionText,
   type WhatsappDocument,
 } from "../lib/evolution";
+import {
+  enqueueWhatsappWebhook,
+  makeWhatsappWebhookEventKey,
+  startWhatsappWebhookInboxWorker,
+  type WhatsappWebhookPayload,
+} from "../lib/whatsapp-webhook-inbox";
 
 const router: IRouter = Router();
 
@@ -254,7 +260,6 @@ type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.
 type WhatsappConversationStatus = WhatsappConversation["status"];
 const OPENAI_TEXT_MODEL = process.env["OPENAI_API_KEY"] ? "gpt-5.4" : "gpt-5.6-luna";
 const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
-const processingWhatsappWebhookMessageIds = new Set<string>();
 
 const reactionForWhatsappMessage = (providerMessageId: string, text: string) => {
   const source = `${providerMessageId}:${text}`;
@@ -2283,7 +2288,13 @@ const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
 
 type DashboardOperationalSnapshot = Pick<
   SpaOperationalSnapshot,
-  "appointments" | "professionals" | "clients" | "leads" | "quotes" | "archivedSpaRecords"
+  | "appointments"
+  | "professionals"
+  | "clients"
+  | "leads"
+  | "quotes"
+  | "services"
+  | "archivedSpaRecords"
 >;
 
 const loadDashboardOperationalSnapshot = async (): Promise<DashboardOperationalSnapshot | null> => {
@@ -2303,6 +2314,7 @@ const loadDashboardOperationalSnapshot = async (): Promise<DashboardOperationalS
     "clients",
     "leads",
     "quotes",
+    "services",
   ] as const;
   const archiveEntries = candidate.archivedSpaRecords ?? [];
   if (
@@ -2327,6 +2339,7 @@ const loadDashboardOperationalSnapshot = async (): Promise<DashboardOperationalS
     clients: candidate.clients as SpaOperationalSnapshot["clients"],
     leads: candidate.leads as SpaOperationalSnapshot["leads"],
     quotes: candidate.quotes as SpaOperationalSnapshot["quotes"],
+    services: candidate.services as SpaOperationalSnapshot["services"],
     archivedSpaRecords: archiveEntries as SpaOperationalSnapshot["archivedSpaRecords"],
   };
 };
@@ -2347,7 +2360,7 @@ const activeDashboardRecords = <T extends { id: number }>(
 const dashboardSnapshotForResponse = (res: Response): DashboardOperationalSnapshot => {
   const snapshot = (res.locals as Record<string, unknown>)["spaOperationalReadSnapshot"];
   if (snapshot && typeof snapshot === "object") return snapshot as DashboardOperationalSnapshot;
-  return { appointments, professionals, clients, leads, quotes, archivedSpaRecords };
+  return { appointments, professionals, clients, leads, quotes, services, archivedSpaRecords };
 };
 
 const restoreSpaOperationalSnapshot = (value: unknown) => {
@@ -2726,13 +2739,64 @@ const acquireSpaOperationalStateWriteLock = async () => {
   return unlock;
 };
 
+const runWithSpaOperationalStateWriteLock = async <T>(
+  action: () => T | Promise<T>,
+): Promise<T> => {
+  await ensureSpaOperationalStateLoaded();
+  const releaseProcessLock = await acquireSpaOperationalStateWriteLock();
+  let releaseDatabaseLock: (() => Promise<void>) | undefined;
+  let before: SpaOperationalSnapshot | null = null;
+  try {
+    releaseDatabaseLock = await acquireSpaOperationalStateLock();
+    await refreshSpaOperationalState();
+    if (spaOperationalStateStore.status !== "ready") {
+      throw new Error("SPA operational state is not ready for a durable update.");
+    }
+
+    before = createSpaOperationalSnapshot();
+    const result = await action();
+    await spaOperationalStateStore.persist();
+    return result;
+  } catch (error) {
+    if (before) restoreSpaOperationalSnapshot(before);
+    throw error;
+  } finally {
+    try {
+      await releaseDatabaseLock?.();
+    } catch (error) {
+      logger.error({ err: error }, "Failed to release SPA operational-state database lock");
+    } finally {
+      releaseProcessLock();
+    }
+  }
+};
+
 const mutatesOperationalState = (req: Request) =>
   !["GET", "HEAD", "OPTIONS"].includes(req.method) ||
   (req.method === "GET" &&
     (req.path.startsWith("/public/quotes/") ||
       /^\/professionals\/\d+\/commission-config$/.test(req.path)));
 
-const dashboardSnapshotPaths = new Set(["/appointments", "/clients", "/leads", "/quotes"]);
+const dashboardSnapshotPaths = new Set([
+  "/appointments",
+  "/clients",
+  "/leads",
+  "/quotes",
+  "/services",
+]);
+const independentWhatsappReadPaths = new Set([
+  "/ai-agent/config",
+  "/whatsapp/automation",
+  "/whatsapp/messages",
+  "/whatsapp/conversations",
+  "/whatsapp/unanswered",
+]);
+const isIndependentWhatsappMutation = (req: Request) =>
+  (req.method === "PUT" &&
+    ["/ai-agent/config", "/whatsapp/automation"].includes(req.path)) ||
+  (req.method === "POST" &&
+    ["/ai-agent/test", "/whatsapp/reply", "/whatsapp/documents"].includes(req.path)) ||
+  (req.method === "PATCH" && /^\/whatsapp\/conversations\/[^/]+$/.test(req.path));
 
 router.use(async (req, res, next) => {
   let releaseProcessLock: (() => void) | undefined;
@@ -2768,6 +2832,42 @@ router.use(async (req, res, next) => {
   // Keep it available while the production snapshot is being initialized.
   if (isWhatsappConnectionManagementRequest) {
     next();
+    return;
+  }
+
+  // Persist Evolution events to the inbox without waiting for SPA initialization or locks.
+  if (req.method === "POST" && req.path === "/integrations/evolution/webhook") {
+    next();
+    return;
+  }
+
+  if (req.method === "GET" && independentWhatsappReadPaths.has(req.path)) {
+    next();
+    return;
+  }
+
+  if (isIndependentWhatsappMutation(req)) {
+    next();
+    return;
+  }
+
+  if (
+    req.method === "POST" &&
+    /^\/whatsapp\/appointments\/\d+\/confirmation$/.test(req.path)
+  ) {
+    try {
+      await ensureSpaOperationalStateLoaded();
+      const snapshot = await loadDashboardOperationalSnapshot();
+      if (!snapshot) {
+        respondStateNotInitialized();
+        return;
+      }
+      (res.locals as Record<string, unknown>)["spaOperationalReadSnapshot"] = snapshot;
+      next();
+    } catch (error) {
+      logger.error({ err: error }, "Could not load the appointment snapshot for WhatsApp confirmation");
+      res.status(503).json({ error: "Não foi possível consultar o agendamento agora." });
+    }
     return;
   }
 
@@ -3382,7 +3482,8 @@ router.post("/whatsapp/documents", async (req, res) => {
 
 router.post("/whatsapp/appointments/:id/confirmation", async (req, res) => {
   const id = Number(req.params.id);
-  const appointment = appointments.find((item) => item.id === id);
+  const snapshot = dashboardSnapshotForResponse(res);
+  const appointment = snapshot.appointments.find((item) => item.id === id);
   if (!appointment) return void res.status(404).json({ error: "Agendamento não encontrado" });
   const message = await sendAppointmentMessage(appointment, "confirmation");
   res.json(SendWhatsappAppointmentConfirmationResponse.parse({
@@ -3391,11 +3492,23 @@ router.post("/whatsapp/appointments/:id/confirmation", async (req, res) => {
   }));
 });
 
-router.post("/integrations/evolution/webhook", async (req, res) => {
-  const body = ReceiveEvolutionWebhookBody.parse(req.body);
+const ensureWhatsappDelivery = <T extends { status: string; error: string | null }>(
+  message: T,
+): T => {
+  if (message.status === "failed") {
+    throw new Error(message.error || "Evolution did not confirm WhatsApp message delivery.");
+  }
+  return message;
+};
+
+const processWhatsappWebhookPayload = async (
+  payload: WhatsappWebhookPayload,
+  log: typeof logger,
+) => {
+  const body = ReceiveEvolutionWebhookBody.parse(payload);
   const data = (body["data"] as Record<string, unknown> | undefined) ?? body;
   const key = (data["key"] as Record<string, unknown> | undefined) ?? {};
-  req.log.info(
+  log.info(
     {
       event: typeof body["event"] === "string" ? body["event"] : null,
       fromMe: key["fromMe"] === true,
@@ -3406,17 +3519,15 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   );
   await loadWhatsappSettings();
   if (key["fromMe"] === true) {
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_from_me" }));
+    return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_from_me" });
   }
   const remoteJid = String(key["remoteJid"] ?? "");
   const phone = remoteJid.split("@")[0];
   const providerMessageId = typeof key["id"] === "string" ? key["id"] : null;
   const normalizedPhone = normalizeWhatsappPhone(phone);
-  const processingKey = providerMessageId && normalizedPhone
-    ? `${normalizedPhone}:${providerMessageId}`
-    : null;
+  let existingInboundMessage: { id: number } | undefined;
   if (providerMessageId && normalizedPhone) {
-    const [existingInboundMessage] = await db
+    [existingInboundMessage] = await db
       .select({ id: whatsappMessagesTable.id })
       .from(whatsappMessagesTable)
       .where(and(
@@ -3424,18 +3535,6 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
         eq(whatsappMessagesTable.direction, "inbound"),
       ))
       .limit(1);
-    if (existingInboundMessage || (processingKey && processingWhatsappWebhookMessageIds.has(processingKey))) {
-      return void res.json(ReceiveEvolutionWebhookResponse.parse({
-        received: true,
-        action: "duplicate_ignored",
-      }));
-    }
-    if (processingKey) {
-      processingWhatsappWebhookMessageIds.add(processingKey);
-      const releaseProcessingKey = () => processingWhatsappWebhookMessageIds.delete(processingKey);
-      res.once("finish", releaseProcessingKey);
-      res.once("close", releaseProcessingKey);
-    }
   }
   const rawMessage = (data["message"] as Record<string, unknown> | undefined) ?? {};
   const contentMessage = unwrapWhatsappMessage(rawMessage);
@@ -3499,9 +3598,8 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   }
 
   if (!phone || (!text && !isAudioMessage && !isImageMessage)) {
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_without_text" }));
+    return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_without_text" });
   }
-  restoreSpaRecord("whatsappConversation", phone);
   if (!currentInput) currentInput = `Cliente: ${phone}\nMensagem: ${text}`;
   const replyReference = providerMessageId
     ? {
@@ -3512,11 +3610,29 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       } satisfies EvolutionReplyReference
     : undefined;
 
-  const client = clients.find((item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone));
-  const appointment = appointments
-    .filter((item) => item.status === "confirmed" && client && normalizeName(item.client) === normalizeName(client.name))
-    .filter((item) => (appointmentDateTimeInAgenda(item.start)?.getTime() ?? Number.MAX_SAFE_INTEGER) > Date.now())
-    .sort((a, b) => (appointmentDateTimeInAgenda(a.start)?.getTime() ?? 0) - (appointmentDateTimeInAgenda(b.start)?.getTime() ?? 0))[0];
+  const { client, appointment } = await runWithSpaOperationalStateWriteLock(() => {
+    restoreSpaRecord("whatsappConversation", phone);
+    const matchedClient = clients.find(
+      (item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone),
+    ) ?? null;
+    const matchedAppointment = appointments
+      .filter((item) =>
+        item.status === "confirmed" &&
+        matchedClient &&
+        normalizeName(item.client) === normalizeName(matchedClient.name),
+      )
+      .filter((item) =>
+        (appointmentDateTimeInAgenda(item.start)?.getTime() ?? Number.MAX_SAFE_INTEGER) > Date.now(),
+      )
+      .sort((a, b) =>
+        (appointmentDateTimeInAgenda(a.start)?.getTime() ?? 0) -
+        (appointmentDateTimeInAgenda(b.start)?.getTime() ?? 0),
+      )[0] ?? null;
+    return {
+      client: matchedClient ? clone(matchedClient) : null,
+      appointment: matchedAppointment ? clone(matchedAppointment) : null,
+    };
+  });
   const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const [previousInboundMessage] = await db
     .select({ id: whatsappMessagesTable.id })
@@ -3524,20 +3640,25 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     .where(and(
       eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
       eq(whatsappMessagesTable.direction, "inbound"),
+      providerMessageId
+        ? ne(whatsappMessagesTable.providerMessageId, providerMessageId)
+        : undefined,
     ))
     .limit(1);
   const isFirstClientMessage = !previousInboundMessage;
-  await addWhatsappMessage({
-    direction: "inbound",
-    phone: normalizeWhatsappPhone(phone),
-    clientName: client?.name ?? phone,
-    appointmentId: appointment?.id ?? null,
-    text,
-    status: "received",
-    kind: "reply",
-    providerMessageId,
-    error: null,
-  });
+  if (!existingInboundMessage) {
+    await addWhatsappMessage({
+      direction: "inbound",
+      phone: normalizeWhatsappPhone(phone),
+      clientName: client?.name ?? phone,
+      appointmentId: appointment?.id ?? null,
+      text,
+      status: "received",
+      kind: "reply",
+      providerMessageId,
+      error: null,
+    });
+  }
   const conversation = await getWhatsappConversation(phone);
   if (conversation) await cancelPendingWhatsappFollowUps(conversation.id);
   const knownClientName = client?.name ?? (
@@ -3577,21 +3698,21 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
   if (asksForHuman) {
     await setWhatsappConversationStatus(phone, "human");
-    await sendWhatsappReply(
+    ensureWhatsappDelivery(await sendWhatsappReply(
       phone,
       knownClientName,
       appointment?.id ?? null,
       "Combinado. Vou encaminhar você para uma atendente continuar o atendimento.",
       "handoff",
       replyReference,
-    );
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" }));
+    ));
+    return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" });
   }
   if (conversation?.status !== "agent") {
     await setWhatsappConversationStatus(phone, "agent");
   }
   if (mediaError) {
-    await sendWhatsappAgentReply(
+    ensureWhatsappDelivery(await sendWhatsappAgentReply(
       phone,
       knownClientName,
       appointment?.id ?? null,
@@ -3599,29 +3720,46 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
         ? "Não consegui ouvir esse áudio. Pode enviar novamente ou escrever a mensagem, por favor? 🤎"
         : "Não consegui abrir essa imagem agora. Pode enviar novamente, por favor? 🤎",
       replyReference,
-    );
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
+    ));
+    return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
   }
 
   if (appointment && normalizedText.includes("confirm")) {
-    await sendWhatsappReply(phone, appointment.client, appointment.id, "Perfeito! Seu atendimento está confirmado. Até lá!", "reply", replyReference);
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "confirmed" }));
+    ensureWhatsappDelivery(await sendWhatsappReply(phone, appointment.client, appointment.id, "Perfeito! Seu atendimento está confirmado. Até lá!", "reply", replyReference));
+    return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "confirmed" });
   }
   if (appointment && normalizedText.includes("cancel")) {
-    appointment.status = "cancelled";
-    syncWorkOrderFromAppointment(appointment);
-    await sendWhatsappReply(phone, appointment.client, appointment.id, "Tudo bem, seu atendimento foi cancelado. Quando quiser, posso ajudar a encontrar um novo horário.", "reply", replyReference);
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "cancelled" }));
+    const cancelledAppointment = await runWithSpaOperationalStateWriteLock(() => {
+      const current = appointments.find(
+        (item) => item.id === appointment.id && item.status === "confirmed",
+      );
+      if (!current) return null;
+      current.status = "cancelled";
+      syncWorkOrderFromAppointment(current);
+      return clone(current);
+    });
+    if (!cancelledAppointment) {
+      ensureWhatsappDelivery(await sendWhatsappAgentReply(
+        phone,
+        knownClientName,
+        appointment.id,
+        "Não encontrei um agendamento ativo para cancelar. Quer que eu confira outro horário? 🤎",
+        replyReference,
+      ));
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
+    ensureWhatsappDelivery(await sendWhatsappReply(phone, cancelledAppointment.client, cancelledAppointment.id, "Tudo bem, seu atendimento foi cancelado. Quando quiser, posso ajudar a encontrar um novo horário.", "reply", replyReference));
+    return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "cancelled" });
   }
   if (!aiAgentConfig.active) {
-    req.log.warn(
+    log.warn(
       { aiAgentActive: false },
       "WhatsApp message received but the AI agent is inactive",
     );
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({
+    return ReceiveEvolutionWebhookResponse.parse({
       received: true,
       action: "automation_disabled",
-    }));
+    });
   }
 
   try {
@@ -3639,41 +3777,43 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     const replyClientName = (await getWhatsappConversation(phone))?.clientName ?? knownClientName;
     let createdAppointment: Appointment | null = null;
     if (decision.appointmentDataInvalid) {
-      await sendWhatsappAgentReply(
+      ensureWhatsappDelivery(await sendWhatsappAgentReply(
         phone,
         replyClientName,
         appointment?.id ?? null,
         "Não consegui ler os dados do agendamento com segurança. Pode me enviar o serviço, dia e horário novamente? 🤎",
         replyReference,
-      );
-      return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
+      ));
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
     if (decision.appointment && !decision.appointment.confirmed) {
-      await sendWhatsappAgentReply(
+      ensureWhatsappDelivery(await sendWhatsappAgentReply(
         phone,
         replyClientName,
         appointment?.id ?? null,
         "Para reservar, preciso da sua confirmação explícita. Você confirma esse serviço, data e horário? 🤎",
         replyReference,
-      );
-      return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
+      ));
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
     if (decision.appointment?.confirmed) {
-      const result = addAppointmentFromAgent(phone, decision.appointment);
+      const result = await runWithSpaOperationalStateWriteLock(() =>
+        addAppointmentFromAgent(phone, decision.appointment!),
+      );
       if (!result.ok) {
-        await sendWhatsappAgentReply(
+        ensureWhatsappDelivery(await sendWhatsappAgentReply(
           phone,
           replyClientName,
           appointment?.id ?? null,
           agentAppointmentFailureReply(result.reason),
           replyReference,
-        );
-        return void res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" }));
+        ));
+        return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
       }
       createdAppointment = result.appointment;
     }
     if (decision.document) {
-      await sendWhatsappDocumentMessage(
+      ensureWhatsappDelivery(await sendWhatsappDocumentMessage(
         phone,
         replyClientName,
         decision.document,
@@ -3684,7 +3824,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
             : "Segue o nosso catálogo de serviços de estética avançada.",
         createdAppointment?.id ?? appointment?.id ?? null,
         replyReference,
-      );
+      ));
     }
     const audioClip = createdAppointment || decision.document
       ? null
@@ -3697,21 +3837,21 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       audioClip && /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText),
     );
     if (shouldReplyBeforeAudio) {
-      await sendWhatsappAgentReply(
+      ensureWhatsappDelivery(await sendWhatsappAgentReply(
         phone,
         replyClientName,
         replyAppointmentId,
         writtenReply,
         replyReference,
-      );
+      ));
     }
     if (audioClip) {
-      const audioMessage = await sendWhatsappAudioMessage(
+      const audioMessage = ensureWhatsappDelivery(await sendWhatsappAudioMessage(
         phone,
         replyClientName,
         audioClip,
         appointment?.id ?? null,
-      );
+      ));
       if (audioMessage.status === "sent" && !shouldReplyBeforeAudio) {
         writtenReply = audioClip === "combos"
           ? "Te enviei um áudio com a explicação dos nossos combos. 🤎"
@@ -3720,22 +3860,22 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     }
     if (!shouldReplyBeforeAudio) {
       if (createdAppointment) {
-        await sendWhatsappReply(
+        ensureWhatsappDelivery(await sendWhatsappReply(
           phone,
           replyClientName,
           replyAppointmentId,
           writtenReply,
           "reply",
           replyReference,
-        );
+        ));
       } else {
-        await sendWhatsappAgentReply(
+        ensureWhatsappDelivery(await sendWhatsappAgentReply(
           phone,
           replyClientName,
           replyAppointmentId,
           writtenReply,
           replyReference,
-        );
+        ));
       }
     }
     if (createdAppointment) {
@@ -3750,39 +3890,62 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
         );
       });
     }
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({
+    return ReceiveEvolutionWebhookResponse.parse({
       received: true,
       action: createdAppointment ? "scheduled" : "replied",
-    }));
+    });
   } catch (error) {
     logger.error({ err: error, phone }, "WhatsApp AI response failed");
     try {
-      const fallbackMessage = await sendWhatsappReply(
+      const fallbackMessage = ensureWhatsappDelivery(await sendWhatsappReply(
         phone,
         knownClientName,
         appointment?.id ?? null,
         "Tive uma instabilidade técnica ao responder agora. Pode me enviar sua última mensagem novamente, por favor? 🤎",
         "reply",
         replyReference,
-      );
-      if (fallbackMessage.status === "failed") {
-        logger.warn(
-          { err: fallbackMessage.error, phone, messageId: fallbackMessage.id },
-          "WhatsApp AI fallback reply could not be delivered",
-        );
-      }
+      ));
+      logger.info({ phone, messageId: fallbackMessage.id }, "WhatsApp AI fallback reply delivered");
     } catch (fallbackError) {
       logger.error(
         { err: fallbackError, phone },
         "WhatsApp AI fallback reply failed",
       );
+      throw fallbackError;
     }
-    return void res.json(ReceiveEvolutionWebhookResponse.parse({
+    return ReceiveEvolutionWebhookResponse.parse({
       received: true,
       action: "agent_error",
+    });
+  }
+};
+
+router.post("/integrations/evolution/webhook", async (req, res) => {
+  const body = ReceiveEvolutionWebhookBody.parse(req.body) as WhatsappWebhookPayload;
+  const data = (body["data"] as Record<string, unknown> | undefined) ?? body;
+  const key = (data["key"] as Record<string, unknown> | undefined) ?? {};
+  if (key["fromMe"] === true) {
+    res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_from_me" }));
+    return;
+  }
+
+  try {
+    const inserted = await enqueueWhatsappWebhook(makeWhatsappWebhookEventKey(body), body);
+    res.json(ReceiveEvolutionWebhookResponse.parse({
+      received: true,
+      action: inserted ? "queued" : "duplicate_queued",
     }));
+  } catch (error) {
+    logger.error({ err: error }, "Could not persist Evolution webhook in the durable inbox");
+    res.status(503).json({ error: "Não foi possível registrar a mensagem para processamento." });
   }
 });
+
+export const startWhatsappWebhookWorker = () =>
+  startWhatsappWebhookInboxWorker(async (payload) => {
+    const result = await processWhatsappWebhookPayload(payload, logger);
+    return result.action;
+  });
 
 router.get("/clients", (req, res) => {
   const snapshot = dashboardSnapshotForResponse(res);
@@ -3867,7 +4030,9 @@ router.patch("/leads/:id", (req, res) => {
 });
 
 router.get("/services", (_req, res) => {
-  res.json(ListServicesResponse.parse(activeSpaRecords("service", services)));
+  const snapshot = dashboardSnapshotForResponse(res);
+  const visibleServices = activeDashboardRecords(snapshot, "service", snapshot.services);
+  res.json(ListServicesResponse.parse(visibleServices));
 });
 
 router.get("/packages", (_req, res) => {

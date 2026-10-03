@@ -142,7 +142,7 @@ export const configureEvolutionWebhook = async (
           enabled: true,
           url: webhookUrl,
           webhookByEvents: false,
-          webhookBase64: true,
+          webhookBase64: false,
           events: ["MESSAGES_UPSERT"],
         },
       }),

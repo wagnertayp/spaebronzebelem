@@ -11,9 +11,10 @@ the browser and API share an origin.
 - `heroku-postbuild` builds `@workspace/spa-bronze-belem` and `@workspace/api-server`.
 - `Procfile` starts the API on Heroku's assigned `PORT`; in production it also
   serves the SPA and its client-side routes.
-- Keep exactly one `web` dyno for now. The reminder/follow-up loops and several
-  business records are currently held in the API process, so adding dynos can
-  duplicate scheduled sends and make each dyno show different data.
+- Keep exactly one `web` dyno for now. The webhook inbox is database-backed and
+  safe for multiple consumers, but reminder/follow-up loops and several business
+  records are still process-local; extra dynos can duplicate scheduled sends
+  and make each dyno show different data.
 - Voice-note conversion shells out to `ffmpeg`. The root `Aptfile` installs it;
   configure Heroku's Apt buildpack before the Node.js buildpack.
 
