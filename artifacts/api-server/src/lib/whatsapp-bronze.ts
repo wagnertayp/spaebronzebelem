@@ -3,11 +3,17 @@ export const WHATSAPP_AUDIO_MESSAGE_LABELS = {
   bronze: "Áudio pré-gravado enviado: informações sobre bronzeamento",
 } as const;
 
+export const resolveRequestedWhatsappAudioClip = (
+  requestedClip: "combos" | "bronze" | null | undefined,
+  inferredClip: "combos" | "bronze" | null,
+): "combos" | "bronze" | null =>
+  requestedClip ?? (inferredClip === "combos" ? inferredClip : null);
+
 export const shouldSendBronzeAudio = (
-  asksAboutBronze: boolean,
+  selectedForCurrentTurn: boolean,
   alreadyAttempted: boolean,
   pregnancyMentioned = false,
-) => asksAboutBronze && !alreadyAttempted && !pregnancyMentioned;
+) => selectedForCurrentTurn && !alreadyAttempted && !pregnancyMentioned;
 
 export const bronzeMethodDifferenceReply =
   "O bronze natural é feito com exposição solar. Na máquina, o atendimento usa a WB Ultra, com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, de forma individualizada. 🤎";

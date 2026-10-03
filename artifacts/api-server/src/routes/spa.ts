@@ -172,6 +172,7 @@ import {
 import {
   bronzeAudioUnavailableReply,
   bronzeMethodDifferenceReply,
+  resolveRequestedWhatsappAudioClip,
   shouldSendBronzeAudio,
   WHATSAPP_AUDIO_MESSAGE_LABELS,
 } from "../lib/whatsapp-bronze.js";
@@ -1534,9 +1535,10 @@ REGRAS OBRIGATÓRIAS:
 - Se a duração de um serviço estiver como "A definir", não confirme nem crie agendamento para ele. Explique que a duração ainda precisa ser confirmada.
 - Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Se pedir o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
+- Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar ou enviar áudio e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação, comparação ou resposta específica, responda sem atrasar com triagem.
 - Quando a cliente estiver escolhendo ou pedir recomendação de bronzeamento, priorize o Turbo Neon (Protocolo Neon): três sessões + esfoliação por R$180. Apresente-o como a opção recomendada para quem busca bronze mais uniforme, tom dourado de aparência natural, procedimento em pouco tempo e marquinhas personalizadas; diga que a pele pode parecer mais iluminada e hidratada quando combinada com cuidados adequados. Ao contornar uma objeção, acolha a dúvida e destaque apenas a qualidade do Neon que responde a ela, sem prometer resultados, inventar duração ou afirmar superioridade universal.
 - A escolha da cliente prevalece: se ela optar por outro método/pacote ou recusar o Neon, pare de oferecer e não volte a mencionar o Neon nem suas qualidades em mensagens futuras, a menos que ela pergunte sobre ele. Não faça a oferta durante atualização de chegada ou depois de um agendamento já confirmado.
-- Ao perguntar sobre bronze, se ainda não houver tentativa registrada do áudio nesta conversa, escolha audioClip "bronze" e faça uma introdução curta antes do áudio. Se a cliente ainda estiver avaliando opções, essa introdução pode trazer uma única recomendação breve do Neon; se já escolheu outra opção, não. Depois da tentativa, o servidor enviará apenas a comparação dos métodos; não escolha nem repita o áudio em mensagens futuras, mesmo se a tentativa anterior falhou.
+- O áudio de bronze pode ser escolhido uma única vez quando a cliente confirmar que é a primeira vez, aceitar a explicação ou pedir diretamente o áudio. Não o escolha automaticamente ao perguntar se é a primeira vez nem antes de uma cliente experiente aceitar a explicação. Depois da tentativa, o servidor enviará a comparação dos métodos; nunca repita o áudio, mesmo se a tentativa anterior falhou.
 - Bronze natural é feito com exposição solar. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é mais seguro ou melhor nem prometa resultados.
 - Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
   - audioClip "combos": gravação que explica os combos do Spa e Bronze.
@@ -4560,11 +4562,12 @@ const processWhatsappWebhookPayload = async (
         replyReference,
       ));
     }
+    const inferredAudioClip = audioClipForWhatsappMessage(normalizedText);
     const requestedAudioClip = createdAppointment || decision.document
       ? null
-      : decision.audioClip ?? audioClipForWhatsappMessage(normalizedText);
+      : resolveRequestedWhatsappAudioClip(decision.audioClip, inferredAudioClip);
     const canSendBronzeAudio = shouldSendBronzeAudio(
-      isBronzeQuestion,
+      requestedAudioClip === "bronze",
       bronzeAudioAlreadyAttempted,
       pregnancyMentioned,
     );
@@ -4577,7 +4580,8 @@ const processWhatsappWebhookPayload = async (
       : decision.reply;
     const replyAppointmentId = createdAppointment?.id ?? appointment?.id ?? null;
     const shouldReplyBeforeAudio = Boolean(
-      audioClip && /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText),
+      audioClip === "bronze" ||
+        (audioClip && /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText)),
     );
     if (shouldReplyBeforeAudio) {
       ensureWhatsappDelivery(await sendWhatsappAgentReply(
@@ -5170,9 +5174,10 @@ Regras obrigatórias:
 - Só informe clientName se a cliente tiver dito o nome explicitamente; não deduza pelo telefone.
 - Use somente os serviços, preços, durações e informações fornecidas acima.
 - Se a cliente disser que está a caminho, chegando ou que chegou, responda com cortesia dizendo que a equipe está aguardando; não pergunte qual serviço quer agendar nem reabra a coleta.
+- Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação ou informação específica, responda sem atrasar com triagem.
 - Quando a cliente estiver escolhendo ou pedir recomendação de bronzeamento, priorize o Turbo Neon (Protocolo Neon): três sessões + esfoliação por R$180. Destaque o acabamento mais uniforme, o tom dourado natural, a rapidez do procedimento, a possibilidade de personalizar as marquinhas e a aparência mais iluminada/hidratada com cuidados adequados. Trate como qualidades pretendidas, sem prometer resultados nem inventar duração.
 - Se a cliente optar por outro método/pacote ou recusar o Neon, respeite a escolha e não volte a mencioná-lo, salvo se ela perguntar sobre o Neon.
-- Neste teste textual, considere que a tentativa do áudio de bronze já foi registrada: não prometa nem envie outra gravação; explique a diferença entre bronze natural (exposição solar) e máquina (WB Ultra, 72 lâmpadas, cerca de 8 a 20 minutos conforme fototipo e atendimento individualizado).
+- Neste teste textual, considere que a tentativa do áudio de bronze já foi registrada: não prometa nem envie outra gravação; explique a diferença entre bronze natural (exposição solar) e máquina (WB Ultra, 72 lâmpadas, cerca de 8 a 20 minutos conforme fototipo e atendimento individualizado) quando a cliente pedir ou aceitar a explicação.
 - Por cuidado, não realizamos nenhum tipo de bronzeamento para clientes grávidas/gestantes. Recuse pedidos de bronzeamento com acolhimento, não marque esse serviço e não dê orientação médica.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando perguntarem sobre funcionamento, localização ou endereço, use os dados configurados. Não invente endereço nem trate apenas “Belém - PA” como endereço completo.

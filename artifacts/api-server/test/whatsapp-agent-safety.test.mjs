@@ -12,6 +12,7 @@ import {
 import {
   bronzeAudioUnavailableReply,
   bronzeMethodDifferenceReply,
+  resolveRequestedWhatsappAudioClip,
   shouldSendBronzeAudio,
 } from "../src/lib/whatsapp-bronze.ts";
 
@@ -52,7 +53,10 @@ test("recognizes Spa Infantil questions, including the common spelling in chat",
   assert.doesNotMatch(spaInfantilHandoffReply, /sem química/i);
 });
 
-test("attempts the bronze clip only once and follows with a neutral method comparison", () => {
+test("does not infer an unsolicited bronze clip and attempts an approved clip only once", () => {
+  assert.equal(resolveRequestedWhatsappAudioClip(null, "bronze"), null);
+  assert.equal(resolveRequestedWhatsappAudioClip(null, "combos"), "combos");
+  assert.equal(resolveRequestedWhatsappAudioClip("bronze", "bronze"), "bronze");
   assert.equal(shouldSendBronzeAudio(true, false), true);
   assert.equal(shouldSendBronzeAudio(true, true), false);
   assert.equal(shouldSendBronzeAudio(false, false), false);
