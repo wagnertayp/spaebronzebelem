@@ -344,6 +344,15 @@ export interface WhatsappConversation {
   messageCount: number;
 }
 
+export interface WhatsappUnansweredConversation {
+  conversationId: number;
+  phone: string;
+  clientName: string;
+  messageId: number;
+  text: string;
+  createdAt: string;
+}
+
 export type WhatsappConversationUpdateStatus = typeof WhatsappConversationUpdateStatus[keyof typeof WhatsappConversationUpdateStatus];
 
 
@@ -1166,6 +1175,14 @@ limit?: number;
 };
 
 export type ListWhatsappConversationsParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
+
+export type ListWhatsappUnansweredParams = {
 /**
  * @minimum 1
  * @maximum 100

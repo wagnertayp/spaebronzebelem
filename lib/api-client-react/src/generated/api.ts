@@ -67,6 +67,7 @@ import type {
   ListQuotesParams,
   ListWhatsappConversationsParams,
   ListWhatsappMessagesParams,
+  ListWhatsappUnansweredParams,
   ListWorkOrdersParams,
   LoginCredentialsInput,
   Package,
@@ -96,6 +97,7 @@ import type {
   WhatsappDocumentInput,
   WhatsappMessage,
   WhatsappReplyInput,
+  WhatsappUnansweredConversation,
   WorkOrder
 } from './api.schemas';
 
@@ -1662,6 +1664,90 @@ export function useListWhatsappConversations<TData = Awaited<ReturnType<typeof l
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListWhatsappConversationsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListWhatsappUnansweredUrl = (params?: ListWhatsappUnansweredParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/whatsapp/unanswered?${stringifiedParams}` : `/api/whatsapp/unanswered`
+}
+
+/**
+ * @summary Lista mensagens recebidas salvas que ainda não têm resposta enviada
+ */
+export const listWhatsappUnanswered = async (params?: ListWhatsappUnansweredParams, options?: Parameters<typeof customFetch>[1]): Promise<WhatsappUnansweredConversation[]> => {
+
+  return customFetch<WhatsappUnansweredConversation[]>(getListWhatsappUnansweredUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWhatsappUnansweredQueryKey = (params?: ListWhatsappUnansweredParams,) => {
+    return [
+    `/api/whatsapp/unanswered`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListWhatsappUnansweredQueryOptions = <TData = Awaited<ReturnType<typeof listWhatsappUnanswered>>, TError = ErrorType<unknown>>(params?: ListWhatsappUnansweredParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhatsappUnanswered>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWhatsappUnansweredQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWhatsappUnanswered>>> = ({ signal }) => listWhatsappUnanswered(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWhatsappUnanswered>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWhatsappUnansweredQueryResult = NonNullable<Awaited<ReturnType<typeof listWhatsappUnanswered>>>
+export type ListWhatsappUnansweredQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Lista mensagens recebidas salvas que ainda não têm resposta enviada
+ */
+
+export function useListWhatsappUnanswered<TData = Awaited<ReturnType<typeof listWhatsappUnanswered>>, TError = ErrorType<unknown>>(
+ params?: ListWhatsappUnansweredParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhatsappUnanswered>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWhatsappUnansweredQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

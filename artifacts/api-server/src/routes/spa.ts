@@ -91,6 +91,8 @@ import {
   ListWhatsappMessagesResponse,
   ListWhatsappConversationsQueryParams,
   ListWhatsappConversationsResponse,
+  ListWhatsappUnansweredQueryParams,
+  ListWhatsappUnansweredResponse,
   UpdateWhatsappConversationParams,
   UpdateWhatsappConversationBody,
   UpdateWhatsappConversationResponse,
@@ -154,7 +156,8 @@ import {
   whatsappMessagesTable,
   whatsappSettingsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lte, notExists, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import backup from "../data/spa-backup.json";
@@ -3299,6 +3302,47 @@ router.get("/whatsapp/conversations", async (req, res) => {
     .filter((conversation) => !isSpaRecordArchived("whatsappConversation", conversation.phone))
     .slice(0, limit);
   res.json(ListWhatsappConversationsResponse.parse(await Promise.all(conversations.map(toWhatsappConversation))));
+});
+
+router.get("/whatsapp/unanswered", async (req, res) => {
+  const { limit = 100 } = ListWhatsappUnansweredQueryParams.parse(req.query);
+  const laterInbound = alias(whatsappMessagesTable, "later_inbound");
+  const laterSuccessfulOutbound = alias(whatsappMessagesTable, "later_successful_outbound");
+  const unansweredMessages = await db
+    .select({
+      conversationId: whatsappConversationsTable.id,
+      phone: whatsappConversationsTable.phone,
+      clientName: whatsappConversationsTable.clientName,
+      messageId: whatsappMessagesTable.id,
+      text: whatsappMessagesTable.text,
+      createdAt: whatsappMessagesTable.createdAt,
+    })
+    .from(whatsappMessagesTable)
+    .innerJoin(
+      whatsappConversationsTable,
+      eq(whatsappConversationsTable.id, whatsappMessagesTable.conversationId),
+    )
+    .where(and(
+      eq(whatsappMessagesTable.direction, "inbound"),
+      notExists(db.select({ id: laterInbound.id }).from(laterInbound).where(and(
+        eq(laterInbound.conversationId, whatsappConversationsTable.id),
+        eq(laterInbound.direction, "inbound"),
+        gt(laterInbound.id, whatsappMessagesTable.id),
+      ))),
+      notExists(db.select({ id: laterSuccessfulOutbound.id }).from(laterSuccessfulOutbound).where(and(
+        eq(laterSuccessfulOutbound.conversationId, whatsappConversationsTable.id),
+        eq(laterSuccessfulOutbound.direction, "outbound"),
+        inArray(laterSuccessfulOutbound.status, ["sent", "delivered"]),
+        gt(laterSuccessfulOutbound.id, whatsappMessagesTable.id),
+      ))),
+    ))
+    .orderBy(asc(whatsappMessagesTable.createdAt), asc(whatsappMessagesTable.id));
+
+  const visibleUnansweredMessages = unansweredMessages
+    .filter((message) => !isSpaRecordArchived("whatsappConversation", message.phone))
+    .slice(0, limit)
+    .map((message) => ({ ...message, createdAt: message.createdAt.toISOString() }));
+  res.json(ListWhatsappUnansweredResponse.parse(visibleUnansweredMessages));
 });
 
 router.patch("/whatsapp/conversations/:phone", async (req, res) => {

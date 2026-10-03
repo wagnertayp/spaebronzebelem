@@ -450,6 +450,28 @@ export const ListWhatsappConversationsResponse = zod.array(ListWhatsappConversat
 
 
 /**
+ * @summary Lista mensagens recebidas salvas que ainda não têm resposta enviada
+ */
+export const listWhatsappUnansweredQueryLimitMax = 100;
+
+
+
+export const ListWhatsappUnansweredQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(listWhatsappUnansweredQueryLimitMax).optional()
+})
+
+export const ListWhatsappUnansweredResponseItem = zod.object({
+  "conversationId": zod.number().int(),
+  "phone": zod.string(),
+  "clientName": zod.string(),
+  "messageId": zod.number().int(),
+  "text": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListWhatsappUnansweredResponse = zod.array(ListWhatsappUnansweredResponseItem)
+
+
+/**
  * @summary Altera o status de uma conversa do WhatsApp
  */
 export const updateWhatsappConversationPathPhoneMin = 8;

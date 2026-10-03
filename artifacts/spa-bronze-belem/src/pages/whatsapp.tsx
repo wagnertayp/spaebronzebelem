@@ -18,6 +18,8 @@ import {
   getListWhatsappMessagesQueryKey,
   useListWhatsappConversations,
   getListWhatsappConversationsQueryKey,
+  useListWhatsappUnanswered,
+  getListWhatsappUnansweredQueryKey,
   getListArchivedRecordsQueryKey,
   useUpdateWhatsappConversation,
   useManageArchivedRecords,
@@ -27,6 +29,7 @@ import {
   Service,
   WhatsappAutomation,
   WhatsappConversation,
+  WhatsappMessage,
 } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -89,6 +92,19 @@ export function WhatsApp() {
   const sendWhatsappDocument = useSendWhatsappDocument();
   const { data: whatsappMessages = [] } = useListWhatsappMessages({ limit: 50 });
   const { data: whatsappConversations = [] } = useListWhatsappConversations({ limit: 50 });
+  const {
+    data: unansweredConversations = [],
+    isLoading: isUnansweredLoading,
+    isError: isUnansweredError,
+  } = useListWhatsappUnanswered(
+    { limit: 100 },
+    {
+      query: {
+        queryKey: getListWhatsappUnansweredQueryKey({ limit: 100 }),
+        refetchInterval: 30_000,
+      },
+    },
+  );
   const updateWhatsappConversation = useUpdateWhatsappConversation();
   const archiveRecords = useManageArchivedRecords();
   
@@ -251,19 +267,44 @@ export function WhatsApp() {
   };
 
   useEffect(() => {
+    const knownPhones = new Set([
+      ...whatsappConversations.map((conversation) => conversation.phone),
+      ...unansweredConversations.map((conversation) => conversation.phone),
+    ]);
     if (!selectedPhone && whatsappConversations[0]?.phone) {
       setSelectedPhone(whatsappConversations[0].phone);
-    } else if (selectedPhone && !whatsappConversations.some((conversation) => conversation.phone === selectedPhone)) {
-      setSelectedPhone(whatsappConversations[0]?.phone ?? '');
+    } else if (!selectedPhone && unansweredConversations[0]?.phone) {
+      setSelectedPhone(unansweredConversations[0].phone);
+    } else if (selectedPhone && !knownPhones.has(selectedPhone)) {
+      setSelectedPhone(whatsappConversations[0]?.phone ?? unansweredConversations[0]?.phone ?? '');
     }
-  }, [selectedPhone, whatsappConversations]);
+  }, [selectedPhone, whatsappConversations, unansweredConversations]);
 
   const selectedConversation = whatsappConversations.find((conversation) => conversation.phone === selectedPhone);
-  const selectedClientName = selectedConversation?.clientName || selectedPhone;
-  const selectedConversationMessages = whatsappMessages
+  const selectedUnansweredConversation = unansweredConversations.find((conversation) => conversation.phone === selectedPhone);
+  const selectedClientName = selectedConversation?.clientName || selectedUnansweredConversation?.clientName || selectedPhone;
+  const selectedConversationMessages: WhatsappMessage[] = whatsappMessages
     .filter((message) => message.phone === selectedPhone)
-    .slice()
-    .reverse();
+    .slice();
+  if (
+    selectedUnansweredConversation &&
+    !selectedConversationMessages.some((message) => message.id === selectedUnansweredConversation.messageId)
+  ) {
+    selectedConversationMessages.push({
+      id: selectedUnansweredConversation.messageId,
+      direction: 'inbound',
+      phone: selectedUnansweredConversation.phone,
+      clientName: selectedUnansweredConversation.clientName,
+      appointmentId: null,
+      text: selectedUnansweredConversation.text,
+      status: 'received',
+      kind: 'reply',
+      providerMessageId: null,
+      error: null,
+      createdAt: selectedUnansweredConversation.createdAt,
+    });
+  }
+  selectedConversationMessages.sort((left, right) => left.id - right.id);
   const conversationStatusLabel: Record<WhatsappConversation['status'], string> = {
     agent: 'Agente',
     human: 'Atendimento humano',
@@ -273,6 +314,7 @@ export function WhatsApp() {
   const invalidateWhatsapp = () => {
     void queryClient.invalidateQueries({ queryKey: getListWhatsappMessagesQueryKey() });
     void queryClient.invalidateQueries({ queryKey: getListWhatsappConversationsQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getListWhatsappUnansweredQueryKey() });
   };
 
   const handleConversationStatus = (status: WhatsappConversation['status']) => {
@@ -604,59 +646,117 @@ export function WhatsApp() {
                 <RefreshCw className="w-4 h-4 text-primary" /> Supervisão do atendimento
               </div>
               <p className="text-xs text-text-muted mt-1">
-                Acompanhe as conversas, assuma um atendimento e responda sem sair desta tela.
+                Acompanhe as conversas e responda manualmente. A fila considera apenas mensagens já salvas no app e não envia respostas automáticas.
               </p>
             </div>
-            <span className="self-start rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-semibold text-text-secondary">
-              {whatsappConversations.length} {whatsappConversations.length === 1 ? 'conversa' : 'conversas'}
-            </span>
+            <div className="flex flex-wrap gap-2 self-start">
+              <span className="rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-semibold text-text-secondary">
+                {whatsappConversations.length} {whatsappConversations.length === 1 ? 'conversa' : 'conversas'}
+              </span>
+              <span className="rounded-full bg-warning/10 px-2.5 py-1 text-[11px] font-semibold text-warning">
+                {unansweredConversations.length} sem resposta
+              </span>
+            </div>
           </div>
           <div>
              <BulkArchiveToolbar selection={conversationArchiveSelection} />
-            {whatsappConversations.length === 0 ? (
+            {whatsappConversations.length === 0 && unansweredConversations.length === 0 ? (
               <p className="text-sm text-text-muted rounded-lg border border-dashed border-border p-3">
                 Nenhuma conversa registrada ainda. Quando chegar uma mensagem, ela aparecerá aqui para a equipe acompanhar.
               </p>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,0.78fr)_minmax(0,1.5fr)] gap-4">
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                  {whatsappConversations.map((conversation) => (
-                    <div
-                      key={conversation.id}
-                      className={cn(
-                        "w-full min-w-0 flex items-start gap-3 rounded-xl border p-3 text-xs transition-colors",
-                        selectedPhone === conversation.phone ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={conversationArchiveSelection.isSelected({ entity: 'whatsappConversation', id: String(conversation.phone) })}
-                        onChange={() => conversationArchiveSelection.toggleRecord({ entity: 'whatsappConversation', id: String(conversation.phone) })}
-                        aria-label={`Selecionar conversa com ${conversation.clientName || conversation.phone}`}
-                        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPhone(conversation.phone)}
-                        className="flex min-w-0 flex-1 items-start justify-between gap-3 text-left"
-                      >
-                        <div className="min-w-0">
-                          <div className="font-medium text-text-primary truncate">
-                            {conversation.clientName || conversation.phone}
-                            <span className="font-normal text-text-muted ml-2">{conversation.messageCount} mensagens</span>
-                          </div>
-                          <div className="text-text-muted truncate">{conversation.lastMessage || 'Sem mensagens'}</div>
-                        </div>
-                        <span className={cn(
-                          "shrink-0 rounded-full px-2 py-0.5 font-semibold",
-                          conversation.status === 'human' ? "bg-warning/10 text-warning" :
-                            conversation.status === 'closed' ? "bg-text-muted/10 text-text-muted" : "bg-success/10 text-success",
-                        )}>
-                          {conversationStatusLabel[conversation.status]}
-                        </span>
-                      </button>
+                <div className="space-y-3">
+                  <section className="rounded-xl border border-warning/30 bg-warning/5 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <h3 className="text-xs font-semibold text-text-primary">Aguardando resposta</h3>
+                      <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                        {unansweredConversations.length}
+                      </span>
                     </div>
-                  ))}
+                    {isUnansweredLoading ? (
+                      <p className="text-[11px] text-text-muted">Verificando mensagens salvas...</p>
+                    ) : isUnansweredError ? (
+                      <p className="text-[11px] text-error">Não foi possível atualizar a fila de mensagens sem resposta.</p>
+                    ) : unansweredConversations.length === 0 ? (
+                      <p className="text-[11px] text-text-muted">Nenhuma mensagem pendente.</p>
+                    ) : (
+                      <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
+                        {unansweredConversations.map((item) => (
+                          <button
+                            key={item.messageId}
+                            type="button"
+                            onClick={() => setSelectedPhone(item.phone)}
+                            className={cn(
+                              "w-full rounded-lg border p-2 text-left text-[11px] transition-colors",
+                              selectedPhone === item.phone ? "border-warning/60 bg-warning/10" : "border-border bg-background hover:border-warning/40",
+                            )}
+                          >
+                            <span className="flex items-center justify-between gap-2">
+                              <span className="truncate font-semibold text-text-primary">{item.clientName || item.phone}</span>
+                              <time className="shrink-0 text-[10px] text-text-muted">
+                                {new Date(item.createdAt).toLocaleString('pt-BR', {
+                                  timeZone: 'America/Belem',
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </time>
+                            </span>
+                            <span className="mt-1 block truncate text-text-secondary">{item.text}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    {whatsappConversations.map((conversation) => {
+                      const isUnanswered = unansweredConversations.some((item) => item.phone === conversation.phone);
+                      return (
+                        <div
+                          key={conversation.id}
+                          className={cn(
+                            "w-full min-w-0 flex items-start gap-3 rounded-xl border p-3 text-xs transition-colors",
+                            selectedPhone === conversation.phone ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={conversationArchiveSelection.isSelected({ entity: 'whatsappConversation', id: String(conversation.phone) })}
+                            onChange={() => conversationArchiveSelection.toggleRecord({ entity: 'whatsappConversation', id: String(conversation.phone) })}
+                            aria-label={`Selecionar conversa com ${conversation.clientName || conversation.phone}`}
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPhone(conversation.phone)}
+                            className="flex min-w-0 flex-1 items-start justify-between gap-3 text-left"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 font-medium text-text-primary">
+                                <span className="truncate">{conversation.clientName || conversation.phone}</span>
+                                {isUnanswered && (
+                                  <span className="shrink-0 rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                                    Sem resposta
+                                  </span>
+                                )}
+                                <span className="shrink-0 font-normal text-text-muted">{conversation.messageCount} mensagens</span>
+                              </div>
+                              <div className="text-text-muted truncate">{conversation.lastMessage || 'Sem mensagens'}</div>
+                            </div>
+                            <span className={cn(
+                              "shrink-0 rounded-full px-2 py-0.5 font-semibold",
+                              conversation.status === 'human' ? "bg-warning/10 text-warning" :
+                                conversation.status === 'closed' ? "bg-text-muted/10 text-text-muted" : "bg-success/10 text-success",
+                            )}>
+                              {conversationStatusLabel[conversation.status]}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="min-w-0 rounded-xl border border-border bg-background p-3 sm:p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
@@ -677,48 +777,48 @@ export function WhatsApp() {
                     </Button>
                   </div>
                   {selectedConversation && (
-                    <>
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <select
-                          value={selectedConversation.status}
-                          onChange={(event) => handleConversationStatus(event.target.value as WhatsappConversation['status'])}
-                          disabled={updateWhatsappConversation.isPending}
-                          className="h-8 flex-1 rounded-md border border-border bg-surface px-2 text-xs"
-                          aria-label="Status da conversa"
-                        >
-                          <option value="agent">Agente</option>
-                          <option value="human">Atendimento humano</option>
-                          <option value="closed">Encerrada</option>
-                        </select>
-                        {selectedConversation.status !== 'human' && (
-                          <Button type="button" size="sm" variant="outline" onClick={() => handleConversationStatus('human')} disabled={updateWhatsappConversation.isPending}>
-                            Assumir atendimento
-                          </Button>
-                        )}
-                        {selectedConversation.status === 'human' && (
-                          <Button type="button" size="sm" variant="outline" onClick={() => handleConversationStatus('agent')} disabled={updateWhatsappConversation.isPending}>
-                            Devolver ao agente
-                          </Button>
-                        )}
-                      </div>
-                      <div className="min-h-40 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-soft p-2.5 space-y-2">
-                        {selectedConversationMessages.length === 0 ? (
-                          <p className="text-[11px] text-text-muted">Carregando histórico...</p>
-                        ) : selectedConversationMessages.map((message) => (
-                          <div key={message.id} className={cn("flex", message.direction === 'outbound' ? "justify-end" : "justify-start")}>
-                            <div className={cn(
-                              "max-w-[92%] break-words rounded-lg px-2.5 py-1.5 text-[11px]",
-                              message.direction === 'outbound' ? "bg-primary/10 text-text-primary" : "bg-background border border-border text-text-secondary",
-                            )}>
-                              <div>{message.text}</div>
-                              <div className="mt-1 text-[10px] text-text-muted">
-                                {message.direction === 'outbound' ? 'Equipe' : 'Cliente'} · {message.status}
-                              </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <select
+                        value={selectedConversation.status}
+                        onChange={(event) => handleConversationStatus(event.target.value as WhatsappConversation['status'])}
+                        disabled={updateWhatsappConversation.isPending}
+                        className="h-8 flex-1 rounded-md border border-border bg-surface px-2 text-xs"
+                        aria-label="Status da conversa"
+                      >
+                        <option value="agent">Agente</option>
+                        <option value="human">Atendimento humano</option>
+                        <option value="closed">Encerrada</option>
+                      </select>
+                      {selectedConversation.status !== 'human' && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => handleConversationStatus('human')} disabled={updateWhatsappConversation.isPending}>
+                          Assumir atendimento
+                        </Button>
+                      )}
+                      {selectedConversation.status === 'human' && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => handleConversationStatus('agent')} disabled={updateWhatsappConversation.isPending}>
+                          Devolver ao agente
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  {selectedPhone && (
+                    <div className="min-h-40 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-soft p-2.5 space-y-2">
+                      {selectedConversationMessages.length === 0 ? (
+                        <p className="text-[11px] text-text-muted">Nenhuma mensagem recente disponível para esta conversa.</p>
+                      ) : selectedConversationMessages.map((message) => (
+                        <div key={message.id} className={cn("flex", message.direction === 'outbound' ? "justify-end" : "justify-start")}>
+                          <div className={cn(
+                            "max-w-[92%] break-words rounded-lg px-2.5 py-1.5 text-[11px]",
+                            message.direction === 'outbound' ? "bg-primary/10 text-text-primary" : "bg-background border border-border text-text-secondary",
+                          )}>
+                            <div>{message.text}</div>
+                            <div className="mt-1 text-[10px] text-text-muted">
+                              {message.direction === 'outbound' ? 'Equipe' : 'Cliente'} · {message.status}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </>
+                        </div>
+                      ))}
+                    </div>
                   )}
                   <textarea
                     value={manualReply}
