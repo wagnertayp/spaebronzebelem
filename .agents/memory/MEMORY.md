@@ -4,6 +4,7 @@
 - [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
 - [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own the greeting; server-side prefixes can duplicate it.
 - [WhatsApp agent availability](whatsapp-agent-availability.md) — user requirement: the WhatsApp AI agent must not stop, for any reason.
+- [Pregnancy and tanning policy](pregnancy-tanning-policy.md) — the spa does not provide tanning for pregnant clients, as a precaution.
 - [WhatsApp PDF assets](whatsapp-pdf-assets.md) — API workflow runs below the workspace root, so document lookup needs an asset-path fallback.
 - [Human handoff rule](human-handoff-rule.md) — keep the AI in the conversation unless the client explicitly asks for a human.
 - [WhatsApp webhook reliability](whatsapp-webhook-idempotency.md) — dedupe and validate bookings, bound AI calls below Heroku's 30-second limit, and use a durable inbox for crash-safe processing.

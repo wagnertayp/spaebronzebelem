@@ -204,6 +204,11 @@ import {
   startWhatsappWebhookInboxWorker,
   type WhatsappWebhookPayload,
 } from "../lib/whatsapp-webhook-inbox";
+import {
+  isTanningService,
+  mentionsPregnancy,
+  pregnancyTanningRefusal,
+} from "../lib/whatsapp-agent-safety";
 
 const router: IRouter = Router();
 
@@ -1335,6 +1340,7 @@ REGRAS OBRIGATÓRIAS:
 - Use exatamente um emoji discreto no final da resposta. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio do texto.
 - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
 - Reassuma sempre o assunto principal da conversa usando o histórico; entenda a pergunta atual antes de responder e não fuja do contexto.
+- Por cuidado, o spa não realiza nenhum tipo de bronzeamento para clientes grávidas/gestantes. Se a cliente pedir, explique isso com acolhimento, não agende esse serviço e não dê orientação médica; não presuma que outros serviços são seguros durante a gravidez.
 - Se perguntarem se você é IA, robô ou pessoa, responda com transparência que é a assistente virtual com IA do Spa e Bronze Belém; nunca afirme ou sugira que é humana.
 - Se o pedido não tiver relação com o Spa e Bronze Belém, não responda ao conteúdo aleatório nem execute pedidos externos; explique brevemente que seu atendimento é sobre serviços, valores, horários e agendamentos do Spa e redirecione com uma pergunta curta.
 - Se a mensagem vier com uma imagem, observe-a antes de responder e use apenas o que estiver visível nela. Se vier de áudio, considere a transcrição como a mensagem da cliente.
@@ -2037,7 +2043,7 @@ let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
   address: "Belém - PA",
   paymentMethods: "Pix, cartão de crédito, cartão de débito e dinheiro.",
   bookingRules: "Confirme serviço, data, horário e nome da cliente antes de encaminhar o agendamento.",
-  policies: "Não prometa horários sem confirmação. Não ofereça diagnóstico médico.",
+  policies: "Não prometa horários sem confirmação. Não ofereça diagnóstico médico. Por cuidado, não realizamos bronzeamento para clientes grávidas.",
   humanHandoff: "Só encaminhe para uma atendente se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
 };
 
@@ -3776,6 +3782,20 @@ const processWhatsappWebhookPayload = async (
     );
     const replyClientName = (await getWhatsappConversation(phone))?.clientName ?? knownClientName;
     let createdAppointment: Appointment | null = null;
+    if (
+      decision.appointment &&
+      mentionsPregnancy(text) &&
+      isTanningService(decision.appointment.service)
+    ) {
+      ensureWhatsappDelivery(await sendWhatsappAgentReply(
+        phone,
+        replyClientName,
+        appointment?.id ?? null,
+        pregnancyTanningRefusal,
+        replyReference,
+      ));
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
     if (decision.appointmentDataInvalid) {
       ensureWhatsappDelivery(await sendWhatsappAgentReply(
         phone,
@@ -4408,6 +4428,7 @@ Regras obrigatórias:
 - Não peça o nome junto da saudação inicial. Em uma conversa real, se o nome ainda não for conhecido, pergunte-o naturalmente depois da primeira resposta e quando a cliente continuar a conversa.
 - Só informe clientName se a cliente tiver dito o nome explicitamente; não deduza pelo telefone.
 - Use somente os serviços, preços, durações e informações fornecidas acima.
+- Por cuidado, não realizamos nenhum tipo de bronzeamento para clientes grávidas/gestantes. Recuse pedidos de bronzeamento com acolhimento, não marque esse serviço e não dê orientação médica.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando perguntarem sobre funcionamento, localização ou endereço, use os dados configurados. Não invente endereço nem trate apenas “Belém - PA” como endereço completo.
 - Quando faltar informação, explique com simpatia que não tem esse dado e faça uma única pergunta curta; não encaminhe para uma atendente.
