@@ -15,6 +15,9 @@ export const mentionsSpaInfantil = (value: string) =>
     normalizeSafetyText(value),
   );
 
+export const spaInfantilHandoffReply =
+  "Temos sim: o Spa Infantil é um banho à base de hidratante e açúcar, sem chumbo ou amônia, para crianças de 2 a 10 anos. Vou encaminhar você para uma atendente, que pode explicar os detalhes e ajudar com os horários. 🤎";
+
 export const isTanningService = (value: string, category = "") =>
   /\b(?:bronze(?:amento|adas?)?|marquinhas?)\b/.test(
     normalizeSafetyText(`${value} ${category}`),

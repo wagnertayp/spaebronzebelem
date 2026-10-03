@@ -5,6 +5,7 @@ import {
   mentionsPregnancy,
   mentionsSpaInfantil,
   pregnancyTanningRefusal,
+  spaInfantilHandoffReply,
 } from "../src/lib/whatsapp-agent-safety.ts";
 
 test("detects common pregnancy terms without accent sensitivity", () => {
@@ -27,4 +28,7 @@ test("recognizes Spa Infantil questions, including the common spelling in chat",
   assert.equal(mentionsSpaInfantil("Vocês têm Spa Infantil?"), true);
   assert.equal(mentionsSpaInfantil("Tem spa para crianças?"), true);
   assert.equal(mentionsSpaInfantil("Quero falar com uma atendente"), false);
+  assert.match(spaInfantilHandoffReply, /sem chumbo ou amônia/i);
+  assert.match(spaInfantilHandoffReply, /crianças de 2 a 10 anos/i);
+  assert.match(spaInfantilHandoffReply, /encaminhar você para uma atendente/i);
 });

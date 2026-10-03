@@ -223,6 +223,7 @@ import {
   mentionsPregnancy,
   mentionsSpaInfantil,
   pregnancyTanningRefusal,
+  spaInfantilHandoffReply,
 } from "../lib/whatsapp-agent-safety";
 
 const router: IRouter = Router();
@@ -1503,7 +1504,7 @@ REGRAS OBRIGATÓRIAS:
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
 - Para agendar, leia o histórico e o rascunho salvo antes de responder. Preserve serviço, data, horário e preferência profissional já informados; pergunte apenas o próximo dado que realmente faltar. Nunca reinicie a coleta nem peça de novo um dado que a cliente já forneceu.
-- O Spa Infantil existe. Quando a cliente perguntar por ele, confirme que sim e diga que vai encaminhá-la para uma atendente; não negue o serviço nem invente detalhes.
+- O Spa Infantil atende crianças de 2 a 10 anos; é um banho à base de hidratante e açúcar, sem chumbo ou amônia. Ao perguntarem, explique isso e depois encaminhe para uma atendente. Não afirme que é “sem química” nem invente garantias de segurança.
 - Retorne bookingUpdate cumulativo quando a cliente iniciar ou continuar um agendamento. Use exatamente um serviço cadastrado; date deve ser AAAA-MM-DD no fuso local; time deve ser HH:mm; professional só deve conter um profissional ativo explicitamente escolhido. Se um dado não mudou, mantenha o valor salvo na resposta cumulativa; use null somente se ainda não foi informado ou se foi removido explicitamente.
 - Use bookingUpdate somente se a mensagem atual iniciar, continuar ou cancelar um agendamento. Se a cliente falar de outro assunto, retorne null e responda ao assunto atual sem reabrir o agendamento.
 - Marque wantsBooking true quando a cliente pedir para agendar ou confirmar uma proposta completa. Se ela escolher um horário da lista de horários livres depois de pedir o agendamento, essa escolha já autoriza a reserva; não peça outra confirmação. Uma pergunta geral de disponibilidade não autoriza reservar até ela escolher um horário.
@@ -4087,15 +4088,16 @@ const processWhatsappWebhookPayload = async (
 
   const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
   if (mentionsSpaInfantil(normalizedText)) {
-    await setWhatsappConversationStatus(phone, "human");
-    ensureWhatsappDelivery(await sendWhatsappReply(
+    const handoffReply = await sendWhatsappReply(
       phone,
       knownClientName,
       appointment?.id ?? null,
-      "Temos sim o Spa Infantil. Vou encaminhar você para uma atendente, que pode explicar os detalhes e ajudar com os horários. 🤎",
+      spaInfantilHandoffReply,
       "handoff",
       replyReference,
-    ));
+    );
+    ensureWhatsappDelivery(handoffReply);
+    await setWhatsappConversationStatus(phone, "human");
     return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" });
   }
   if (asksForHuman) {
@@ -5103,7 +5105,7 @@ Regras obrigatórias:
 - Por cuidado, não realizamos nenhum tipo de bronzeamento para clientes grávidas/gestantes. Recuse pedidos de bronzeamento com acolhimento, não marque esse serviço e não dê orientação médica.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando perguntarem sobre funcionamento, localização ou endereço, use os dados configurados. Não invente endereço nem trate apenas “Belém - PA” como endereço completo.
-- O Spa Infantil existe. Se perguntarem sobre ele, confirme e diga que vai encaminhar para uma atendente; não negue o serviço nem invente detalhes.
+- O Spa Infantil atende crianças de 2 a 10 anos; é um banho à base de hidratante e açúcar, sem chumbo ou amônia. Se perguntarem, explique isso e diga que vai encaminhar para uma atendente. Não afirme que é “sem química” nem invente garantias de segurança.
 - Quando faltar outra informação, explique com simpatia que não tem esse dado e faça uma única pergunta curta; não encaminhe para uma atendente.
 - Para agendar, confirme serviço, data, horário exato e nome, um item por vez; “amanhã” sem horário exige uma pergunta sobre o horário. Só considere confirmado quando a cliente disser explicitamente que quer marcar.
 - Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano, exceto ao perguntar sobre o Spa Infantil, caso em que deve transferir; reclamações, dúvidas clínicas, negociação e outras faltas de informação continuam na conversa.
