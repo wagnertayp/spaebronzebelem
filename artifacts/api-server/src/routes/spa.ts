@@ -156,7 +156,7 @@ import {
   whatsappMessagesTable,
   whatsappSettingsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gt, inArray, lte, ne, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, lte, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
@@ -201,10 +201,14 @@ import {
 } from "../lib/evolution";
 import {
   enqueueWhatsappWebhook,
+  getWhatsappWebhookPayloadByProviderMessageId,
+  hasLaterWhatsappWebhookForPhone,
   makeWhatsappWebhookEventKey,
   startWhatsappWebhookInboxWorker,
+  type WhatsappWebhookJobContext,
   type WhatsappWebhookPayload,
 } from "../lib/whatsapp-webhook-inbox";
+import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
 import {
   isTanningService,
   mentionsPregnancy,
@@ -266,6 +270,9 @@ type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.
 type WhatsappConversationStatus = WhatsappConversation["status"];
 const OPENAI_TEXT_MODEL = process.env["OPENAI_API_KEY"] ? "gpt-5.4" : "gpt-5.6-luna";
 const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
+const WHATSAPP_MESSAGE_BATCH_QUIET_MS = 2_500;
+const waitForWhatsappMessages = (durationMs: number) =>
+  new Promise((resolve) => setTimeout(resolve, durationMs));
 
 const reactionForWhatsappMessage = (providerMessageId: string, text: string) => {
   const source = `${providerMessageId}:${text}`;
@@ -1276,17 +1283,65 @@ const parseAgentDecision = (content: string): AgentDecision => {
   }
 };
 
-const getConversationHistory = async (phone: string) => {
+const getConversationHistory = async (phone: string, beforeMessageId?: number) => {
   const messages = await db
     .select({ direction: whatsappMessagesTable.direction, text: whatsappMessagesTable.text })
     .from(whatsappMessagesTable)
-    .where(eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)))
-    .orderBy(desc(whatsappMessagesTable.createdAt))
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+      beforeMessageId ? lt(whatsappMessagesTable.id, beforeMessageId) : undefined,
+    ))
+    .orderBy(desc(whatsappMessagesTable.id))
     .limit(12);
   return messages.reverse().map((message) => ({
       role: message.direction === "inbound" ? "user" as const : "assistant" as const,
       content: message.text,
     }));
+};
+
+const getWhatsappUnansweredInboundBatch = async (phone: string) => {
+  const normalizedPhone = normalizeWhatsappPhone(phone);
+  const [latestSuccessfulOutbound] = await db
+    .select({ id: whatsappMessagesTable.id })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizedPhone),
+      eq(whatsappMessagesTable.direction, "outbound"),
+      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
+    ))
+    .orderBy(desc(whatsappMessagesTable.id))
+    .limit(1);
+
+  return db
+    .select({
+      id: whatsappMessagesTable.id,
+      text: whatsappMessagesTable.text,
+      providerMessageId: whatsappMessagesTable.providerMessageId,
+    })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizedPhone),
+      eq(whatsappMessagesTable.direction, "inbound"),
+      latestSuccessfulOutbound
+        ? gt(whatsappMessagesTable.id, latestSuccessfulOutbound.id)
+        : undefined,
+    ))
+    .orderBy(asc(whatsappMessagesTable.id));
+};
+
+const getWhatsappImageContentFromWebhook = async (
+  payload: WhatsappWebhookPayload,
+): Promise<WhatsappAgentImageContent> => {
+  const data = (payload["data"] as Record<string, unknown> | undefined) ?? payload;
+  const key = (data["key"] as Record<string, unknown> | undefined) ?? {};
+  const message = (data["message"] as Record<string, unknown> | undefined) ?? {};
+  const media = await getEvolutionMedia(key, message, "image");
+  return {
+    type: "image_url",
+    image_url: {
+      url: `data:${media.mimetype};base64,${media.buffer.toString("base64")}`,
+    },
+  };
 };
 
 const getFutureAgendaContext = () => {
@@ -1315,7 +1370,7 @@ const askWhatsappAgent = async (
   currentInput: WhatsappAgentInput = `Cliente: ${clientName}\nMensagem: ${text}`,
   conversationHistory?: Awaited<ReturnType<typeof getConversationHistory>>,
 ): Promise<AgentDecision> => {
-  const history = conversationHistory ?? await getConversationHistory(phone);
+  const history = conversationHistory ?? (await getConversationHistory(phone)).slice(0, -1);
   const serviceTable = activeSpaRecords("service", services)
     .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
     .join("\n");
@@ -1366,6 +1421,7 @@ REGRAS OBRIGATÓRIAS:
 - Use exatamente um emoji discreto no final da resposta. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio do texto.
 - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
 - Reassuma sempre o assunto principal da conversa usando o histórico; entenda a pergunta atual antes de responder e não fuja do contexto.
+- Quando várias mensagens forem enviadas em sequência antes da sua resposta, leia todas juntas e responda uma única vez. Não responda por linha, não repita a saudação, avisos ou perguntas já feitos.
 - Por cuidado, o spa não realiza nenhum tipo de bronzeamento para clientes grávidas/gestantes. Se a cliente pedir, explique isso com acolhimento, não agende esse serviço e não dê orientação médica; não presuma que outros serviços são seguros durante a gravidez.
 - Se perguntarem se você é IA, robô ou pessoa, responda com transparência que é a assistente virtual com IA do Spa e Bronze Belém; nunca afirme ou sugira que é humana.
 - Se o pedido não tiver relação com o Spa e Bronze Belém, não responda ao conteúdo aleatório nem execute pedidos externos; explique brevemente que seu atendimento é sobre serviços, valores, horários e agendamentos do Spa e redirecione com uma pergunta curta.
@@ -1396,7 +1452,7 @@ REGRAS OBRIGATÓRIAS:
 ou, quando houver agendamento confirmado:
  {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":{"clientName":"nome informado","service":"nome exato do serviço","professional":"","start":"AAAA-MM-DDTHH:mm","confirmed":true}}. Se a cliente informou o nome, retorne-o como string em clientName; caso contrário, mantenha null.`,
       },
-      ...history.slice(0, -1),
+      ...history,
       { role: "user", content: currentInput },
     ],
   }, {
@@ -3543,6 +3599,7 @@ const ensureWhatsappDelivery = <T extends { status: string; error: string | null
 const processWhatsappWebhookPayload = async (
   payload: WhatsappWebhookPayload,
   log: typeof logger,
+  inboxJob: WhatsappWebhookJobContext,
 ) => {
   const body = ReceiveEvolutionWebhookBody.parse(payload);
   const data = (body["data"] as Record<string, unknown> | undefined) ?? body;
@@ -3672,21 +3729,9 @@ const processWhatsappWebhookPayload = async (
       appointment: matchedAppointment ? clone(matchedAppointment) : null,
     };
   });
-  const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const [previousInboundMessage] = await db
-    .select({ id: whatsappMessagesTable.id })
-    .from(whatsappMessagesTable)
-    .where(and(
-      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
-      eq(whatsappMessagesTable.direction, "inbound"),
-      providerMessageId
-        ? ne(whatsappMessagesTable.providerMessageId, providerMessageId)
-        : undefined,
-    ))
-    .limit(1);
-  const isFirstClientMessage = !previousInboundMessage;
+  let inboundMessageId = existingInboundMessage?.id;
   if (!existingInboundMessage) {
-    await addWhatsappMessage({
+    const savedInboundMessage = await addWhatsappMessage({
       direction: "inbound",
       phone: normalizeWhatsappPhone(phone),
       clientName: client?.name ?? phone,
@@ -3697,6 +3742,10 @@ const processWhatsappWebhookPayload = async (
       providerMessageId,
       error: null,
     });
+    inboundMessageId = savedInboundMessage.id;
+  }
+  if (inboundMessageId == null) {
+    throw new Error("Não foi possível localizar a mensagem recebida no histórico.");
   }
   const conversation = await getWhatsappConversation(phone);
   if (conversation) await cancelPendingWhatsappFollowUps(conversation.id);
@@ -3733,6 +3782,88 @@ const processWhatsappWebhookPayload = async (
       );
     });
   }
+
+  await waitForWhatsappMessages(WHATSAPP_MESSAGE_BATCH_QUIET_MS);
+  if (await hasLaterWhatsappWebhookForPhone(remoteJid, inboxJob.id)) {
+    log.info(
+      { phone, inboxId: inboxJob.id },
+      "WhatsApp reply deferred until the client's message burst is complete",
+    );
+    return ReceiveEvolutionWebhookResponse.parse({
+      received: true,
+      action: "deferred_for_following_messages",
+    });
+  }
+
+  const inboundBatch = await getWhatsappUnansweredInboundBatch(phone);
+  if (inboundBatch.length === 0) {
+    return ReceiveEvolutionWebhookResponse.parse({
+      received: true,
+      action: "already_answered",
+    });
+  }
+  text = combineWhatsappInboundMessages(inboundBatch.map((message) => message.text));
+  const conversationHistory = await getConversationHistory(phone, inboundBatch[0]!.id);
+  const [previousClientMessage] = await db
+    .select({ id: whatsappMessagesTable.id })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+      eq(whatsappMessagesTable.direction, "inbound"),
+      lt(whatsappMessagesTable.id, inboundBatch[0]!.id),
+    ))
+    .limit(1);
+  const isFirstClientMessage = !previousClientMessage;
+  const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const currentImageParts = Array.isArray(currentInput)
+    ? currentInput.filter((part) => part.type === "image_url")
+    : [];
+  const imageParts: WhatsappAgentImageContent[] = [];
+  const retryCurrentImageError = isImageMessage && Boolean(mediaError);
+  let currentImageRecovered = false;
+  let batchImageLoadError: string | null = null;
+  for (const message of inboundBatch) {
+    if (!message.text.startsWith("[Imagem recebida")) continue;
+    const isCurrentImage = message.id === inboundMessageId;
+    if (isCurrentImage && currentImageParts.length > 0) {
+      imageParts.push(...currentImageParts);
+      continue;
+    }
+
+    try {
+      if (!message.providerMessageId) {
+        throw new Error("A imagem não possui identificador para recuperação.");
+      }
+      const storedWebhook = await getWhatsappWebhookPayloadByProviderMessageId(
+        message.providerMessageId,
+        remoteJid,
+      );
+      if (!storedWebhook) {
+        throw new Error("O evento com a imagem não foi encontrado na fila salva.");
+      }
+      imageParts.push(await getWhatsappImageContentFromWebhook(storedWebhook));
+      if (isCurrentImage && retryCurrentImageError) currentImageRecovered = true;
+    } catch (error) {
+      batchImageLoadError ??= error instanceof Error
+        ? error.message
+        : "Não foi possível recuperar uma imagem da conversa.";
+      logger.warn(
+        { err: error, phone, providerMessageId: message.providerMessageId },
+        "WhatsApp image from the message burst could not be loaded",
+      );
+    }
+  }
+  if (isImageMessage && currentImageRecovered) {
+    mediaError = batchImageLoadError;
+  } else if (!mediaError && batchImageLoadError) {
+    mediaError = batchImageLoadError;
+  }
+  const batchPrompt = inboundBatch.length > 1
+    ? `Cliente: ${knownClientName}\nA cliente enviou estas mensagens em sequência antes da sua resposta:\n${text}\nLeia todas e responda uma única vez, sem repetir saudação, avisos ou perguntas.`
+    : `Cliente: ${knownClientName}\nMensagem: ${text}`;
+  currentInput = imageParts.length > 0
+    ? [{ type: "text", text: batchPrompt }, ...imageParts]
+    : batchPrompt;
 
   const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
   if (asksForHuman) {
@@ -3802,7 +3933,6 @@ const processWhatsappWebhookPayload = async (
   }
 
   try {
-    const conversationHistory = await getConversationHistory(phone);
     const decision = await askWhatsappAgent(
       phone,
       knownClientName,
@@ -3825,8 +3955,11 @@ const processWhatsappWebhookPayload = async (
       : undefined;
     if (
       decision.appointment &&
-      conversationHistory.some((message) =>
-        message.role === "user" && mentionsPregnancy(message.content),
+      (
+        conversationHistory.some((message) =>
+          message.role === "user" && mentionsPregnancy(message.content),
+        ) ||
+        inboundBatch.some((message) => mentionsPregnancy(message.text))
       ) &&
       isTanningService(decision.appointment.service, requestedService?.category)
     ) {
@@ -4005,8 +4138,8 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
 });
 
 export const startWhatsappWebhookWorker = () =>
-  startWhatsappWebhookInboxWorker(async (payload) => {
-    const result = await processWhatsappWebhookPayload(payload, logger);
+  startWhatsappWebhookInboxWorker(async (payload, inboxJob) => {
+    const result = await processWhatsappWebhookPayload(payload, logger, inboxJob);
     return result.action;
   });
 

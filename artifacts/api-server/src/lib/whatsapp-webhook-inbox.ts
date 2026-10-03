@@ -12,6 +12,7 @@ const HEARTBEAT_INTERVAL_MS = 15_000;
 const WORKER_POLL_INTERVAL_MS = 1_000;
 
 export type WhatsappWebhookPayload = Record<string, unknown>;
+export type WhatsappWebhookJobContext = Pick<WhatsappWebhookJob, "id">;
 
 export type WhatsappWebhookJob = {
   id: number;
@@ -22,6 +23,23 @@ export type WhatsappWebhookJob = {
 };
 
 export { makeWhatsappWebhookEventKey };
+
+const remotePhoneDigitsSql = (alias: string) => `
+  regexp_replace(
+    split_part(
+      COALESCE(
+        ${alias}.payload #>> '{data,key,remoteJid}',
+        ${alias}.payload #>> '{key,remoteJid}',
+        ''
+      ),
+      '@',
+      1
+    ),
+    '[^0-9]',
+    '',
+    'g'
+  )
+`;
 
 export const enqueueWhatsappWebhook = async (
   eventKey: string,
@@ -47,13 +65,29 @@ const claimNextWhatsappWebhook = async (): Promise<WhatsappWebhookJob | null> =>
       payload: WhatsappWebhookPayload;
       attempts: number;
     }>(
-      `SELECT id, event_key, payload, attempts
-       FROM whatsapp_webhook_inbox
-       WHERE (status = 'pending' AND available_at <= NOW())
-          OR (status = 'processing' AND locked_at < NOW() - ($1 * INTERVAL '1 second'))
-       ORDER BY available_at, id
+      `SELECT candidate.id, candidate.event_key, candidate.payload, candidate.attempts
+       FROM whatsapp_webhook_inbox AS candidate
+       WHERE (
+         (candidate.status = 'pending' AND candidate.available_at <= NOW())
+         OR (
+           candidate.status = 'processing'
+           AND candidate.locked_at < NOW() - ($1 * INTERVAL '1 second')
+         )
+       )
+       AND (
+         NULLIF(${remotePhoneDigitsSql("candidate")}, '') IS NULL
+         OR NOT EXISTS (
+           SELECT 1
+           FROM whatsapp_webhook_inbox AS earlier
+           WHERE earlier.id < candidate.id
+             AND NULLIF(${remotePhoneDigitsSql("earlier")}, '') =
+                 NULLIF(${remotePhoneDigitsSql("candidate")}, '')
+             AND earlier.status IN ('pending', 'processing')
+         )
+       )
+       ORDER BY candidate.available_at, candidate.id
        LIMIT 1
-       FOR UPDATE SKIP LOCKED`,
+       FOR UPDATE OF candidate SKIP LOCKED`,
       [CLAIM_LEASE_SECONDS],
     );
     const item = candidate.rows[0];
@@ -90,6 +124,48 @@ const claimNextWhatsappWebhook = async (): Promise<WhatsappWebhookJob | null> =>
   } finally {
     client.release();
   }
+};
+
+export const hasLaterWhatsappWebhookForPhone = async (
+  remoteJid: string,
+  currentJobId: number,
+) => {
+  const phoneDigits = remoteJid.split("@")[0]?.replace(/\D/g, "") ?? "";
+  if (!phoneDigits) return false;
+
+  const result = await pool.query<{ hasLater: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM whatsapp_webhook_inbox AS queued
+       WHERE queued.id > $2
+         AND queued.status IN ('pending', 'processing')
+         AND ${remotePhoneDigitsSql("queued")} = $1
+     ) AS "hasLater"`,
+    [phoneDigits, currentJobId],
+  );
+  return result.rows[0]?.hasLater === true;
+};
+
+export const getWhatsappWebhookPayloadByProviderMessageId = async (
+  providerMessageId: string,
+  remoteJid: string,
+) => {
+  const phoneDigits = remoteJid.split("@")[0]?.replace(/\D/g, "") ?? "";
+  if (!providerMessageId || !phoneDigits) return null;
+
+  const result = await pool.query<{ payload: WhatsappWebhookPayload }>(
+    `SELECT stored.payload
+     FROM whatsapp_webhook_inbox AS stored
+     WHERE COALESCE(
+       stored.payload #>> '{data,key,id}',
+       stored.payload #>> '{key,id}'
+     ) = $1
+       AND ${remotePhoneDigitsSql("stored")} = $2
+     ORDER BY stored.id DESC
+     LIMIT 1`,
+    [providerMessageId, phoneDigits],
+  );
+  return result.rows[0]?.payload ?? null;
 };
 
 const updateWhatsappWebhookLease = async (job: WhatsappWebhookJob) => {
@@ -133,7 +209,10 @@ const retryWhatsappWebhook = async (job: WhatsappWebhookJob, error: unknown) => 
 };
 
 export const startWhatsappWebhookInboxWorker = (
-  processPayload: (payload: WhatsappWebhookPayload) => Promise<unknown>,
+  processPayload: (
+    payload: WhatsappWebhookPayload,
+    job: WhatsappWebhookJobContext,
+  ) => Promise<unknown>,
 ) => {
   let running = false;
 
@@ -152,7 +231,7 @@ export const startWhatsappWebhookInboxWorker = (
       heartbeat.unref();
 
       try {
-        const result = await processPayload(job.payload);
+        const result = await processPayload(job.payload, { id: job.id });
         const completed = await completeWhatsappWebhook(job);
         if (completed) {
           logger.info(

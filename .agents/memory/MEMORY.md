@@ -2,7 +2,7 @@
 - [WhatsApp unanswered-message scope](whatsapp-unanswered-scope.md) — only saved app messages are in scope; do not recover provider history or send automatic replies.
 - [WhatsApp PTT audio](whatsapp-ptt-audio.md) — Evolution’s voice-audio endpoint marks the chat as recording and converts source audio to Opus for voice-note delivery.
 - [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
-- [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own the greeting; server-side prefixes can duplicate it.
+- [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own greetings and answer consecutive saved messages together in one turn.
 - [WhatsApp agent availability](whatsapp-agent-availability.md) — user requirement: the WhatsApp AI agent must not stop, for any reason.
 - [Pregnancy and tanning policy](pregnancy-tanning-policy.md) — the spa does not provide tanning for pregnant clients, as a precaution.
 - [Published database](published-neon-database.md) — the published app uses Neon PostgreSQL; preserve it as the production data source.

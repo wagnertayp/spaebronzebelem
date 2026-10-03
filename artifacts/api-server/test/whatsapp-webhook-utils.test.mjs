@@ -1,10 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  combineWhatsappInboundMessages,
   makeWhatsappWebhookEventKey,
   stripInlineMedia,
   webhookRetryDelaySeconds,
 } from "../src/lib/whatsapp-webhook-utils.ts";
+
+test("combines consecutive client messages in their original order", () => {
+  assert.equal(
+    combineWhatsappInboundMessages([" Estou com 17 semanas ainda ", "Estou doida pra fazer essa", "Mas vou aguardar"]),
+    "1. Estou com 17 semanas ainda\n2. Estou doida pra fazer essa\n3. Mas vou aguardar",
+  );
+  assert.equal(combineWhatsappInboundMessages(["Bom dia"]), "Bom dia");
+  assert.equal(combineWhatsappInboundMessages(["  ", ""]), "");
+});
 
 test("webhook event keys are stable for provider message IDs", () => {
   const event = {

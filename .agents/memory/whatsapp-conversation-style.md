@@ -8,3 +8,9 @@ The model should own the first-message greeting and the server should send its r
 **Why:** A real context test produced the configured greeting twice when both layers tried to add it.
 
 **How to apply:** Keep greeting, brevity, one-final-emoji, empathy, and context continuity in the agent prompt. Do not prepend a greeting in the webhook response path.
+
+Consecutive saved inbound messages received before the agent replies are one user turn and should produce one reply. Do not repeat greetings, warnings, or questions across fragments.
+
+**Why:** The user asked that the agent understand the message burst before responding so the conversation feels natural and avoids repetitive replies.
+
+**How to apply:** Preserve sender order, defer a reply while newer same-sender webhook events are queued, and provide the unanswered saved messages together. Do not recover provider history.

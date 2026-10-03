@@ -2,6 +2,12 @@ import { randomUUID } from "node:crypto";
 
 export type WhatsappWebhookPayload = Record<string, unknown>;
 
+export const combineWhatsappInboundMessages = (messages: string[]) => {
+  const cleanedMessages = messages.map((message) => message.trim()).filter(Boolean);
+  if (cleanedMessages.length < 2) return cleanedMessages[0] ?? "";
+  return cleanedMessages.map((message, index) => `${index + 1}. ${message}`).join("\n");
+};
+
 export const makeWhatsappWebhookEventKey = (
   payload: WhatsappWebhookPayload,
 ): string => {
