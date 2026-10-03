@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
-import { db, pool, spaOperationalStateTable } from "@workspace/db";
+import { db, pool, spaOperationalStateTable, tryAcquirePostgresAdvisoryLock } from "@workspace/db";
 import type { SpaOperationalStateRepository } from "./spa-state-store";
 
 const SPA_STATE_ADVISORY_LOCK_KEY = [139777, 1] as const;
+const WHATSAPP_REMINDER_ADVISORY_LOCK_KEY = [139777, 2] as const;
 
 export const spaOperationalStateRepository: SpaOperationalStateRepository = {
   async load() {
@@ -64,4 +65,8 @@ export const acquireSpaOperationalStateLock = async () => {
       client.release(releaseError);
     }
   };
+};
+
+export const tryAcquireWhatsappReminderLock = async () => {
+  return tryAcquirePostgresAdvisoryLock(pool, WHATSAPP_REMINDER_ADVISORY_LOCK_KEY);
 };

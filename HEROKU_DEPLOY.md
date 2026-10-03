@@ -11,18 +11,26 @@ the browser and API share an origin.
 - `heroku-postbuild` builds `@workspace/spa-bronze-belem` and `@workspace/api-server`.
 - `Procfile` starts the API on Heroku's assigned `PORT`; in production it also
   serves the SPA and its client-side routes.
-- Keep exactly one `web` dyno for now. The webhook inbox is database-backed and
-  safe for multiple consumers, but reminder/follow-up loops and several business
-  records are still process-local; extra dynos can duplicate scheduled sends
-  and make each dyno show different data.
+- The published app uses its existing Neon PostgreSQL database through
+  `DATABASE_URL`; do not replace it with Replit's development database or a new
+  Heroku Postgres database. Mutable SPA records are stored in the shared
+  `spa_operational_state` snapshot and coordinated with a PostgreSQL advisory
+  lock. Webhook and follow-up workers claim database-backed jobs, and reminder
+  cycles use a shared lock so only one web dyno sends reminders at a time.
+- Start with one `web` dyno until the Neon schema and initialized SPA state row
+  are confirmed. After that, additional dynos can share committed state, but
+  provider delivery remains at-least-once if a process dies after Evolution
+  accepts a message but before its sent status is saved.
 - Voice-note conversion shells out to `ffmpeg`. The root `Aptfile` installs it;
   configure Heroku's Apt buildpack before the Node.js buildpack.
 
 ## Required configuration
 
-Attach a **new Heroku Postgres database** to the app so Heroku provides
-`DATABASE_URL`. Do not point this deployment at the Replit database or assume
-that Heroku copies its records.
+Set `DATABASE_URL` to the existing Neon PostgreSQL database used by the
+published app. Do not attach or migrate to a new Heroku Postgres database. The
+application uses session-level PostgreSQL advisory locks for state writes and
+reminder coordination, so use a Neon connection that preserves session locks;
+do not switch to a transaction-pooling endpoint without testing those locks.
 
 Set these values in Heroku Config Vars before starting the app:
 
@@ -44,29 +52,32 @@ Heroku assigns `PORT` at runtime. Do not set it as a fixed Config Var.
 
 ## First deployment and checks
 
-1. Create the Heroku app, attach its Postgres add-on, and configure the Apt and
-   Node.js buildpacks. Keep the Apt buildpack before the Node.js buildpack.
-2. Set the Config Vars above. Keep all credentials in Heroku Config Vars; do not
-   commit them or copy Replit secret values into this document.
+1. Configure the Apt and Node.js buildpacks. Keep the Apt buildpack before the
+   Node.js buildpack.
+2. Confirm `DATABASE_URL` points to the existing Neon database used by the
+   published app. Set the remaining Config Vars above; keep credentials in
+   Heroku Config Vars and do not commit them.
 3. Deploy the repository. The `release` process applies the checked-in Drizzle
-   migrations to the configured Heroku database before the web dyno starts.
-4. Scale to one web dyno and confirm `https://<app-domain>/api/healthz` returns
-   successfully and the root URL loads the panel.
+   migrations to the configured Neon database before the web dyno starts.
+4. Start with one web dyno, confirm the Neon schema and singleton SPA state row
+   are present, then check `https://<app-domain>/api/healthz` and the panel.
+   Scale up gradually only after verifying the production state and message
+   delivery.
 5. Confirm the Evolution webhook points to the Heroku URL, then test one inbound
    WhatsApp message before enabling normal automation.
 
-## Data durability limitation
+## Data durability
 
-The current database schema persists WhatsApp conversations, messages, settings,
-and follow-ups. Core operational records—including appointments, clients,
-professionals, services, quotes, inventory, financial movements, and commission
-records—are still mutable in-memory collections, with some initial values read
-from the bundled backup JSON. Heroku can restart dynos during normal operation;
-those mutations are therefore **not durable** and can revert to their startup
-data. A single dyno avoids cross-dyno divergence but does not solve restart loss.
+Mutable operational collections—including appointments, clients, professionals,
+services, quotes, inventory, financial movements, and commissions—are persisted
+in the versioned JSONB row `spa_operational_state`. Each mutation refreshes the
+latest committed snapshot, takes the PostgreSQL advisory lock, and saves before
+reporting success. WhatsApp conversations, messages, settings, follow-ups, and
+webhook inbox jobs are persisted in their own tables.
 
-Do not use this deployment for live operations until those records are moved to
-PostgreSQL and the existing records that must be retained are deliberately
-exported/imported. The checked-in migration currently creates only the existing
-WhatsApp tables; it does not migrate Replit database contents or the in-memory
-business records. No automatic `drizzle-kit push` or force-push is used.
+The schema migration creates the state table but does not automatically import
+the bundled seed data or copy data from another database. Production startup
+fails closed until the singleton state row has been deliberately initialized.
+Follow `artifacts/api-server/SPA_STATE_MIGRATION.md` for the backup and
+one-time-import procedure; never enable its import flags before verifying the
+Neon backup and approval.

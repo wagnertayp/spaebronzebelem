@@ -2,7 +2,7 @@
 
 The Heroku `release` process continues to run the checked-in Drizzle migrations. The new `spa_operational_state` table is created by that schema migration; it does not copy or alter business records.
 
-Operational data is saved as one versioned PostgreSQL JSONB snapshot. Each request refreshes the snapshot from PostgreSQL, and writes are serialized with a PostgreSQL advisory lock so concurrent API processes do not overwrite each other's changes. The API does not import `spa-backup.json` automatically. In production, SPA endpoints remain unavailable until the singleton state row exists, so the app cannot silently accept in-memory-only edits or show seed records as live data.
+Operational data is saved as one versioned PostgreSQL JSONB snapshot. Each request refreshes the snapshot from PostgreSQL, and writes are serialized with a PostgreSQL advisory lock so concurrent API processes do not overwrite each other's changes. Reminder cycles also use a shared advisory lock, while follow-up and webhook workers claim persisted jobs. The API does not import `spa-backup.json` automatically. In production, SPA endpoints remain unavailable until the singleton state row exists, so the app cannot silently accept in-memory-only edits or show seed records as live data.
 
 To perform the one-time initial import:
 

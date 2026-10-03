@@ -180,6 +180,7 @@ import {
 import {
   acquireSpaOperationalStateLock,
   spaOperationalStateRepository,
+  tryAcquireWhatsappReminderLock,
 } from "../lib/spa-state-repository";
 import {
   getEvolutionConfig,
@@ -860,7 +861,10 @@ const addWhatsappMessage = async (message: Omit<WhatsappMessage, "id" | "created
   return toWhatsappMessage(created);
 };
 
-const updateWhatsappMessage = async (id: number, changes: Pick<WhatsappMessage, "status" | "providerMessageId" | "error">) => {
+const updateWhatsappMessage = async (
+  id: number,
+  changes: Partial<Pick<WhatsappMessage, "status" | "providerMessageId" | "error" | "text">>,
+) => {
   const [updated] = await db
     .update(whatsappMessagesTable)
     .set(changes)
@@ -939,6 +943,19 @@ const sendAppointmentMessage = async (
     return toWhatsappMessage(existing);
   }
 
+  const [existingPendingReminder] = kind === "reminder24h" || kind === "reminder2h"
+    ? await db
+        .select()
+        .from(whatsappMessagesTable)
+        .where(and(
+          eq(whatsappMessagesTable.appointmentId, appointment.id),
+          eq(whatsappMessagesTable.kind, kind),
+          eq(whatsappMessagesTable.status, "pending"),
+        ))
+        .orderBy(desc(whatsappMessagesTable.createdAt))
+        .limit(1)
+    : [];
+
   if (!client || !phone || !text) {
     return await addWhatsappMessage({
       direction: "outbound",
@@ -953,17 +970,24 @@ const sendAppointmentMessage = async (
     });
   }
 
-  const pending = await addWhatsappMessage({
-    direction: "outbound",
-    phone,
-    clientName: appointment.client,
-    appointmentId: appointment.id,
-    text,
-    status: "pending",
-    kind,
-    providerMessageId: null,
-    error: null,
-  });
+  const pending = existingPendingReminder
+    ? (await updateWhatsappMessage(existingPendingReminder.id, {
+        status: "pending",
+        providerMessageId: null,
+        error: null,
+        text,
+      })) ?? toWhatsappMessage(existingPendingReminder)
+    : await addWhatsappMessage({
+        direction: "outbound",
+        phone,
+        clientName: appointment.client,
+        appointmentId: appointment.id,
+        text,
+        status: "pending",
+        kind,
+        providerMessageId: null,
+        error: null,
+      });
   const result = await sendEvolutionText(phone, text);
   const updated = (await updateWhatsappMessage(pending.id, {
     status: result.ok ? "sent" : "failed",
@@ -1583,31 +1607,38 @@ const agentAppointmentFailureReply = (reason: AgentAppointmentFailure) => {
 };
 
 export const runWhatsappReminders = async () => {
-  await ensureSpaOperationalStateLoaded();
-  await spaOperationalStateWriteQueue;
-  if (spaOperationalStateStore.status === "ready") {
-    await refreshSpaOperationalState();
-  }
-  if (
-    process.env["NODE_ENV"] === "production" &&
-    spaOperationalStateStore.status !== "ready"
-  ) {
-    return;
-  }
-  await loadWhatsappSettings();
-  if (!whatsappAutomation.enabled) return;
-  const now = Date.now();
-  for (const appointment of appointments) {
-    if (appointment.status !== "confirmed") continue;
-    const date = appointmentDateTimeInAgenda(appointment.start);
-    if (!date) continue;
-    const hours = (date.getTime() - now) / 3_600_000;
-    if (whatsappAutomation.reminder24h && hours > 23 && hours <= 25) {
-      await sendAppointmentMessage(appointment, "reminder24h");
+  const releaseReminderLock = await tryAcquireWhatsappReminderLock();
+  if (!releaseReminderLock) return;
+  try {
+    await ensureSpaOperationalStateLoaded();
+    await spaOperationalStateWriteQueue;
+    if (spaOperationalStateStore.status === "ready") {
+      await refreshSpaOperationalState();
     }
-    if (whatsappAutomation.reminder2h && hours > 1 && hours <= 3) {
-      await sendAppointmentMessage(appointment, "reminder2h");
+    if (
+      process.env["NODE_ENV"] === "production" &&
+      spaOperationalStateStore.status !== "ready"
+    ) {
+      return;
     }
+    await loadWhatsappSettings();
+    if (!whatsappAutomation.enabled) return;
+    const now = Date.now();
+    for (const appointment of appointments) {
+      if (appointment.status !== "confirmed") continue;
+      const date = appointmentDateTimeInAgenda(appointment.start);
+      if (!date) continue;
+      const hours = (date.getTime() - now) / 3_600_000;
+      // Catch up after a dyno restart, but never send a reminder for a started appointment.
+      if (whatsappAutomation.reminder24h && hours > 0 && hours <= 25) {
+        await sendAppointmentMessage(appointment, "reminder24h");
+      }
+      if (whatsappAutomation.reminder2h && hours > 0 && hours <= 3) {
+        await sendAppointmentMessage(appointment, "reminder2h");
+      }
+    }
+  } finally {
+    await releaseReminderLock();
   }
 };
 
