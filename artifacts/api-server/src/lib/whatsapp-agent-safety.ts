@@ -10,6 +10,24 @@ export const mentionsPregnancy = (value: string) =>
     normalizeSafetyText(value),
   );
 
+export const isClientOnTheWay = (value: string) => {
+  const normalized = normalizeSafetyText(value);
+  const negativeArrival =
+    /\bnao\s+(?:estou|to|vou)\s+(?:a caminho|no caminho|indo|chegando|perto|na porta)\b|\bnao\s+cheguei\b/.test(
+      normalized,
+    );
+  if (negativeArrival) return false;
+
+  return /\b(?:estou|to|vou)\s+(?:a caminho|no caminho|indo|chegando|perto|na porta)\b/.test(
+    normalized,
+  ) || /\b(?:a caminho|no caminho|chegando|ja cheguei|cheguei|acabei de chegar)\b/.test(
+    normalized,
+  );
+};
+
+export const clientOnTheWayReply =
+  "Que bom! Estamos te aguardando por aqui. Venha com cuidado, até já! 🤎";
+
 export const mentionsSpaInfantil = (value: string) =>
   /\bsp(?:a|ar)\s+(?:infantil|(?:para|das)\s+criancas?)\b|\bkids\s+spa\b/.test(
     normalizeSafetyText(value),

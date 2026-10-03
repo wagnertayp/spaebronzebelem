@@ -225,6 +225,8 @@ import {
 } from "../lib/whatsapp-webhook-inbox";
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
 import {
+  clientOnTheWayReply,
+  isClientOnTheWay,
   isTanningService,
   mentionsPregnancy,
   mentionsSpaInfantil,
@@ -1216,7 +1218,7 @@ const sendWhatsappAudioMessage = async (
   })) ?? item;
 };
 
-const hasSentWhatsappAudioClip = async (phone: string, clip: WhatsappAudioClip) => {
+const hasAttemptedWhatsappAudioClip = async (phone: string, clip: WhatsappAudioClip) => {
   const [audioMessage] = await db
     .select({ id: whatsappMessagesTable.id })
     .from(whatsappMessagesTable)
@@ -1225,7 +1227,6 @@ const hasSentWhatsappAudioClip = async (phone: string, clip: WhatsappAudioClip) 
       eq(whatsappMessagesTable.direction, "outbound"),
       eq(whatsappMessagesTable.kind, "audio"),
       eq(whatsappMessagesTable.text, WHATSAPP_AUDIO_MESSAGE_LABELS[clip]),
-      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
     ))
     .limit(1);
   return Boolean(audioMessage);
@@ -1449,7 +1450,7 @@ const askWhatsappAgent = async (
   conversationHistory?: Awaited<ReturnType<typeof getConversationHistory>>,
   bookingDraft: WhatsappBookingDraft | null = null,
   availableSlots: AppointmentSlotCandidate[] = [],
-  bronzeAudioAlreadySent = false,
+  bronzeAudioAlreadyAttempted = false,
 ): Promise<AgentDecision> => {
   const history = conversationHistory ?? (await getConversationHistory(phone)).slice(0, -1);
   const serviceTable = activeSpaRecords("service", services)
@@ -1495,8 +1496,8 @@ DATA LOCAL DE HOJE: ${currentDate}
 FUSO: ${whatsappAutomation.timezone}
 RASCUNHO SALVO DO AGENDAMENTO:
 ${bookingDraft ? JSON.stringify(bookingDraft) : "Nenhum"}
-ÁUDIO DE BRONZE ENVIADO COM SUCESSO NESTA CONVERSA:
-${bronzeAudioAlreadySent ? "Sim" : "Não"}
+TENTATIVA DE ENVIO DO ÁUDIO DE BRONZE JÁ REGISTRADA NESTA CONVERSA:
+${bronzeAudioAlreadyAttempted ? "Sim" : "Não"}
 HORÁRIOS QUE O SISTEMA VALIDOU COMO LIVRES:
 ${availableSlots.length
   ? availableSlots.slice(0, 6).map((slot) => `${slot.start} | ${slot.professional}`).join("\n")
@@ -1517,6 +1518,7 @@ REGRAS OBRIGATÓRIAS:
 - Se a mensagem vier com uma imagem, observe-a antes de responder e use apenas o que estiver visível nela. Se vier de áudio, considere a transcrição como a mensagem da cliente.
 - Se a cliente fizer uma pergunta de continuação, responda diretamente a ela sem repetir toda a apresentação. Se faltar informação, faça uma única pergunta curta para esclarecer.
 - Mantenha-se simpática, paciente e acolhedora em todas as respostas. Não use respostas genéricas quando houver contexto suficiente.
+- Se a cliente disser que está a caminho, chegando ou que chegou, reconheça com cortesia e diga que a equipe está aguardando; não pergunte serviço, data ou horário, nem reinicie o agendamento.
 - ${isFirstClientMessage ? "Esta é a primeira mensagem do cliente. Comece a resposta usando a saudação configurada, sem trocar por uma mensagem genérica de encaminhamento." : "Não repita a saudação configurada em todas as mensagens."}
 - Nunca peça o nome na primeira resposta, junto da saudação inicial. Depois que a cliente já recebeu essa resposta e continuar a conversa, se o nome ainda não for conhecido, pergunte-o com naturalidade em uma pergunta curta; não repita o pedido e não deixe de responder à dúvida principal.
 - Ao retornar clientName, use somente o nome que a cliente informou explicitamente na conversa; se ainda não informou, retorne null. Nunca deduza o nome pelo telefone.
@@ -1532,12 +1534,14 @@ REGRAS OBRIGATÓRIAS:
 - Se a duração de um serviço estiver como "A definir", não confirme nem crie agendamento para ele. Explique que a duração ainda precisa ser confirmada.
 - Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Se pedir o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
-- Ao perguntar sobre bronze, se o áudio ainda não foi enviado com sucesso nesta conversa, escolha audioClip "bronze" e faça uma introdução curta antes do áudio. Depois do áudio, o servidor enviará a comparação dos métodos. Se o áudio já foi enviado, não o escolha de novo; responda normalmente e explique a diferença quando pertinente.
+- Quando a cliente estiver escolhendo ou pedir recomendação de bronzeamento, priorize o Turbo Neon (Protocolo Neon): três sessões + esfoliação por R$180. Apresente-o como a opção recomendada para quem busca bronze mais uniforme, tom dourado de aparência natural, procedimento em pouco tempo e marquinhas personalizadas; diga que a pele pode parecer mais iluminada e hidratada quando combinada com cuidados adequados. Ao contornar uma objeção, acolha a dúvida e destaque apenas a qualidade do Neon que responde a ela, sem prometer resultados, inventar duração ou afirmar superioridade universal.
+- A escolha da cliente prevalece: se ela optar por outro método/pacote ou recusar o Neon, pare de oferecer e não volte a mencionar o Neon nem suas qualidades em mensagens futuras, a menos que ela pergunte sobre ele. Não faça a oferta durante atualização de chegada ou depois de um agendamento já confirmado.
+- Ao perguntar sobre bronze, se ainda não houver tentativa registrada do áudio nesta conversa, escolha audioClip "bronze" e faça uma introdução curta antes do áudio. Se a cliente ainda estiver avaliando opções, essa introdução pode trazer uma única recomendação breve do Neon; se já escolheu outra opção, não. Depois da tentativa, o servidor enviará apenas a comparação dos métodos; não escolha nem repita o áudio em mensagens futuras, mesmo se a tentativa anterior falhou.
 - Bronze natural é feito com exposição solar. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é mais seguro ou melhor nem prometa resultados.
 - Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
   - audioClip "combos": gravação que explica os combos do Spa e Bronze.
   - audioClip "bronze": gravação sobre bronzeamento.
-  Escolha um somente se o pedido atual da cliente for diretamente sobre esse tema e a gravação for pertinente; nos demais casos use null. Se escolher audioClip "bronze", não repita a comparação dos métodos na introdução, pois ela será enviada depois do áudio. Para combos, mantenha uma introdução curta sem inventar preços ou detalhes não confirmados.
+  Escolha um somente se o pedido atual da cliente for diretamente sobre esse tema e a gravação for pertinente; nos demais casos use null. Se escolher audioClip "bronze", mantenha a introdução curta e não antecipe a comparação dos métodos, que será enviada depois do áudio. Só inclua a recomendação do Neon nessa introdução se a cliente ainda estiver avaliando e não tiver escolhido outra opção. Para combos, mantenha uma introdução curta sem inventar preços ou detalhes não confirmados.
 - Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano, exceto ao perguntar sobre o Spa Infantil, caso em que deve transferir. Reclamações, negociação, dúvidas clínicas, falta de informação e reagendamento continuam na conversa.
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
 {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null,"bookingUpdate":null}
@@ -4143,6 +4147,17 @@ const processWhatsappWebhookPayload = async (
   if (conversation?.status !== "agent") {
     await setWhatsappConversationStatus(phone, "agent");
   }
+  if (isClientOnTheWay(normalizedText)) {
+    ensureWhatsappDelivery(await sendWhatsappReply(
+      phone,
+      knownClientName,
+      appointment?.id ?? null,
+      clientOnTheWayReply,
+      "reply",
+      replyReference,
+    ));
+    return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+  }
   if (mediaError) {
     ensureWhatsappDelivery(await sendWhatsappAgentReply(
       phone,
@@ -4196,7 +4211,7 @@ const processWhatsappWebhookPayload = async (
 
   try {
     const savedBookingDraft = conversation?.bookingDraft ?? null;
-    const bronzeAudioAlreadySent = await hasSentWhatsappAudioClip(phone, "bronze");
+    const bronzeAudioAlreadyAttempted = await hasAttemptedWhatsappAudioClip(phone, "bronze");
     const savedBookingSlots = savedBookingDraft?.service && savedBookingDraft.date
       ? getAvailableAppointmentSlots(
           savedBookingDraft.service,
@@ -4213,7 +4228,7 @@ const processWhatsappWebhookPayload = async (
       conversationHistory,
       savedBookingDraft,
       savedBookingSlots,
-      bronzeAudioAlreadySent,
+      bronzeAudioAlreadyAttempted,
     );
     await saveWhatsappClientName(
       phone,
@@ -4550,7 +4565,7 @@ const processWhatsappWebhookPayload = async (
       : decision.audioClip ?? audioClipForWhatsappMessage(normalizedText);
     const canSendBronzeAudio = shouldSendBronzeAudio(
       isBronzeQuestion,
-      bronzeAudioAlreadySent,
+      bronzeAudioAlreadyAttempted,
       pregnancyMentioned,
     );
     const audioClip = (isBronzeQuestion && pregnancyMentioned) ||
@@ -5154,7 +5169,10 @@ Regras obrigatórias:
 - Não peça o nome junto da saudação inicial. Em uma conversa real, se o nome ainda não for conhecido, pergunte-o naturalmente depois da primeira resposta e quando a cliente continuar a conversa.
 - Só informe clientName se a cliente tiver dito o nome explicitamente; não deduza pelo telefone.
 - Use somente os serviços, preços, durações e informações fornecidas acima.
-- Neste teste textual, considere que o áudio de bronze já foi enviado: responda sem prometer outro áudio e explique a diferença entre bronze natural (exposição solar) e máquina (WB Ultra, 72 lâmpadas, cerca de 8 a 20 minutos conforme fototipo e atendimento individualizado).
+- Se a cliente disser que está a caminho, chegando ou que chegou, responda com cortesia dizendo que a equipe está aguardando; não pergunte qual serviço quer agendar nem reabra a coleta.
+- Quando a cliente estiver escolhendo ou pedir recomendação de bronzeamento, priorize o Turbo Neon (Protocolo Neon): três sessões + esfoliação por R$180. Destaque o acabamento mais uniforme, o tom dourado natural, a rapidez do procedimento, a possibilidade de personalizar as marquinhas e a aparência mais iluminada/hidratada com cuidados adequados. Trate como qualidades pretendidas, sem prometer resultados nem inventar duração.
+- Se a cliente optar por outro método/pacote ou recusar o Neon, respeite a escolha e não volte a mencioná-lo, salvo se ela perguntar sobre o Neon.
+- Neste teste textual, considere que a tentativa do áudio de bronze já foi registrada: não prometa nem envie outra gravação; explique a diferença entre bronze natural (exposição solar) e máquina (WB Ultra, 72 lâmpadas, cerca de 8 a 20 minutos conforme fototipo e atendimento individualizado).
 - Por cuidado, não realizamos nenhum tipo de bronzeamento para clientes grávidas/gestantes. Recuse pedidos de bronzeamento com acolhimento, não marque esse serviço e não dê orientação médica.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando perguntarem sobre funcionamento, localização ou endereço, use os dados configurados. Não invente endereço nem trate apenas “Belém - PA” como endereço completo.

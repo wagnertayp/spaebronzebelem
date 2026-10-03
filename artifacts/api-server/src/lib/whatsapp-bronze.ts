@@ -5,12 +5,12 @@ export const WHATSAPP_AUDIO_MESSAGE_LABELS = {
 
 export const shouldSendBronzeAudio = (
   asksAboutBronze: boolean,
-  alreadyDelivered: boolean,
+  alreadyAttempted: boolean,
   pregnancyMentioned = false,
-) => asksAboutBronze && !alreadyDelivered && !pregnancyMentioned;
+) => asksAboutBronze && !alreadyAttempted && !pregnancyMentioned;
 
 export const bronzeMethodDifferenceReply =
-  "O bronze natural é feito com exposição ao sol. A máquina usa a WB Ultra, com 72 lâmpadas e exposição de cerca de 8 a 20 minutos conforme o fototipo, em atendimento individualizado. 🤎";
+  "O bronze natural é feito com exposição solar. Na máquina, o atendimento usa a WB Ultra, com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, de forma individualizada. 🤎";
 
 export const bronzeAudioUnavailableReply =
-  "Não consegui enviar o áudio agora, mas o bronze natural é feito com exposição ao sol. A máquina usa a WB Ultra, com 72 lâmpadas e exposição de cerca de 8 a 20 minutos conforme o fototipo, em atendimento individualizado. 🤎";
+  "Não consegui enviar o áudio agora, mas o bronze natural é feito com exposição solar. Na máquina, o atendimento usa a WB Ultra, com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, de forma individualizada. 🤎";
