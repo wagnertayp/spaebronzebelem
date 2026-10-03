@@ -20,3 +20,9 @@ Across turns, retain details the client already provided and ask only for missin
 **Why:** The user requires continuity even when booking details arrive one message at a time and wants the scheduling flow to stay fast.
 
 **How to apply:** Keep the booking context between turns, merge new details instead of re-asking, and treat selection from the offered available times as consent to reserve.
+
+When offering appointment times, group the choices by professional and name each professional once instead of repeating the same name after every time.
+
+**Why:** The user reported that WhatsApp availability replies looked repetitive when the same professional was named beside every offered time.
+
+**How to apply:** Group offered slots before building both fixed booking replies and the schedule information supplied to the AI.
