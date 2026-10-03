@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  bookingFitsScheduleIntervals,
   getWhatsappBookingMessageSignals,
   mergeWhatsappBookingDraft,
   normalizeLocalBookingDate,
@@ -15,9 +16,35 @@ test("resolve relative dates in the configured local calendar", () => {
 
 test("normalizes common Portuguese time choices without treating a date as a time", () => {
   assert.equal(normalizeLocalBookingTime("às 10h30"), "10:30");
+  assert.equal(normalizeLocalBookingTime("13:00"), "13:00");
+  assert.equal(normalizeLocalBookingTime("13:30"), "13:30");
   assert.equal(normalizeLocalBookingTime("10"), "10:00");
   assert.equal(normalizeLocalBookingTime("meio-dia"), "12:00");
   assert.equal(normalizeLocalBookingTime("dia 10"), null);
+});
+
+test("validates an exact requested start time against the full schedule interval", () => {
+  const workday = [{ start: "09:00", end: "17:00" }];
+  const splitShift = [
+    { start: "09:00", end: "12:00" },
+    { start: "14:00", end: "17:00" },
+  ];
+  assert.equal(
+    bookingFitsScheduleIntervals("2026-10-03T13:00", "2026-10-03T13:30", workday),
+    true,
+  );
+  assert.equal(
+    bookingFitsScheduleIntervals("2026-10-03T13:30", "2026-10-03T14:10", workday),
+    true,
+  );
+  assert.equal(
+    bookingFitsScheduleIntervals("2026-10-03T13:30", "2026-10-03T14:10", splitShift),
+    false,
+  );
+  assert.equal(
+    bookingFitsScheduleIntervals("2026-10-03T16:30", "2026-10-03T17:30", workday),
+    false,
+  );
 });
 
 test("a chosen offered time completes the saved draft without losing earlier fields", () => {

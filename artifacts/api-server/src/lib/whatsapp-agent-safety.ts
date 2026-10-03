@@ -10,6 +10,11 @@ export const mentionsPregnancy = (value: string) =>
     normalizeSafetyText(value),
   );
 
+export const mentionsSpaInfantil = (value: string) =>
+  /\bsp(?:a|ar)\s+(?:infantil|(?:para|das)\s+criancas?)\b|\bkids\s+spa\b/.test(
+    normalizeSafetyText(value),
+  );
+
 export const isTanningService = (value: string, category = "") =>
   /\b(?:bronze(?:amento|adas?)?|marquinhas?)\b/.test(
     normalizeSafetyText(`${value} ${category}`),

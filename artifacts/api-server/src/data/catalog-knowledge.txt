@@ -10,6 +10,7 @@ REGRAS DE USO
 - Serviços estéticos avançados devem ser apresentados como informações do catálogo, sem diagnóstico ou indicação clínica. Dúvidas clínicas devem ir para uma atendente/profissional habilitada.
 - Quando o cliente pedir detalhes, o agente pode enviar o PDF correspondente.
 - Atendimento informado nos catálogos: profissionais habilitados, produtos registrados, atendimento individualizado e avaliação médica gratuita nos procedimentos estéticos avançados.
+- O Spa Infantil existe. Ao receber perguntas sobre ele, confirme que está disponível e encaminhe a conversa para uma atendente; não invente detalhes do serviço.
 
 CARDÁPIO — MASSAGENS E CUIDADOS
 - Massagem relaxante, 30 min: R$ 75,00.

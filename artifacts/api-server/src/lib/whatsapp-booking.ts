@@ -17,6 +17,11 @@ export type WhatsappBookingMessageSignals = {
   cancelled: boolean;
 };
 
+export type WhatsappScheduleInterval = {
+  start: string;
+  end: string;
+};
+
 const normalizeText = (value: string) =>
   value
     .trim()
@@ -105,6 +110,22 @@ export const normalizeLocalBookingTime = (value: string | null | undefined) => {
   const minute = Number(explicit[2] ?? explicit[3] ?? explicit[5] ?? explicit[7] ?? "0");
   if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour > 23 || minute > 59) return null;
   return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+};
+
+export const bookingFitsScheduleIntervals = (
+  localStart: string,
+  localEnd: string,
+  intervals: WhatsappScheduleInterval[],
+) => {
+  const start = localStart.match(/^(\d{4}-\d{2}-\d{2})T((?:[01]\d|2[0-3]):[0-5]\d)$/);
+  const end = localEnd.match(/^(\d{4}-\d{2}-\d{2})T((?:[01]\d|2[0-3]):[0-5]\d)$/);
+  if (!start || !end || start[1] !== end[1] || end[2]! <= start[2]!) return false;
+  return intervals.some((interval) =>
+    /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(interval.start) &&
+    /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(interval.end) &&
+    interval.start <= start[2]! &&
+    interval.end >= end[2]!,
+  );
 };
 
 export const getWhatsappBookingMessageSignals = (

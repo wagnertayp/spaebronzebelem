@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isTanningService,
   mentionsPregnancy,
+  mentionsSpaInfantil,
   pregnancyTanningRefusal,
 } from "../src/lib/whatsapp-agent-safety.ts";
 
@@ -19,4 +20,11 @@ test("identifies tanning services and rejects the booking safely", () => {
   assert.equal(isTanningService("Sessão premium", "Bronzeamento"), true);
   assert.equal(isTanningService("Massagem relaxante"), false);
   assert.match(pregnancyTanningRefusal, /não realizamos bronzeamento durante a gravidez/i);
+});
+
+test("recognizes Spa Infantil questions, including the common spelling in chat", () => {
+  assert.equal(mentionsSpaInfantil("Ainda tem o spar infantil?"), true);
+  assert.equal(mentionsSpaInfantil("Vocês têm Spa Infantil?"), true);
+  assert.equal(mentionsSpaInfantil("Tem spa para crianças?"), true);
+  assert.equal(mentionsSpaInfantil("Quero falar com uma atendente"), false);
 });

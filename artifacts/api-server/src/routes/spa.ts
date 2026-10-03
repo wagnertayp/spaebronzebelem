@@ -162,6 +162,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import {
+  bookingFitsScheduleIntervals,
   getWhatsappBookingMessageSignals,
   mergeWhatsappBookingDraft,
   normalizeLocalBookingDate,
@@ -220,6 +221,7 @@ import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
 import {
   isTanningService,
   mentionsPregnancy,
+  mentionsSpaInfantil,
   pregnancyTanningRefusal,
 } from "../lib/whatsapp-agent-safety";
 
@@ -575,7 +577,7 @@ const loadWhatsappSettings = async () => {
   if (savedAgentConfig.success) {
     aiAgentConfig = {
       ...savedAgentConfig.data,
-      humanHandoff: "Só encaminhe para uma atendente se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
+      humanHandoff: "Encaminhe perguntas sobre o Spa Infantil para uma atendente; nos demais assuntos, só encaminhe se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
     };
   }
 
@@ -1501,6 +1503,7 @@ REGRAS OBRIGATÓRIAS:
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
 - Para agendar, leia o histórico e o rascunho salvo antes de responder. Preserve serviço, data, horário e preferência profissional já informados; pergunte apenas o próximo dado que realmente faltar. Nunca reinicie a coleta nem peça de novo um dado que a cliente já forneceu.
+- O Spa Infantil existe. Quando a cliente perguntar por ele, confirme que sim e diga que vai encaminhá-la para uma atendente; não negue o serviço nem invente detalhes.
 - Retorne bookingUpdate cumulativo quando a cliente iniciar ou continuar um agendamento. Use exatamente um serviço cadastrado; date deve ser AAAA-MM-DD no fuso local; time deve ser HH:mm; professional só deve conter um profissional ativo explicitamente escolhido. Se um dado não mudou, mantenha o valor salvo na resposta cumulativa; use null somente se ainda não foi informado ou se foi removido explicitamente.
 - Use bookingUpdate somente se a mensagem atual iniciar, continuar ou cancelar um agendamento. Se a cliente falar de outro assunto, retorne null e responda ao assunto atual sem reabrir o agendamento.
 - Marque wantsBooking true quando a cliente pedir para agendar ou confirmar uma proposta completa. Se ela escolher um horário da lista de horários livres depois de pedir o agendamento, essa escolha já autoriza a reserva; não peça outra confirmação. Uma pergunta geral de disponibilidade não autoriza reservar até ela escolher um horário.
@@ -1512,7 +1515,7 @@ REGRAS OBRIGATÓRIAS:
   - audioClip "combos": gravação que explica os combos do Spa e Bronze.
   - audioClip "bronze": gravação sobre bronzeamento.
   Escolha um somente se o pedido atual da cliente for diretamente sobre esse tema e a gravação for pertinente; nos demais casos use null. Se escolher um áudio, a resposta escrita deve ser apenas uma introdução curta ao áudio, sem inventar preços ou detalhes que não estejam confirmados.
-- Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano. Reclamações, negociação, dúvidas clínicas, falta de informação e reagendamento continuam na conversa.
+- Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano, exceto ao perguntar sobre o Spa Infantil, caso em que deve transferir. Reclamações, negociação, dúvidas clínicas, falta de informação e reagendamento continuam na conversa.
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
 {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null,"bookingUpdate":null}
 ou, quando houver coleta de agendamento:
@@ -1573,10 +1576,7 @@ const appointmentSlotIssue = (
     const intervals = exception
       ? exception.type === "day_off" ? [] : exception.intervals
       : selectedProfessional.weeklySchedule.find((item) => item.weekday === weekday && item.enabled)?.intervals ?? [];
-    const startsAt = localStart.slice(11, 16);
-    const endsAt = localEnd.slice(11, 16);
-    const insideAvailability = localEnd.slice(0, 10) === localDate &&
-      intervals.some((interval) => interval.start <= startsAt && interval.end >= endsAt);
+    const insideAvailability = bookingFitsScheduleIntervals(localStart, localEnd, intervals);
     if (!insideAvailability) return "conflict";
   }
 
@@ -1696,6 +1696,41 @@ const getAvailableAppointmentSlots = (
   }
 
   return [...byTime.values()].sort((a, b) => a.start.localeCompare(b.start));
+};
+
+const getAvailableAppointmentSlotAtTime = (
+  serviceName: string,
+  date: string,
+  time: string,
+  preferredProfessional = "",
+): AppointmentSlotCandidate | null => {
+  const service = findBookingService(serviceName);
+  const duration = service ? serviceDurationMinutes(service.duration) : null;
+  const localDate = normalizeLocalBookingDate(date, date);
+  const localTime = normalizeLocalBookingTime(time);
+  if (!service || duration == null || localDate !== date || !localTime) return null;
+
+  const start = `${date}T${localTime}`;
+  const startDate = appointmentDateTimeInAgenda(start, localAgendaDate());
+  if (!startDate || startDate.getTime() <= Date.now()) return null;
+  const end = formatAgendaDateTime(new Date(startDate.getTime() + duration * 60_000));
+  const preferred = normalizeCatalogLabel(preferredProfessional);
+  const eligibleProfessionals = activeSpaRecords("professional", professionals)
+    .filter((professional) =>
+      professional.active &&
+      (!preferred || normalizeCatalogLabel(professional.name) === preferred),
+    );
+
+  for (const professional of eligibleProfessionals) {
+    const candidate: AppointmentSlotCandidate = {
+      start,
+      end,
+      professional: professional.name,
+      professionalId: professional.id,
+    };
+    if (appointmentSlotIssue(candidate) === null) return candidate;
+  }
+  return null;
 };
 
 const whatsappBookingSlotsReply = (
@@ -2294,7 +2329,7 @@ let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
   paymentMethods: "Pix, cartão de crédito, cartão de débito e dinheiro.",
   bookingRules: "Confirme serviço, data, horário e nome da cliente antes de encaminhar o agendamento.",
   policies: "Não prometa horários sem confirmação. Não ofereça diagnóstico médico. Por cuidado, não realizamos bronzeamento para clientes grávidas.",
-  humanHandoff: "Só encaminhe para uma atendente se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
+  humanHandoff: "Encaminhe perguntas sobre o Spa Infantil para uma atendente; nos demais assuntos, só encaminhe se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
 };
 
 const readKnowledgeFile = (relativePath: string) => {
@@ -3021,6 +3056,30 @@ const runWithSpaOperationalStateWriteLock = async <T>(
       await releaseDatabaseLock?.();
     } catch (error) {
       logger.error({ err: error }, "Failed to release SPA operational-state database lock");
+    } finally {
+      releaseProcessLock();
+    }
+  }
+};
+
+const runWithSpaOperationalStateReadLock = async <T>(
+  action: () => T | Promise<T>,
+): Promise<T> => {
+  await ensureSpaOperationalStateLoaded();
+  const releaseProcessLock = await acquireSpaOperationalStateWriteLock();
+  let releaseDatabaseLock: (() => Promise<void>) | undefined;
+  try {
+    releaseDatabaseLock = await acquireSpaOperationalStateLock();
+    await refreshSpaOperationalState();
+    if (spaOperationalStateStore.status !== "ready") {
+      throw new Error("SPA operational state is not ready for an agenda read.");
+    }
+    return await action();
+  } finally {
+    try {
+      await releaseDatabaseLock?.();
+    } catch (error) {
+      logger.error({ err: error }, "Failed to release SPA operational-state database read lock");
     } finally {
       releaseProcessLock();
     }
@@ -4027,6 +4086,18 @@ const processWhatsappWebhookPayload = async (
     : batchPrompt;
 
   const asksForHuman = /(atendente|atendimento humano|pessoa|humano|falar com algu)/i.test(normalizedText);
+  if (mentionsSpaInfantil(normalizedText)) {
+    await setWhatsappConversationStatus(phone, "human");
+    ensureWhatsappDelivery(await sendWhatsappReply(
+      phone,
+      knownClientName,
+      appointment?.id ?? null,
+      "Temos sim o Spa Infantil. Vou encaminhar você para uma atendente, que pode explicar os detalhes e ajudar com os horários. 🤎",
+      "handoff",
+      replyReference,
+    ));
+    return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" });
+  }
   if (asksForHuman) {
     await setWhatsappConversationStatus(phone, "human");
     ensureWhatsappDelivery(await sendWhatsappReply(
@@ -4127,6 +4198,9 @@ const processWhatsappWebhookPayload = async (
       : currentSignals.affirmative || hasRecentBookingContext
         ? [...conversationHistory.slice(-8).map((message) => message.content), text].join("\n")
         : text;
+    const bookingServiceContextText = savedBookingDraft && !savedBookingDraft.service
+      ? [...conversationHistory.slice(-8).map((message) => message.content), text].join("\n")
+      : bookingContextText;
     const parsedBookingContextSignals = getWhatsappBookingMessageSignals(bookingContextText, today);
     const bookingContextSignals = {
       ...parsedBookingContextSignals,
@@ -4211,7 +4285,7 @@ const processWhatsappWebhookPayload = async (
       const mergedBookingDraft = mergeWhatsappBookingDraft(
         savedBookingDraft,
         { ...update, professional: normalizedProfessional },
-        bookingContextText,
+        bookingServiceContextText,
         bookingContextSignals,
         today,
         (value) => findBookingService(value)?.name ?? null,
@@ -4233,9 +4307,18 @@ const processWhatsappWebhookPayload = async (
         }
         if (!service) {
           bookingDraft = { ...bookingDraft, service: null };
+          const mentionsCatalogDepilation =
+            /\b(?:depilacao|meia perna|pernas completas|axilas|virilha|pubiana)\b/.test(
+              normalizeCatalogLabel(bookingServiceContextText),
+            );
+          const requestedTimeText = bookingDraft.time
+            ? ` se ${formatBookingTime(bookingDraft.time)} está livre`
+            : " os horários livres";
           await replyWithBookingProgress(
             bookingDraft,
-            "Qual serviço você quer agendar? 🤎",
+            mentionsCatalogDepilation
+              ? `A depilação que você escolheu consta no cardápio, mas falta cadastrar a duração na agenda para verificar${requestedTimeText} com precisão. 🤎`
+              : "Qual serviço você quer agendar? 🤎",
           );
           return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
         }
@@ -4281,11 +4364,27 @@ const processWhatsappWebhookPayload = async (
           bookingDraft = { ...bookingDraft, awaitingClientName: false };
         }
 
-        const availableSlots = getAvailableAppointmentSlots(
-          service.name,
-          bookingDate,
-          bookingDraft.professional ?? "",
-        );
+        const requestedTime = normalizeLocalBookingTime(bookingDraft.time);
+        const { availableSlots, selectedSlot } = await runWithSpaOperationalStateReadLock(() => {
+          const slots = getAvailableAppointmentSlots(
+            service.name,
+            bookingDate,
+            bookingDraft.professional ?? "",
+          );
+          const exactSlot = requestedTime
+            ? slots.find((slot) =>
+                slot.start.slice(11, 16) === requestedTime &&
+                (!bookingDraft.professional ||
+                  normalizeCatalogLabel(slot.professional) === normalizeCatalogLabel(bookingDraft.professional)),
+              ) ?? getAvailableAppointmentSlotAtTime(
+                service.name,
+                bookingDate,
+                requestedTime,
+                bookingDraft.professional ?? "",
+              ) ?? undefined
+            : undefined;
+          return { availableSlots: slots, selectedSlot: exactSlot };
+        });
         if (!bookingDraft.time) {
           if (!availableSlots.length) {
             bookingDraft = {
@@ -4311,14 +4410,6 @@ const processWhatsappWebhookPayload = async (
           return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
         }
 
-        const requestedTime = normalizeLocalBookingTime(bookingDraft.time);
-        const selectedSlot = requestedTime
-          ? availableSlots.find((slot) =>
-              slot.start.slice(11, 16) === requestedTime &&
-              (!bookingDraft!.professional ||
-                normalizeCatalogLabel(slot.professional) === normalizeCatalogLabel(bookingDraft!.professional)),
-            )
-          : undefined;
         if (!selectedSlot) {
           bookingDraft = {
             ...bookingDraft,
@@ -4331,9 +4422,9 @@ const processWhatsappWebhookPayload = async (
                 service.name,
                 bookingDate,
                 availableSlots,
-                "Esse horário não está mais livre.",
+                "Não encontrei esse horário livre na agenda.",
               )
-            : `Esse horário não está livre e não encontrei outras vagas para ${service.name} nesse dia. Qual outra data você prefere? 🤎`;
+            : `Não encontrei esse horário livre nem outras vagas para ${service.name} nesse dia. Qual outra data você prefere? 🤎`;
           await replyWithBookingProgress(bookingDraft, reply);
           return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
         }
@@ -5012,9 +5103,10 @@ Regras obrigatórias:
 - Por cuidado, não realizamos nenhum tipo de bronzeamento para clientes grávidas/gestantes. Recuse pedidos de bronzeamento com acolhimento, não marque esse serviço e não dê orientação médica.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando perguntarem sobre funcionamento, localização ou endereço, use os dados configurados. Não invente endereço nem trate apenas “Belém - PA” como endereço completo.
-- Quando faltar informação, explique com simpatia que não tem esse dado e faça uma única pergunta curta; não encaminhe para uma atendente.
+- O Spa Infantil existe. Se perguntarem sobre ele, confirme e diga que vai encaminhar para uma atendente; não negue o serviço nem invente detalhes.
+- Quando faltar outra informação, explique com simpatia que não tem esse dado e faça uma única pergunta curta; não encaminhe para uma atendente.
 - Para agendar, confirme serviço, data, horário exato e nome, um item por vez; “amanhã” sem horário exige uma pergunta sobre o horário. Só considere confirmado quando a cliente disser explicitamente que quer marcar.
-- Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano; reclamações, dúvidas clínicas, negociação e falta de informação continuam na conversa.
+- Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano, exceto ao perguntar sobre o Spa Infantil, caso em que deve transferir; reclamações, dúvidas clínicas, negociação e outras faltas de informação continuam na conversa.
  - Seja objetiva e acolhedora, com no máximo duas frases curtas.
  - Use humor leve quando combinar e termine com exatamente um emoji discreto. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio da resposta.
  - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
