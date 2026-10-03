@@ -52,12 +52,12 @@ test("recognizes Spa Infantil questions, including the common spelling in chat",
   assert.doesNotMatch(spaInfantilHandoffReply, /sem química/i);
 });
 
-test("attempts the bronze clip only once and follows with method and Neon details", () => {
+test("attempts the bronze clip only once and follows with a neutral method comparison", () => {
   assert.equal(shouldSendBronzeAudio(true, false), true);
   assert.equal(shouldSendBronzeAudio(true, true), false);
   assert.equal(shouldSendBronzeAudio(false, false), false);
   assert.equal(shouldSendBronzeAudio(true, false, true), false);
-  assert.match(bronzeMethodDifferenceReply, /exposição ao sol/i);
+  assert.match(bronzeMethodDifferenceReply, /exposição solar/i);
   assert.match(bronzeMethodDifferenceReply, /WB Ultra/i);
   assert.match(bronzeMethodDifferenceReply, /72 lâmpadas/i);
   assert.match(bronzeMethodDifferenceReply, /8 a 20 minutos/i);
