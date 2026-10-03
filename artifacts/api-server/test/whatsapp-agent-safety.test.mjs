@@ -7,6 +7,11 @@ import {
   pregnancyTanningRefusal,
   spaInfantilHandoffReply,
 } from "../src/lib/whatsapp-agent-safety.ts";
+import {
+  bronzeAudioUnavailableReply,
+  bronzeMethodDifferenceReply,
+  shouldSendBronzeAudio,
+} from "../src/lib/whatsapp-bronze.ts";
 
 test("detects common pregnancy terms without accent sensitivity", () => {
   assert.equal(mentionsPregnancy("Estou grávida"), true);
@@ -33,4 +38,16 @@ test("recognizes Spa Infantil questions, including the common spelling in chat",
   assert.match(spaInfantilHandoffReply, /crianças de 2 a 10 anos/i);
   assert.match(spaInfantilHandoffReply, /encaminhar você para uma atendente/i);
   assert.doesNotMatch(spaInfantilHandoffReply, /sem química/i);
+});
+
+test("sends the bronze clip only once and explains natural versus machine afterward", () => {
+  assert.equal(shouldSendBronzeAudio(true, false), true);
+  assert.equal(shouldSendBronzeAudio(true, true), false);
+  assert.equal(shouldSendBronzeAudio(false, false), false);
+  assert.equal(shouldSendBronzeAudio(true, false, true), false);
+  assert.match(bronzeMethodDifferenceReply, /exposição ao sol/i);
+  assert.match(bronzeMethodDifferenceReply, /WB Ultra/i);
+  assert.match(bronzeMethodDifferenceReply, /72 lâmpadas/i);
+  assert.match(bronzeMethodDifferenceReply, /8 a 20 minutos/i);
+  assert.match(bronzeAudioUnavailableReply, /Não consegui enviar o áudio agora/i);
 });

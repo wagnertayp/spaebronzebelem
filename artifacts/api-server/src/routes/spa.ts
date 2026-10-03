@@ -169,6 +169,12 @@ import {
   normalizeLocalBookingTime,
   type WhatsappBookingUpdate,
 } from "../lib/whatsapp-booking.js";
+import {
+  bronzeAudioUnavailableReply,
+  bronzeMethodDifferenceReply,
+  shouldSendBronzeAudio,
+  WHATSAPP_AUDIO_MESSAGE_LABELS,
+} from "../lib/whatsapp-bronze.js";
 import backup from "../data/spa-backup.json";
 import { logger } from "../lib/logger";
 import { defaultStaffPasswordFromEmail } from "../lib/staff-access-password";
@@ -1188,16 +1194,12 @@ const sendWhatsappAudioMessage = async (
   clip: WhatsappAudioClip,
   appointmentId: number | null = null,
 ) => {
-  const labels: Record<WhatsappAudioClip, string> = {
-    combos: "Áudio pré-gravado enviado: explicação dos combos",
-    bronze: "Áudio pré-gravado enviado: informações sobre bronzeamento",
-  };
   const item = await addWhatsappMessage({
     direction: "outbound",
     phone: normalizeWhatsappPhone(phone),
     clientName,
     appointmentId,
-    text: labels[clip],
+    text: WHATSAPP_AUDIO_MESSAGE_LABELS[clip],
     status: "pending",
     kind: "audio",
     providerMessageId: null,
@@ -1212,6 +1214,21 @@ const sendWhatsappAudioMessage = async (
     providerMessageId: result.providerMessageId,
     error: result.error,
   })) ?? item;
+};
+
+const hasSentWhatsappAudioClip = async (phone: string, clip: WhatsappAudioClip) => {
+  const [audioMessage] = await db
+    .select({ id: whatsappMessagesTable.id })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+      eq(whatsappMessagesTable.direction, "outbound"),
+      eq(whatsappMessagesTable.kind, "audio"),
+      eq(whatsappMessagesTable.text, WHATSAPP_AUDIO_MESSAGE_LABELS[clip]),
+      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
+    ))
+    .limit(1);
+  return Boolean(audioMessage);
 };
 
 type AgentAppointmentDraft = {
@@ -1432,6 +1449,7 @@ const askWhatsappAgent = async (
   conversationHistory?: Awaited<ReturnType<typeof getConversationHistory>>,
   bookingDraft: WhatsappBookingDraft | null = null,
   availableSlots: AppointmentSlotCandidate[] = [],
+  bronzeAudioAlreadySent = false,
 ): Promise<AgentDecision> => {
   const history = conversationHistory ?? (await getConversationHistory(phone)).slice(0, -1);
   const serviceTable = activeSpaRecords("service", services)
@@ -1477,6 +1495,8 @@ DATA LOCAL DE HOJE: ${currentDate}
 FUSO: ${whatsappAutomation.timezone}
 RASCUNHO SALVO DO AGENDAMENTO:
 ${bookingDraft ? JSON.stringify(bookingDraft) : "Nenhum"}
+ÁUDIO DE BRONZE ENVIADO COM SUCESSO NESTA CONVERSA:
+${bronzeAudioAlreadySent ? "Sim" : "Não"}
 HORÁRIOS QUE O SISTEMA VALIDOU COMO LIVRES:
 ${availableSlots.length
   ? availableSlots.slice(0, 6).map((slot) => `${slot.start} | ${slot.professional}`).join("\n")
@@ -1512,10 +1532,12 @@ REGRAS OBRIGATÓRIAS:
 - Se a duração de um serviço estiver como "A definir", não confirme nem crie agendamento para ele. Explique que a duração ainda precisa ser confirmada.
 - Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Se pedir o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
+- Ao perguntar sobre bronze, se o áudio ainda não foi enviado com sucesso nesta conversa, escolha audioClip "bronze" e faça uma introdução curta antes do áudio. Depois do áudio, o servidor enviará a comparação dos métodos. Se o áudio já foi enviado, não o escolha de novo; responda normalmente e explique a diferença quando pertinente.
+- Bronze natural é feito com exposição solar. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é mais seguro ou melhor nem prometa resultados.
 - Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
   - audioClip "combos": gravação que explica os combos do Spa e Bronze.
   - audioClip "bronze": gravação sobre bronzeamento.
-  Escolha um somente se o pedido atual da cliente for diretamente sobre esse tema e a gravação for pertinente; nos demais casos use null. Se escolher um áudio, a resposta escrita deve ser apenas uma introdução curta ao áudio, sem inventar preços ou detalhes que não estejam confirmados.
+  Escolha um somente se o pedido atual da cliente for diretamente sobre esse tema e a gravação for pertinente; nos demais casos use null. Se escolher audioClip "bronze", não repita a comparação dos métodos na introdução, pois ela será enviada depois do áudio. Para combos, mantenha uma introdução curta sem inventar preços ou detalhes não confirmados.
 - Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano, exceto ao perguntar sobre o Spa Infantil, caso em que deve transferir. Reclamações, negociação, dúvidas clínicas, falta de informação e reagendamento continuam na conversa.
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
 {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null,"bookingUpdate":null}
@@ -4036,6 +4058,12 @@ const processWhatsappWebhookPayload = async (
     .limit(1);
   const isFirstClientMessage = !previousClientMessage;
   const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const isBronzeQuestion = /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText);
+  const pregnancyMentioned =
+    conversationHistory.some((message) =>
+      message.role === "user" && mentionsPregnancy(message.content),
+    ) ||
+    inboundBatch.some((message) => mentionsPregnancy(message.text));
   const currentImageParts = Array.isArray(currentInput)
     ? currentInput.filter((part) => part.type === "image_url")
     : [];
@@ -4168,6 +4196,7 @@ const processWhatsappWebhookPayload = async (
 
   try {
     const savedBookingDraft = conversation?.bookingDraft ?? null;
+    const bronzeAudioAlreadySent = await hasSentWhatsappAudioClip(phone, "bronze");
     const savedBookingSlots = savedBookingDraft?.service && savedBookingDraft.date
       ? getAvailableAppointmentSlots(
           savedBookingDraft.service,
@@ -4184,6 +4213,7 @@ const processWhatsappWebhookPayload = async (
       conversationHistory,
       savedBookingDraft,
       savedBookingSlots,
+      bronzeAudioAlreadySent,
     );
     await saveWhatsappClientName(
       phone,
@@ -4298,11 +4328,6 @@ const processWhatsappWebhookPayload = async (
       } else {
         let bookingDraft: WhatsappBookingDraft = mergedBookingDraft;
         const service = bookingDraft.service ? findBookingService(bookingDraft.service) : null;
-        const pregnancyMentioned =
-          conversationHistory.some((message) =>
-            message.role === "user" && mentionsPregnancy(message.content),
-          ) ||
-          inboundBatch.some((message) => mentionsPregnancy(message.text));
         if (service && pregnancyMentioned && isTanningService(service.name, service.category)) {
           await replyWithBookingProgress(null, pregnancyTanningRefusal);
           return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
@@ -4520,9 +4545,18 @@ const processWhatsappWebhookPayload = async (
         replyReference,
       ));
     }
-    const audioClip = createdAppointment || decision.document
+    const requestedAudioClip = createdAppointment || decision.document
       ? null
       : decision.audioClip ?? audioClipForWhatsappMessage(normalizedText);
+    const canSendBronzeAudio = shouldSendBronzeAudio(
+      isBronzeQuestion,
+      bronzeAudioAlreadySent,
+      pregnancyMentioned,
+    );
+    const audioClip = (isBronzeQuestion && pregnancyMentioned) ||
+      (requestedAudioClip === "bronze" && !canSendBronzeAudio)
+      ? null
+      : requestedAudioClip;
     let writtenReply = createdAppointment
       ? appointmentScheduledReply(createdAppointment)
       : decision.reply;
@@ -4539,7 +4573,27 @@ const processWhatsappWebhookPayload = async (
         replyReference,
       ));
     }
-    if (audioClip) {
+    if (audioClip === "bronze") {
+      let bronzeAudioDelivered = false;
+      try {
+        const audioMessage = await sendWhatsappAudioMessage(
+          phone,
+          replyClientName,
+          audioClip,
+          appointment?.id ?? null,
+        );
+        bronzeAudioDelivered = audioMessage.status === "sent" || audioMessage.status === "delivered";
+      } catch (error) {
+        logger.warn({ err: error, phone }, "WhatsApp bronze audio attempt failed");
+      }
+      ensureWhatsappDelivery(await sendWhatsappAgentReply(
+        phone,
+        replyClientName,
+        replyAppointmentId,
+        bronzeAudioDelivered ? bronzeMethodDifferenceReply : bronzeAudioUnavailableReply,
+        replyReference,
+      ));
+    } else if (audioClip) {
       const audioMessage = ensureWhatsappDelivery(await sendWhatsappAudioMessage(
         phone,
         replyClientName,
@@ -4547,9 +4601,7 @@ const processWhatsappWebhookPayload = async (
         appointment?.id ?? null,
       ));
       if (audioMessage.status === "sent" && !shouldReplyBeforeAudio) {
-        writtenReply = audioClip === "combos"
-          ? "Te enviei um áudio com a explicação dos nossos combos. 🤎"
-          : "Te enviei um áudio com informações sobre bronzeamento. 🤎";
+        writtenReply = "Te enviei um áudio com a explicação dos nossos combos. 🤎";
       }
     }
     if (!shouldReplyBeforeAudio) {
@@ -5102,10 +5154,12 @@ Regras obrigatórias:
 - Não peça o nome junto da saudação inicial. Em uma conversa real, se o nome ainda não for conhecido, pergunte-o naturalmente depois da primeira resposta e quando a cliente continuar a conversa.
 - Só informe clientName se a cliente tiver dito o nome explicitamente; não deduza pelo telefone.
 - Use somente os serviços, preços, durações e informações fornecidas acima.
+- Neste teste textual, considere que o áudio de bronze já foi enviado: responda sem prometer outro áudio e explique a diferença entre bronze natural (exposição solar) e máquina (WB Ultra, 72 lâmpadas, cerca de 8 a 20 minutos conforme fototipo e atendimento individualizado).
 - Por cuidado, não realizamos nenhum tipo de bronzeamento para clientes grávidas/gestantes. Recuse pedidos de bronzeamento com acolhimento, não marque esse serviço e não dê orientação médica.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando perguntarem sobre funcionamento, localização ou endereço, use os dados configurados. Não invente endereço nem trate apenas “Belém - PA” como endereço completo.
 - O Spa Infantil atende crianças de 2 a 10 anos; é um banho à base de hidratante e açúcar, sem chumbo ou amônia. Se perguntarem, explique isso e diga que vai encaminhar para uma atendente. Não afirme que é “sem química” nem invente garantias de segurança.
+- Bronze natural é feito com exposição solar. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é melhor ou mais seguro nem prometa resultados.
 - Quando faltar outra informação, explique com simpatia que não tem esse dado e faça uma única pergunta curta; não encaminhe para uma atendente.
 - Para agendar, confirme serviço, data, horário exato e nome, um item por vez; “amanhã” sem horário exige uma pergunta sobre o horário. Só considere confirmado quando a cliente disser explicitamente que quer marcar.
 - Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano, exceto ao perguntar sobre o Spa Infantil, caso em que deve transferir; reclamações, dúvidas clínicas, negociação e outras faltas de informação continuam na conversa.
