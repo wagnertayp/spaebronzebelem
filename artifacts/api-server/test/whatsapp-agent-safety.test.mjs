@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  clientArrivalEtaReply,
   clientOnTheWayReply,
+  dapServiceInformationReply,
+  getWhatsappArrivalUpdate,
+  isDapServiceRequest,
   isClientOnTheWay,
+  isWhatsappWalkInService,
   isTanningService,
   mentionsPregnancy,
   mentionsSpaInfantil,
+  removeWhatsappProfessionalNames,
   pregnancyTanningRefusal,
   spaInfantilHandoffReply,
 } from "../src/lib/whatsapp-agent-safety.ts";
@@ -27,10 +33,36 @@ test("recognizes on-the-way updates and avoids booking questions", () => {
   assert.equal(isClientOnTheWay("Estou a caminho"), true);
   assert.equal(isClientOnTheWay("Tô chegando agora"), true);
   assert.equal(isClientOnTheWay("Já cheguei ao spa"), true);
+  assert.equal(getWhatsappArrivalUpdate("Cheguei"), "arrived");
+  assert.equal(getWhatsappArrivalUpdate("Acho que vou conseguir chegar só às 14:00"), "eta");
+  assert.match(clientArrivalEtaReply, /equipe fica ciente/i);
   assert.equal(isClientOnTheWay("Não estou a caminho"), false);
+  assert.equal(isClientOnTheWay("Ainda não cheguei"), false);
   assert.equal(isClientOnTheWay("Qual caminho devo fazer?"), false);
   assert.match(clientOnTheWayReply, /estamos te aguardando/i);
   assert.doesNotMatch(clientOnTheWayReply, /agendar|qual serviço/i);
+});
+
+test("recognizes DAP as a walk-in service and gives only the supplied details", () => {
+  assert.equal(isDapServiceRequest("Vocês fazem D.A.P.?"), true);
+  assert.equal(isDapServiceRequest("Drenagem de Alta Performance"), true);
+  assert.equal(isWhatsappWalkInService("DAP"), true);
+  assert.equal(isWhatsappWalkInService("Drenagem linfática"), false);
+  assert.match(dapServiceInformationReply, /ordem de chegada/i);
+  assert.match(dapServiceInformationReply, /R\$ 200/);
+  assert.match(dapServiceInformationReply, /resultados variam/i);
+  assert.doesNotMatch(dapServiceInformationReply, /elimina toxinas|garante emagrecimento/i);
+});
+
+test("removes professional names from replies without replacing the client's name", () => {
+  assert.equal(
+    removeWhatsappProfessionalNames(
+      "Olá, Camila! Tenho 16h com Gabriela Silva e 17h com Paula Costa.",
+      ["Gabriela Silva", "Paula Costa"],
+      "Camila",
+    ),
+    "Olá, Camila! Tenho 16h com a equipe e 17h com a equipe.",
+  );
 });
 
 test("identifies tanning services and rejects the booking safely", () => {

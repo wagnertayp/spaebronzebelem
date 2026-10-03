@@ -4,6 +4,7 @@
 - [Arrival and bronze guidance](whatsapp-arrival-neon.md) — acknowledge arrivals, ask about tanning experience before explaining, and recommend Neon only while the client is choosing.
 - [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
 - [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own greetings and answer consecutive saved messages together in one turn.
+- [DAP walk-in service](dap-walk-in-service.md) — explain DAP's confirmed details, treat it as walk-in only, and send both reference photos without promising results.
 - [WhatsApp agent availability](whatsapp-agent-availability.md) — user requirement: the WhatsApp AI agent must not stop, for any reason.
 - [Pregnancy and tanning policy](pregnancy-tanning-policy.md) — the spa does not provide tanning for pregnant clients, as a precaution.
 - [Published database](published-neon-database.md) — the published app uses Neon PostgreSQL; preserve it as the production data source.

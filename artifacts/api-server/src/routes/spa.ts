@@ -165,6 +165,7 @@ import {
   bookingFitsScheduleIntervals,
   formatWhatsappBookingSlotChoices,
   getWhatsappBookingMessageSignals,
+  hasWhatsappBookingIntent,
   mergeWhatsappBookingDraft,
   normalizeLocalBookingDate,
   normalizeLocalBookingTime,
@@ -210,9 +211,11 @@ import {
   sendEvolutionDocument,
   getEvolutionMedia,
   sendEvolutionAudio,
+  sendEvolutionDapImage,
   sendEvolutionSessionPreparationImage,
   type EvolutionReplyReference,
   type WhatsappAudioClip,
+  type WhatsappDapImage,
   sendEvolutionText,
   type WhatsappDocument,
 } from "../lib/evolution";
@@ -228,11 +231,16 @@ import {
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
 import {
   clientOnTheWayReply,
-  isClientOnTheWay,
+  clientArrivalEtaReply,
+  dapServiceInformationReply,
+  getWhatsappArrivalUpdate,
+  isDapServiceRequest,
   isTanningService,
   mentionsPregnancy,
   mentionsSpaInfantil,
   pregnancyTanningRefusal,
+  isWhatsappWalkInService,
+  removeWhatsappProfessionalNames,
   spaInfantilHandoffReply,
 } from "../lib/whatsapp-agent-safety";
 
@@ -751,9 +759,8 @@ const appointmentOperationalDetails = (includeHours: boolean) => {
 
 const appointmentScheduledReply = (appointment: Appointment) => {
   const formattedDate = formatAppointmentDate(appointment) ?? appointment.start;
-  const professional = appointment.professional ? `, com ${appointment.professional}` : "";
   const details = appointmentOperationalDetails(true);
-  return `Pronto! Seu atendimento de ${appointment.service} ficou agendado para ${formattedDate}${professional}.${details ? ` ${details}` : ""} 🤎`;
+  return `Pronto! Seu atendimento de ${appointment.service} ficou agendado para ${formattedDate}.${details ? ` ${details}` : ""} 🤎`;
 };
 
 const toWhatsappMessage = (message: typeof whatsappMessagesTable.$inferSelect): WhatsappMessage => ({
@@ -949,15 +956,14 @@ const appointmentMessageText = (
 ) => {
   const formattedDate = formatAppointmentDate(appointment);
   if (!formattedDate) return null;
-  const professional = appointment.professional ? `, com ${appointment.professional}` : "";
   const operationalDetails = appointmentOperationalDetails(kind === "confirmation");
   if (kind === "confirmation") {
-    return `Olá, ${appointment.client}! Seu atendimento de ${appointment.service} está reservado para ${formattedDate}${professional}.${operationalDetails ? ` ${operationalDetails}` : ""} Responda CONFIRMAR para confirmar, REMARCAR para escolher outro horário ou CANCELAR para cancelar.`;
+    return `Olá, ${appointment.client}! Seu atendimento de ${appointment.service} está reservado para ${formattedDate}.${operationalDetails ? ` ${operationalDetails}` : ""} Responda CONFIRMAR para confirmar, REMARCAR para escolher outro horário ou CANCELAR para cancelar.`;
   }
   if (kind === "reminder24h") {
-    return `Olá, ${appointment.client}! Lembrando que seu atendimento de ${appointment.service} será amanhã: ${formattedDate}${professional}.${operationalDetails ? ` ${operationalDetails}` : ""} Responda CONFIRMAR para confirmar sua presença.`;
+    return `Olá, ${appointment.client}! Lembrando que seu atendimento de ${appointment.service} será amanhã: ${formattedDate}.${operationalDetails ? ` ${operationalDetails}` : ""} Responda CONFIRMAR para confirmar sua presença.`;
   }
-  return `Olá, ${appointment.client}! Seu atendimento de ${appointment.service} começa em aproximadamente 2 horas: ${formattedDate}${professional}.${operationalDetails ? ` ${operationalDetails}` : ""} Estamos esperando você.`;
+  return `Olá, ${appointment.client}! Seu atendimento de ${appointment.service} começa em aproximadamente 2 horas: ${formattedDate}.${operationalDetails ? ` ${operationalDetails}` : ""} Estamos esperando você.`;
 };
 
 const sendAppointmentMessage = async (
@@ -967,6 +973,13 @@ const sendAppointmentMessage = async (
   const client = findClientForAppointment(appointment);
   const phone = client ? normalizeWhatsappPhone(client.phone) : "";
   const text = appointmentMessageText(appointment, kind);
+  const outgoingText = text
+    ? removeWhatsappProfessionalNames(
+        text,
+        professionals.map((professional) => professional.name),
+        appointment.client,
+      )
+    : null;
   const [existing] = await db
     .select()
     .from(whatsappMessagesTable)
@@ -997,13 +1010,13 @@ const sendAppointmentMessage = async (
         .limit(1)
     : [];
 
-  if (!client || !phone || !text) {
+  if (!client || !phone || !outgoingText) {
     return await addWhatsappMessage({
       direction: "outbound",
       phone,
       clientName: appointment.client,
       appointmentId: appointment.id,
-      text: text ?? "Mensagem não enviada porque o agendamento não possui data completa.",
+      text: outgoingText ?? "Mensagem não enviada porque o agendamento não possui data completa.",
       status: "skipped",
       kind,
       providerMessageId: null,
@@ -1016,20 +1029,20 @@ const sendAppointmentMessage = async (
         status: "pending",
         providerMessageId: null,
         error: null,
-        text,
+        text: outgoingText,
       })) ?? toWhatsappMessage(existingPendingReminder)
     : await addWhatsappMessage({
         direction: "outbound",
         phone,
         clientName: appointment.client,
         appointmentId: appointment.id,
-        text,
+        text: outgoingText,
         status: "pending",
         kind,
         providerMessageId: null,
         error: null,
       });
-  const result = await sendEvolutionText(phone, text);
+  const result = await sendEvolutionText(phone, outgoingText);
   const updated = (await updateWhatsappMessage(pending.id, {
     status: result.ok ? "sent" : "failed",
     providerMessageId: result.providerMessageId,
@@ -1049,18 +1062,23 @@ const sendWhatsappReply = async (
   kind: Extract<WhatsappMessage["kind"], "reply" | "handoff"> = "reply",
   replyTo?: EvolutionReplyReference,
 ) => {
+  const outgoingText = removeWhatsappProfessionalNames(
+    text,
+    professionals.map((professional) => professional.name),
+    clientName,
+  );
   const item = await addWhatsappMessage({
     direction: "outbound",
     phone: normalizeWhatsappPhone(phone),
     clientName,
     appointmentId,
-    text,
+    text: outgoingText,
     status: "pending",
     kind,
     providerMessageId: null,
     error: null,
   });
-  const result = await sendEvolutionText(phone, text, replyTo);
+  const result = await sendEvolutionText(phone, outgoingText, replyTo);
   return (await updateWhatsappMessage(item.id, {
     status: result.ok ? "sent" : "failed",
     providerMessageId: result.providerMessageId,
@@ -1126,18 +1144,23 @@ const sendWhatsappDocumentMessage = async (
   appointmentId: number | null = null,
   replyTo?: EvolutionReplyReference,
 ) => {
+  const outgoingCaption = removeWhatsappProfessionalNames(
+    caption,
+    professionals.map((professional) => professional.name),
+    clientName,
+  );
   const item = await addWhatsappMessage({
     direction: "outbound",
     phone: normalizeWhatsappPhone(phone),
     clientName,
     appointmentId,
-    text: caption,
+    text: outgoingCaption,
     status: "pending",
     kind: "document",
     providerMessageId: null,
     error: null,
   });
-  const result = await sendEvolutionDocument(phone, document, caption, replyTo);
+  const result = await sendEvolutionDocument(phone, document, outgoingCaption, replyTo);
   return (await updateWhatsappMessage(item.id, {
     status: result.ok ? "sent" : "failed",
     providerMessageId: result.providerMessageId,
@@ -1190,6 +1213,80 @@ const sendWhatsappSessionPreparationImage = async (
     providerMessageId: result.providerMessageId,
     error: result.error,
   })) ?? pending;
+};
+
+const dapImageOutboxItems: Array<{ image: WhatsappDapImage; caption: string }> = [
+  {
+    image: "before",
+    caption: "DAP — antes e depois de um caso individual; os resultados variam.",
+  },
+  {
+    image: "after",
+    caption: "DAP — outro registro individual de antes e depois; os resultados variam.",
+  },
+];
+
+const sendWhatsappDapImages = async (phone: string, clientName: string) => {
+  const normalizedPhone = normalizeWhatsappPhone(phone);
+  const captions = dapImageOutboxItems.map((item) => item.caption);
+  const existingAttempts = await db
+    .select({
+      id: whatsappMessagesTable.id,
+      text: whatsappMessagesTable.text,
+      status: whatsappMessagesTable.status,
+    })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizedPhone),
+      eq(whatsappMessagesTable.direction, "outbound"),
+      eq(whatsappMessagesTable.kind, "image"),
+      inArray(whatsappMessagesTable.text, captions),
+    ));
+
+  for (const item of dapImageOutboxItems) {
+    const previousAttempt = existingAttempts.find((attempt) => attempt.text === item.caption);
+    if (previousAttempt?.status === "sent" || previousAttempt?.status === "delivered") continue;
+
+    const pending = previousAttempt
+      ? await updateWhatsappMessage(previousAttempt.id, {
+          status: "pending",
+          providerMessageId: null,
+          error: null,
+        }) ?? await addWhatsappMessage({
+          direction: "outbound",
+          phone: normalizedPhone,
+          clientName,
+          appointmentId: null,
+          text: item.caption,
+          status: "pending",
+          kind: "image",
+          providerMessageId: null,
+          error: null,
+        })
+      : await addWhatsappMessage({
+          direction: "outbound",
+          phone: normalizedPhone,
+          clientName,
+          appointmentId: null,
+          text: item.caption,
+          status: "pending",
+          kind: "image",
+          providerMessageId: null,
+          error: null,
+        });
+    const result = await sendEvolutionDapImage(phone, item.image, item.caption);
+    if (!result.ok) {
+      logger.warn(
+        { err: result.error, phone, image: item.image },
+        "WhatsApp DAP before/after image send failed",
+      );
+    }
+    await updateWhatsappMessage(pending.id, {
+      status: result.ok ? "sent" : "failed",
+      providerMessageId: result.providerMessageId,
+      error: result.error,
+    });
+  }
 };
 
 const sendWhatsappAudioMessage = async (
@@ -1438,7 +1535,7 @@ const getFutureAgendaContext = () => {
       const endLabel = end && /^\d{2}:\d{2}(?::\d{2})?$/.test(appointment.end)
         ? `${agendaDate}T${appointment.end}`
         : appointment.end;
-      return `${startLabel} | ${endLabel} | ${appointment.service} | ${appointment.professional || "equipe"}`;
+      return `${startLabel} | ${endLabel} | ${appointment.service}`;
     })
     .join("\n") || "Nenhum agendamento futuro informado.";
 };
@@ -1505,7 +1602,6 @@ ${availableSlots.length
   ? formatWhatsappBookingSlotChoices(
       availableSlots.slice(0, 6).map((slot) => ({
         time: slot.start.slice(11, 16),
-        professional: slot.professional,
       })),
       (time) => time,
     )
@@ -1515,6 +1611,7 @@ ${getFutureAgendaContext()}
 
 REGRAS OBRIGATÓRIAS:
 - Responda normalmente em no máximo duas frases curtas no total. Na primeira mensagem, cumprimente e já responda dentro desse limite.
+- Nunca cite nomes de profissionais em mensagens ao cliente, inclusive ao listar horários, confirmar reservas ou responder a um pedido por uma profissional específica; use “a equipe”. Nomes só podem ser usados internamente em bookingUpdate.
 - Receba bem a cliente e use humor leve quando combinar, sem fazer piadas forçadas ou falar demais.
 - Use exatamente um emoji discreto no final da resposta. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio do texto.
 - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
@@ -1531,17 +1628,18 @@ REGRAS OBRIGATÓRIAS:
 - Nunca peça o nome na primeira resposta, junto da saudação inicial. Depois que a cliente já recebeu essa resposta e continuar a conversa, se o nome ainda não for conhecido, pergunte-o com naturalidade em uma pergunta curta; não repita o pedido e não deixe de responder à dúvida principal.
 - Ao retornar clientName, use somente o nome que a cliente informou explicitamente na conversa; se ainda não informou, retorne null. Nunca deduza o nome pelo telefone.
 - Não invente preços, promoções, horários, contraindicações ou resultados.
+- O DAP (Drenagem de Alta Performance) atende abdômen, pernas e braços; dura cerca de 2h, inclui aproximadamente 40 min de manta, 40 min de drenagem corporal e uso de nutracêuticos, custa R$ 200 e é por ordem de chegada, sem agendamento. Não prometa resultados, emagrecimento ou eliminação de toxinas.
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
 - Para agendar, leia o histórico e o rascunho salvo antes de responder. Preserve serviço, data, horário e preferência profissional já informados; pergunte apenas o próximo dado que realmente faltar. Nunca reinicie a coleta nem peça de novo um dado que a cliente já forneceu.
-- Ao oferecer horários, agrupe-os por profissional e mencione cada nome uma única vez (por exemplo, “com Gabriela: 7h30, 8h e 8h30”); não repita o mesmo nome após cada horário.
+- Ao oferecer horários, liste apenas os horários distintos, sem dizer qual profissional atenderá.
 - O Spa Infantil atende crianças de 2 a 10 anos; é um banho à base de hidratante e açúcar, sem chumbo ou amônia. Ao perguntarem, explique isso e depois encaminhe para uma atendente. Não afirme que é “sem química” nem invente garantias de segurança.
-- Retorne bookingUpdate cumulativo quando a cliente iniciar ou continuar um agendamento. Use exatamente um serviço cadastrado; date deve ser AAAA-MM-DD no fuso local; time deve ser HH:mm; professional só deve conter um profissional ativo explicitamente escolhido. Se um dado não mudou, mantenha o valor salvo na resposta cumulativa; use null somente se ainda não foi informado ou se foi removido explicitamente.
+- Retorne bookingUpdate cumulativo quando a cliente iniciar ou continuar um agendamento. Não use bookingUpdate para o DAP, que funciona por ordem de chegada. Use exatamente um serviço cadastrado; date deve ser AAAA-MM-DD no fuso local; time deve ser HH:mm; professional só deve conter um profissional ativo explicitamente escolhido e nunca deve ser repetido no texto da resposta. Se um dado não mudou, mantenha o valor salvo na resposta cumulativa; use null somente se ainda não foi informado ou se foi removido explicitamente.
 - Use bookingUpdate somente se a mensagem atual iniciar, continuar ou cancelar um agendamento. Se a cliente falar de outro assunto, retorne null e responda ao assunto atual sem reabrir o agendamento.
 - Marque wantsBooking true quando a cliente pedir para agendar ou confirmar uma proposta completa. Se ela escolher um horário da lista de horários livres depois de pedir o agendamento, essa escolha já autoriza a reserva; não peça outra confirmação. Uma pergunta geral de disponibilidade não autoriza reservar até ela escolher um horário.
 - Nunca diga que um horário está livre a menos que esteja na lista validada pelo sistema. Não crie appointment; o servidor revalida a grade, os conflitos e a duração antes de reservar.
 - Se a duração de um serviço estiver como "A definir", não confirme nem crie agendamento para ele. Explique que a duração ainda precisa ser confirmada.
-- Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta.
+- Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta nem mencione o nome da profissional.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Se pedir o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
 - Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar ou enviar áudio e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação, comparação ou resposta específica, responda sem atrasar com triagem.
 - Quando a cliente estiver escolhendo ou pedir recomendação de bronzeamento, priorize o Turbo Neon (Protocolo Neon): três sessões + esfoliação por R$180. Apresente-o como a opção recomendada para quem busca bronze mais uniforme, tom dourado de aparência natural, procedimento em pouco tempo e marquinhas personalizadas; diga que a pele pode parecer mais iluminada e hidratada quando combinada com cuidados adequados. Ao contornar uma objeção, acolha a dúvida e destaque apenas a qualidade do Neon que responde a ela, sem prometer resultados, inventar duração ou afirmar superioridade universal.
@@ -1655,7 +1753,7 @@ const serviceDurationMinutes = (duration: string): number | null => {
 
 const findBookingService = (value: string) => {
   const normalized = normalizeCatalogLabel(value);
-  if (!normalized) return null;
+  if (!normalized || isWhatsappWalkInService(normalized)) return null;
   const activeServices = activeSpaRecords("service", services);
   const exactMatch = activeServices.find(
     (service) => normalizeCatalogLabel(service.name) === normalized,
@@ -1779,7 +1877,6 @@ const whatsappBookingSlotsReply = (
   const choices = formatWhatsappBookingSlotChoices(
     slots.slice(0, 6).map((slot) => ({
       time: slot.start.slice(11, 16),
-      professional: slot.professional,
     })),
     formatBookingTime,
   );
@@ -1941,7 +2038,7 @@ const cancelPendingWhatsappFollowUps = async (conversationId: number) => {
     .set({ status: "cancelled", updatedAt: new Date() })
     .where(and(
       eq(whatsappFollowupsTable.conversationId, conversationId),
-      eq(whatsappFollowupsTable.status, "pending"),
+      inArray(whatsappFollowupsTable.status, ["pending", "processing"]),
     ));
 };
 
@@ -2024,6 +2121,13 @@ export const runWhatsappFollowUps = async () => {
           .where(eq(whatsappFollowupsTable.id, followUp.id));
         continue;
       }
+
+      const [currentFollowUp] = await db
+        .select({ status: whatsappFollowupsTable.status })
+        .from(whatsappFollowupsTable)
+        .where(eq(whatsappFollowupsTable.id, followUp.id))
+        .limit(1);
+      if (currentFollowUp?.status !== "processing") continue;
 
       const sentMessage = await sendWhatsappReply(
         conversation.phone,
@@ -4161,12 +4265,14 @@ const processWhatsappWebhookPayload = async (
   if (conversation?.status !== "agent") {
     await setWhatsappConversationStatus(phone, "agent");
   }
-  if (isClientOnTheWay(normalizedText)) {
+  const arrivalUpdate = getWhatsappArrivalUpdate(normalizedText);
+  if (arrivalUpdate) {
+    if (conversation) await cancelPendingWhatsappFollowUps(conversation.id);
     ensureWhatsappDelivery(await sendWhatsappReply(
       phone,
       knownClientName,
       appointment?.id ?? null,
-      clientOnTheWayReply,
+      arrivalUpdate === "eta" ? clientArrivalEtaReply : clientOnTheWayReply,
       "reply",
       replyReference,
     ));
@@ -4225,6 +4331,44 @@ const processWhatsappWebhookPayload = async (
 
   try {
     const savedBookingDraft = conversation?.bookingDraft ?? null;
+    const today = localAgendaDate();
+    const currentSignals = getWhatsappBookingMessageSignals(text, today);
+    const latestRequestedService = [...conversationHistory].reverse().find((message) =>
+      message.role === "user" &&
+      (isDapServiceRequest(message.content) || Boolean(findBookingService(message.content))),
+    );
+    const dapWasLatestService = Boolean(
+      latestRequestedService && isDapServiceRequest(latestRequestedService.content),
+    );
+    const dapFollowUpRequested = dapWasLatestService && (
+      hasWhatsappBookingIntent(text) ||
+      currentSignals.date !== null ||
+      currentSignals.time !== null ||
+      /\b(?:como funciona|me explica|explica(?:r|cao)?|mais detalhes|preco|valor|quanto custa|duracao|dura)\b/.test(normalizedText)
+    );
+    const isDapWalkInRequest =
+      isDapServiceRequest(text) ||
+      isDapServiceRequest(savedBookingDraft?.service ?? "") ||
+      dapFollowUpRequested;
+    if (isDapWalkInRequest) {
+      if (savedBookingDraft && isDapServiceRequest(savedBookingDraft.service ?? "")) {
+        await saveWhatsappBookingDraft(phone, null);
+      }
+      const dapReply = await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        dapServiceInformationReply,
+        "reply",
+        replyReference,
+      );
+      ensureWhatsappDelivery(dapReply);
+      if (dapReply.status === "sent" || dapReply.status === "delivered") {
+        await sendWhatsappDapImages(phone, knownClientName);
+      }
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
+
     const bronzeAudioAlreadyAttempted = await hasAttemptedWhatsappAudioClip(phone, "bronze");
     const savedBookingSlots = savedBookingDraft?.service && savedBookingDraft.date
       ? getAvailableAppointmentSlots(
@@ -4249,14 +4393,13 @@ const processWhatsappWebhookPayload = async (
       decision.clientName ?? decision.appointment?.clientName ?? null,
     );
     const replyClientName = (await getWhatsappConversation(phone))?.clientName ?? knownClientName;
-    const today = localAgendaDate();
-    const currentSignals = getWhatsappBookingMessageSignals(text, today);
+    const directBookingIntent = hasWhatsappBookingIntent(text);
     const hasRecentBookingContext = conversationHistory.slice(-8).some((message) =>
-      /\b(?:agend|marc|reserv|horar)\w*/.test(normalizeCatalogLabel(message.content)),
+      hasWhatsappBookingIntent(message.content),
     );
     const bookingContextText = savedBookingDraft
       ? text
-      : currentSignals.affirmative || hasRecentBookingContext
+      : currentSignals.affirmative || hasRecentBookingContext || directBookingIntent
         ? [...conversationHistory.slice(-8).map((message) => message.content), text].join("\n")
         : text;
     const bookingServiceContextText = savedBookingDraft && !savedBookingDraft.service
@@ -4296,11 +4439,12 @@ const processWhatsappWebhookPayload = async (
     );
     const legacyDraftHasRelevantInput = Boolean(
       !savedBookingDraft &&
-      hasRecentBookingContext &&
+      (hasRecentBookingContext || directBookingIntent) &&
       (
         currentSignals.date ||
         currentSignals.time ||
         findBookingService(text) ||
+        directBookingIntent ||
         currentSignals.affirmative ||
         currentSignals.cancelled
       ),
@@ -4496,7 +4640,7 @@ const processWhatsappWebhookPayload = async (
           bookingDraft = { ...bookingDraft, awaitingConfirmation: true };
           await replyWithBookingProgress(
             bookingDraft,
-            `Posso reservar ${service.name} para ${formatBookingDate(bookingDate)} às ${formatBookingTime(selectedTime)} com ${selectedSlot.professional}? 🤎`,
+            `Posso reservar ${service.name} para ${formatBookingDate(bookingDate)} às ${formatBookingTime(selectedTime)}? 🤎`,
           );
           return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
         }

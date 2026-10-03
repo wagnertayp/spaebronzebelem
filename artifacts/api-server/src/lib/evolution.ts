@@ -59,6 +59,7 @@ const documentFiles: Record<WhatsappDocument, { path: string; fileName: string }
 };
 
 export type WhatsappAudioClip = "combos" | "bronze";
+export type WhatsappDapImage = "before" | "after";
 
 const audioFiles: Record<WhatsappAudioClip, { path: string }> = {
   combos: {
@@ -72,6 +73,17 @@ const audioFiles: Record<WhatsappAudioClip, { path: string }> = {
 const sessionPreparationImageFile = {
   path: "O_Q_LEVAR_1790254581922.jpeg",
   fileName: "orientacoes-para-sessao-de-bronzeamento.jpeg",
+};
+
+const dapImageFiles: Record<WhatsappDapImage, { path: string; fileName: string }> = {
+  before: {
+    path: "DAP_1791070430775.jpeg",
+    fileName: "dap-antes-e-depois-1.jpeg",
+  },
+  after: {
+    path: "DAP_2_1791070430784.jpeg",
+    fileName: "dap-antes-e-depois-2.jpeg",
+  },
 };
 
 const readWhatsappAsset = async (fileName: string) => {
@@ -541,9 +553,11 @@ export const sendEvolutionDocument = async (
   }
 };
 
-export const sendEvolutionSessionPreparationImage = async (
+const sendEvolutionImage = async (
   phone: string,
+  imageFile: { path: string; fileName: string },
   caption: string,
+  replyTo?: EvolutionReplyReference,
 ): Promise<EvolutionSendResult> => {
   const config = await getEvolutionConfig();
   if (!config || !config.instance) {
@@ -551,7 +565,7 @@ export const sendEvolutionSessionPreparationImage = async (
   }
 
   try {
-    const media = (await readWhatsappAsset(sessionPreparationImageFile.path)).toString("base64");
+    const media = (await readWhatsappAsset(imageFile.path)).toString("base64");
     const response = await fetch(
       `${config.baseUrl}/message/sendMedia/${encodeURIComponent(config.instance)}`,
       {
@@ -567,7 +581,19 @@ export const sendEvolutionSessionPreparationImage = async (
           mimetype: "image/jpeg",
           caption,
           media,
-          fileName: sessionPreparationImageFile.fileName,
+          fileName: imageFile.fileName,
+          ...(replyTo
+            ? {
+                quoted: {
+                  key: {
+                    remoteJid: replyTo.remoteJid,
+                    fromMe: replyTo.fromMe,
+                    id: replyTo.id,
+                  },
+                  message: replyTo.message,
+                },
+              }
+            : {}),
         }),
       },
     );
@@ -604,6 +630,19 @@ export const sendEvolutionSessionPreparationImage = async (
     };
   }
 };
+
+export const sendEvolutionSessionPreparationImage = (
+  phone: string,
+  caption: string,
+): Promise<EvolutionSendResult> =>
+  sendEvolutionImage(phone, sessionPreparationImageFile, caption);
+
+export const sendEvolutionDapImage = (
+  phone: string,
+  image: WhatsappDapImage,
+  caption: string,
+): Promise<EvolutionSendResult> =>
+  sendEvolutionImage(phone, dapImageFiles[image], caption);
 
 export const sendEvolutionAudio = async (
   phone: string,

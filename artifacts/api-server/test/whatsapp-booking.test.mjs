@@ -4,29 +4,38 @@ import {
   bookingFitsScheduleIntervals,
   formatWhatsappBookingSlotChoices,
   getWhatsappBookingMessageSignals,
+  hasWhatsappBookingIntent,
   mergeWhatsappBookingDraft,
   normalizeLocalBookingDate,
   normalizeLocalBookingTime,
 } from "../src/lib/whatsapp-booking.ts";
 
-test("groups offered times by professional instead of repeating each name", () => {
+test("offers distinct times without exposing professional names", () => {
   const choices = formatWhatsappBookingSlotChoices([
     { time: "07:30", professional: "Gabriela Silva" },
     { time: "08:00", professional: "Gabriela Silva" },
+    { time: "08:00", professional: "Paula Costa" },
     { time: "08:30", professional: "Gabriela Silva" },
     { time: "09:00", professional: "Paula Costa" },
   ], (time) => time);
 
-  assert.equal(
-    choices,
-    "com Gabriela Silva: 07:30, 08:00, 08:30; com Paula Costa: 09:00",
-  );
+  assert.equal(choices, "07:30, 08:00, 08:30, 09:00");
+  assert.doesNotMatch(choices, /Gabriela|Paula/);
+});
+
+test("recognizes a direct request for appointment availability", () => {
+  assert.equal(hasWhatsappBookingIntent("Sugeriram segunda mas preciso saber os horários?"), true);
+  assert.equal(hasWhatsappBookingIntent("Vocês fazem drenagem?"), false);
 });
 
 test("resolve relative dates in the configured local calendar", () => {
   assert.equal(normalizeLocalBookingDate("amanhã", "2026-10-03"), "2026-10-04");
   assert.equal(normalizeLocalBookingDate("sexta-feira", "2026-10-03"), "2026-10-09");
   assert.equal(normalizeLocalBookingDate("16/10/2026", "2026-10-03"), "2026-10-16");
+  assert.equal(
+    normalizeLocalBookingDate("Sugeriram segunda mas preciso saber os horários?", "2026-10-03"),
+    "2026-10-05",
+  );
 });
 
 test("normalizes common Portuguese time choices without treating a date as a time", () => {

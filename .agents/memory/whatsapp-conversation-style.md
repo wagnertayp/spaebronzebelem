@@ -21,8 +21,8 @@ Across turns, retain details the client already provided and ask only for missin
 
 **How to apply:** Keep the booking context between turns, merge new details instead of re-asking, and treat selection from the offered available times as consent to reserve.
 
-When offering appointment times, group the choices by professional and name each professional once instead of repeating the same name after every time.
+Never include professional names in any WhatsApp message, including offered slots, confirmations, reminders, or replies to requests for a specific professional. Keep names only for internal appointment assignment.
 
-**Why:** The user reported that WhatsApp availability replies looked repetitive when the same professional was named beside every offered time.
+**Why:** the user explicitly requested that no professional names be shared with clients.
 
-**How to apply:** Group offered slots before building both fixed booking replies and the schedule information supplied to the AI.
+**How to apply:** Keep all client-facing WhatsApp text free of professional names and retain the name only in internal booking data.
