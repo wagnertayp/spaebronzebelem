@@ -2,11 +2,23 @@ import { createInsertSchema } from "drizzle-zod";
 import { integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
+export type WhatsappBookingDraft = {
+  service: string | null;
+  date: string | null;
+  time: string | null;
+  professional: string | null;
+  wantsBooking: boolean;
+  awaitingSlotChoice: boolean;
+  awaitingConfirmation: boolean;
+  awaitingClientName: boolean;
+};
+
 export const whatsappConversationsTable = pgTable("whatsapp_conversations", {
   id: serial("id").primaryKey(),
   phone: text("phone").notNull().unique(),
   clientName: text("client_name").notNull(),
   status: text("status").notNull().default("agent"),
+  bookingDraft: jsonb("booking_draft").$type<WhatsappBookingDraft | null>().default(null),
   lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

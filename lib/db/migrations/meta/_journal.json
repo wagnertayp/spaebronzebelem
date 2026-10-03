@@ -36,6 +36,13 @@
       "when": 1791035530082,
       "tag": "0004_chief_hellion",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791040264848,
+      "tag": "0005_wise_tinkerer",
+      "breakpoints": true
     }
   ]
 }

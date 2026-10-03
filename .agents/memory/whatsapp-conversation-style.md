@@ -14,3 +14,9 @@ Consecutive saved inbound messages received before the agent replies are one use
 **Why:** The user asked that the agent understand the message burst before responding so the conversation feels natural and avoids repetitive replies.
 
 **How to apply:** Preserve sender order, defer a reply while newer same-sender webhook events are queued, and provide the unanswered saved messages together. Do not recover provider history.
+
+Across turns, retain details the client already provided and ask only for missing information. For a booking request, once the client selects one of the available times, reserve it without asking for another confirmation.
+
+**Why:** The user requires continuity even when booking details arrive one message at a time and wants the scheduling flow to stay fast.
+
+**How to apply:** Keep the booking context between turns, merge new details instead of re-asking, and treat selection from the offered available times as consent to reserve.

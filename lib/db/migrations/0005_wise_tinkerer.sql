@@ -1,0 +1,1 @@
+ALTER TABLE "whatsapp_conversations" ADD COLUMN "booking_draft" jsonb DEFAULT 'null'::jsonb;

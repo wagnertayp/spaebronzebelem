@@ -150,6 +150,7 @@ import {
 } from "@workspace/api-zod";
 import {
   db,
+  type WhatsappBookingDraft,
   staffAccessAccountsTable,
   whatsappConversationsTable,
   whatsappFollowupsTable,
@@ -160,6 +161,13 @@ import { and, asc, desc, eq, gt, inArray, lt, lte, notExists, sql } from "drizzl
 import { alias } from "drizzle-orm/pg-core";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
+import {
+  getWhatsappBookingMessageSignals,
+  mergeWhatsappBookingDraft,
+  normalizeLocalBookingDate,
+  normalizeLocalBookingTime,
+  type WhatsappBookingUpdate,
+} from "../lib/whatsapp-booking.js";
 import backup from "../data/spa-backup.json";
 import { logger } from "../lib/logger";
 import { defaultStaffPasswordFromEmail } from "../lib/staff-access-password";
@@ -759,6 +767,19 @@ const getWhatsappConversation = async (phone: string) => {
   return existing ?? null;
 };
 
+const saveWhatsappBookingDraft = async (
+  phone: string,
+  bookingDraft: WhatsappBookingDraft | null,
+) => {
+  const conversation = await ensureWhatsappConversation(phone, phone);
+  const [updated] = await db
+    .update(whatsappConversationsTable)
+    .set({ bookingDraft, updatedAt: new Date() })
+    .where(eq(whatsappConversationsTable.id, conversation.id))
+    .returning();
+  return updated ?? { ...conversation, bookingDraft };
+};
+
 const ensureWhatsappConversation = async (phone: string, clientName: string) => {
   const normalizedPhone = normalizeWhatsappPhone(phone);
   const existing = await getWhatsappConversation(normalizedPhone);
@@ -1198,6 +1219,8 @@ type AgentAppointmentDraft = {
   confirmed: boolean;
 };
 
+type AgentBookingUpdate = WhatsappBookingUpdate;
+
 type AgentDecision = {
   reply: string;
   clientName: string | null;
@@ -1206,6 +1229,8 @@ type AgentDecision = {
   audioClip: WhatsappAudioClip | null;
   appointment: AgentAppointmentDraft | null;
   appointmentDataInvalid: boolean;
+  bookingUpdate: AgentBookingUpdate | null;
+  bookingUpdateInvalid: boolean;
 };
 
 type WhatsappAgentImageContent =
@@ -1265,6 +1290,37 @@ const parseAgentDecision = (content: string): AgentDecision => {
         }
       }
     }
+    const rawBookingUpdate = value.bookingUpdate;
+    let bookingUpdate: AgentBookingUpdate | null = null;
+    let bookingUpdateInvalid = false;
+    if (rawBookingUpdate !== null && rawBookingUpdate !== undefined) {
+      if (typeof rawBookingUpdate !== "object" || Array.isArray(rawBookingUpdate)) {
+        bookingUpdateInvalid = true;
+      } else {
+        const raw = rawBookingUpdate as Record<string, unknown>;
+        const parseField = (key: string) => {
+          const field = raw[key];
+          if (field === null || field === undefined) return null;
+          if (typeof field === "string") return field.trim() || null;
+          bookingUpdateInvalid = true;
+          return null;
+        };
+        if (
+          (raw.wantsBooking !== undefined && typeof raw.wantsBooking !== "boolean") ||
+          (raw.cancelled !== undefined && typeof raw.cancelled !== "boolean")
+        ) {
+          bookingUpdateInvalid = true;
+        }
+        bookingUpdate = {
+          service: parseField("service"),
+          date: parseField("date"),
+          time: parseField("time"),
+          professional: parseField("professional"),
+          wantsBooking: raw.wantsBooking === true,
+          cancelled: raw.cancelled === true,
+        };
+      }
+    }
     const reply = typeof value.reply === "string" ? value.reply.replace(/\*\*/g, "").trim() : "";
     if (!reply) throw new Error("O agente retornou um JSON sem reply");
     return {
@@ -1275,6 +1331,8 @@ const parseAgentDecision = (content: string): AgentDecision => {
       audioClip,
       appointment,
       appointmentDataInvalid,
+      bookingUpdate,
+      bookingUpdateInvalid,
     };
   } catch (error) {
     throw new Error(
@@ -1292,7 +1350,7 @@ const getConversationHistory = async (phone: string, beforeMessageId?: number) =
       beforeMessageId ? lt(whatsappMessagesTable.id, beforeMessageId) : undefined,
     ))
     .orderBy(desc(whatsappMessagesTable.id))
-    .limit(12);
+    .limit(20);
   return messages.reverse().map((message) => ({
       role: message.direction === "inbound" ? "user" as const : "assistant" as const,
       content: message.text,
@@ -1369,6 +1427,8 @@ const askWhatsappAgent = async (
   isFirstClientMessage = false,
   currentInput: WhatsappAgentInput = `Cliente: ${clientName}\nMensagem: ${text}`,
   conversationHistory?: Awaited<ReturnType<typeof getConversationHistory>>,
+  bookingDraft: WhatsappBookingDraft | null = null,
+  availableSlots: AppointmentSlotCandidate[] = [],
 ): Promise<AgentDecision> => {
   const history = conversationHistory ?? (await getConversationHistory(phone)).slice(0, -1);
   const serviceTable = activeSpaRecords("service", services)
@@ -1412,6 +1472,12 @@ ${professionalTable || "- Nenhum profissional cadastrado"}
 
 DATA LOCAL DE HOJE: ${currentDate}
 FUSO: ${whatsappAutomation.timezone}
+RASCUNHO SALVO DO AGENDAMENTO:
+${bookingDraft ? JSON.stringify(bookingDraft) : "Nenhum"}
+HORÁRIOS QUE O SISTEMA VALIDOU COMO LIVRES:
+${availableSlots.length
+  ? availableSlots.slice(0, 6).map((slot) => `${slot.start} | ${slot.professional}`).join("\n")
+  : "Nenhum horário disponível para os dados atuais."}
 AGENDA ATUAL:
 ${getFutureAgendaContext()}
 
@@ -1434,13 +1500,13 @@ REGRAS OBRIGATÓRIAS:
 - Não invente preços, promoções, horários, contraindicações ou resultados.
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
-- Para agendar, conduza a cliente passo a passo: confirme serviço, data, horário exato e nome, perguntando apenas o próximo item que faltar. “Amanhã” sem horário não é confirmação; pergunte qual horário ela prefere. Só crie appointment depois de confirmação explícita e sempre envie uma resposta curta.
-- No appointment, use exatamente o nome de um serviço cadastrado e o nome de um profissional ativo; deixe professional vazio se a cliente não tiver preferência. Nunca invente nomes.
+- Para agendar, leia o histórico e o rascunho salvo antes de responder. Preserve serviço, data, horário e preferência profissional já informados; pergunte apenas o próximo dado que realmente faltar. Nunca reinicie a coleta nem peça de novo um dado que a cliente já forneceu.
+- Retorne bookingUpdate cumulativo quando a cliente iniciar ou continuar um agendamento. Use exatamente um serviço cadastrado; date deve ser AAAA-MM-DD no fuso local; time deve ser HH:mm; professional só deve conter um profissional ativo explicitamente escolhido. Se um dado não mudou, mantenha o valor salvo na resposta cumulativa; use null somente se ainda não foi informado ou se foi removido explicitamente.
+- Use bookingUpdate somente se a mensagem atual iniciar, continuar ou cancelar um agendamento. Se a cliente falar de outro assunto, retorne null e responda ao assunto atual sem reabrir o agendamento.
+- Marque wantsBooking true quando a cliente pedir para agendar ou confirmar uma proposta completa. Se ela escolher um horário da lista de horários livres depois de pedir o agendamento, essa escolha já autoriza a reserva; não peça outra confirmação. Uma pergunta geral de disponibilidade não autoriza reservar até ela escolher um horário.
+- Nunca diga que um horário está livre a menos que esteja na lista validada pelo sistema. Não crie appointment; o servidor revalida a grade, os conflitos e a duração antes de reservar.
 - Se a duração de um serviço estiver como "A definir", não confirme nem crie agendamento para ele. Explique que a duração ainda precisa ser confirmada.
-- Use start como data ISO local completa (AAAA-MM-DDTHH:mm), no fuso informado, somente quando a cliente tiver informado data e horário exatos e confirmado que deseja agendar.
-- Não envie end: o sistema calcula o término usando a duração cadastrada do serviço.
-- Consulte a AGENDA ATUAL antes de propor ou confirmar um horário. Nunca crie appointment em um horário ocupado; se houver conflito, explique que o horário não está disponível e peça outra opção.
-- Nunca marque appointment quando faltar serviço, data, horário ou confirmação explícita.
+- Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Se pedir o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
 - Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
   - audioClip "combos": gravação que explica os combos do Spa e Bronze.
@@ -1448,9 +1514,10 @@ REGRAS OBRIGATÓRIAS:
   Escolha um somente se o pedido atual da cliente for diretamente sobre esse tema e a gravação for pertinente; nos demais casos use null. Se escolher um áudio, a resposta escrita deve ser apenas uma introdução curta ao áudio, sem inventar preços ou detalhes que não estejam confirmados.
 - Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano. Reclamações, negociação, dúvidas clínicas, falta de informação e reagendamento continuam na conversa.
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
-{"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null}
-ou, quando houver agendamento confirmado:
- {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":{"clientName":"nome informado","service":"nome exato do serviço","professional":"","start":"AAAA-MM-DDTHH:mm","confirmed":true}}. Se a cliente informou o nome, retorne-o como string em clientName; caso contrário, mantenha null.`,
+{"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null,"bookingUpdate":null}
+ou, quando houver coleta de agendamento:
+{"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null,"bookingUpdate":{"service":null,"date":null,"time":null,"professional":null,"wantsBooking":true,"cancelled":false}}.
+Se a cliente informou o nome, retorne-o como string em clientName; caso contrário, mantenha null. Sempre inclua as seis propriedades de bookingUpdate quando ele não for null.`,
       },
       ...history,
       { role: "user", content: currentInput },
@@ -1547,6 +1614,100 @@ const serviceDurationMinutes = (duration: string): number | null => {
     return total + (match[2].toLocaleLowerCase("pt-BR").startsWith("h") ? amount * 60 : amount);
   }, 0);
   return Number.isFinite(totalMinutes) && totalMinutes > 0 ? Math.round(totalMinutes) : null;
+};
+
+const findBookingService = (value: string) => {
+  const normalized = normalizeCatalogLabel(value);
+  if (!normalized) return null;
+  const activeServices = activeSpaRecords("service", services);
+  const exactMatch = activeServices.find(
+    (service) => normalizeCatalogLabel(service.name) === normalized,
+  );
+  if (exactMatch) return exactMatch;
+  const includedMatches = activeServices.filter((service) => {
+    const name = normalizeCatalogLabel(service.name);
+    return normalized.includes(name) || (normalized.length >= 6 && name.includes(normalized));
+  });
+  return includedMatches.length === 1 ? includedMatches[0]! : null;
+};
+
+const formatBookingDate = (date: string) => {
+  const localDate = agendaLocalDateTime(`${date}T12:00`);
+  return localDate
+    ? new Intl.DateTimeFormat("pt-BR", {
+        timeZone: whatsappAutomation.timezone,
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(localDate)
+    : date;
+};
+
+const formatBookingTime = (time: string) => {
+  const [hour, minute] = time.split(":");
+  return minute === "00" ? `${Number(hour)}h` : `${Number(hour)}h${minute}`;
+};
+
+const getAvailableAppointmentSlots = (
+  serviceName: string,
+  date: string,
+  preferredProfessional = "",
+): AppointmentSlotCandidate[] => {
+  const service = findBookingService(serviceName);
+  const duration = service ? serviceDurationMinutes(service.duration) : null;
+  if (!service || duration == null || normalizeLocalBookingDate(date, date) !== date) return [];
+
+  const preferred = normalizeCatalogLabel(preferredProfessional);
+  const activeProfessionals = activeSpaRecords("professional", professionals)
+    .filter((professional) =>
+      professional.active &&
+      (!preferred || normalizeCatalogLabel(professional.name) === preferred),
+    );
+  const byTime = new Map<string, AppointmentSlotCandidate>();
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const today = localAgendaDate();
+
+  for (const professional of activeProfessionals) {
+    const exception = professional.scheduleExceptions.find((item) => item.date === date);
+    const intervals = exception
+      ? exception.type === "day_off" ? [] : exception.intervals
+      : professional.weeklySchedule.find((item) => item.weekday === day && item.enabled)?.intervals ?? [];
+
+    for (const interval of intervals) {
+      const intervalStart = Number(interval.start.slice(0, 2)) * 60 + Number(interval.start.slice(3, 5));
+      const intervalEnd = Number(interval.end.slice(0, 2)) * 60 + Number(interval.end.slice(3, 5));
+      for (let minute = intervalStart; minute + duration <= intervalEnd; minute += 30) {
+        const time = `${Math.floor(minute / 60).toString().padStart(2, "0")}:${(minute % 60).toString().padStart(2, "0")}`;
+        const start = `${date}T${time}`;
+        const startDate = appointmentDateTimeInAgenda(start, today);
+        if (!startDate || startDate.getTime() <= Date.now()) continue;
+        const end = formatAgendaDateTime(new Date(startDate.getTime() + duration * 60_000));
+        const candidate: AppointmentSlotCandidate = {
+          start,
+          end,
+          professional: professional.name,
+          professionalId: professional.id,
+        };
+        if (appointmentSlotIssue(candidate) === null && !byTime.has(time)) {
+          byTime.set(time, candidate);
+        }
+      }
+    }
+  }
+
+  return [...byTime.values()].sort((a, b) => a.start.localeCompare(b.start));
+};
+
+const whatsappBookingSlotsReply = (
+  service: string,
+  date: string,
+  slots: AppointmentSlotCandidate[],
+  prefix = "",
+) => {
+  const choices = slots.slice(0, 6)
+    .map((slot) => `${formatBookingTime(slot.start.slice(11, 16))} com ${slot.professional}`)
+    .join(", ");
+  return `${prefix ? `${prefix} ` : ""}Para ${service} em ${formatBookingDate(date)}, tenho ${choices}. Qual horário você prefere? 🤎`;
 };
 
 const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) => {
@@ -3933,6 +4094,14 @@ const processWhatsappWebhookPayload = async (
   }
 
   try {
+    const savedBookingDraft = conversation?.bookingDraft ?? null;
+    const savedBookingSlots = savedBookingDraft?.service && savedBookingDraft.date
+      ? getAvailableAppointmentSlots(
+          savedBookingDraft.service,
+          savedBookingDraft.date,
+          savedBookingDraft.professional ?? "",
+        )
+      : [];
     const decision = await askWhatsappAgent(
       phone,
       knownClientName,
@@ -3940,73 +4109,309 @@ const processWhatsappWebhookPayload = async (
       isFirstClientMessage,
       currentInput,
       conversationHistory,
+      savedBookingDraft,
+      savedBookingSlots,
     );
     await saveWhatsappClientName(
       phone,
       decision.clientName ?? decision.appointment?.clientName ?? null,
     );
     const replyClientName = (await getWhatsappConversation(phone))?.clientName ?? knownClientName;
-    let createdAppointment: Appointment | null = null;
-    const requestedService = decision.appointment
-      ? services.find((service) =>
-          normalizeCatalogLabel(service.name) ===
-          normalizeCatalogLabel(decision.appointment!.service),
-        )
-      : undefined;
-    if (
-      decision.appointment &&
+    const today = localAgendaDate();
+    const currentSignals = getWhatsappBookingMessageSignals(text, today);
+    const hasRecentBookingContext = conversationHistory.slice(-8).some((message) =>
+      /\b(?:agend|marc|reserv|horar)\w*/.test(normalizeCatalogLabel(message.content)),
+    );
+    const bookingContextText = savedBookingDraft
+      ? text
+      : currentSignals.affirmative || hasRecentBookingContext
+        ? [...conversationHistory.slice(-8).map((message) => message.content), text].join("\n")
+        : text;
+    const parsedBookingContextSignals = getWhatsappBookingMessageSignals(bookingContextText, today);
+    const bookingContextSignals = {
+      ...parsedBookingContextSignals,
+      date: currentSignals.date ?? parsedBookingContextSignals.date,
+      time: currentSignals.time ?? parsedBookingContextSignals.time,
+      affirmative: currentSignals.affirmative || parsedBookingContextSignals.affirmative,
+      negative: currentSignals.negative || parsedBookingContextSignals.negative,
+      cancelled: currentSignals.cancelled || parsedBookingContextSignals.cancelled,
+    };
+    const legacyBookingUpdate: AgentBookingUpdate | null = decision.appointment
+      ? {
+          service: decision.appointment.service,
+          date: decision.appointment.start.slice(0, 10),
+          time: decision.appointment.start.slice(11, 16),
+          professional: decision.appointment.professional || null,
+          wantsBooking: decision.appointment.confirmed,
+          cancelled: false,
+        }
+      : null;
+    const bookingUpdate = decision.bookingUpdate ?? legacyBookingUpdate;
+    const savedDraftHasRelevantInput = Boolean(
+      savedBookingDraft &&
       (
-        conversationHistory.some((message) =>
-          message.role === "user" && mentionsPregnancy(message.content),
-        ) ||
-        inboundBatch.some((message) => mentionsPregnancy(message.text))
-      ) &&
-      isTanningService(decision.appointment.service, requestedService?.category)
-    ) {
+        currentSignals.date ||
+        currentSignals.time ||
+        findBookingService(text) ||
+        currentSignals.cancelled ||
+        (currentSignals.negative && savedBookingDraft.awaitingConfirmation) ||
+        (savedBookingDraft.awaitingClientName && decision.clientName) ||
+        (currentSignals.affirmative && savedBookingDraft.awaitingConfirmation)
+      ),
+    );
+    const legacyDraftHasRelevantInput = Boolean(
+      !savedBookingDraft &&
+      hasRecentBookingContext &&
+      (
+        currentSignals.date ||
+        currentSignals.time ||
+        findBookingService(text) ||
+        currentSignals.affirmative ||
+        currentSignals.cancelled
+      ),
+    );
+    const shouldHandleBooking = Boolean(
+      bookingUpdate || savedDraftHasRelevantInput || legacyDraftHasRelevantInput,
+    );
+    const replyWithBookingProgress = async (
+      bookingDraft: WhatsappBookingDraft | null,
+      reply: string,
+    ) => {
+      await saveWhatsappBookingDraft(phone, bookingDraft);
       ensureWhatsappDelivery(await sendWhatsappAgentReply(
         phone,
         replyClientName,
         appointment?.id ?? null,
-        pregnancyTanningRefusal,
+        reply,
         replyReference,
       ));
-      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
-    }
-    if (decision.appointmentDataInvalid) {
-      ensureWhatsappDelivery(await sendWhatsappAgentReply(
-        phone,
-        replyClientName,
-        appointment?.id ?? null,
-        "Não consegui ler os dados do agendamento com segurança. Pode me enviar o serviço, dia e horário novamente? 🤎",
-        replyReference,
-      ));
-      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
-    }
-    if (decision.appointment && !decision.appointment.confirmed) {
-      ensureWhatsappDelivery(await sendWhatsappAgentReply(
-        phone,
-        replyClientName,
-        appointment?.id ?? null,
-        "Para reservar, preciso da sua confirmação explícita. Você confirma esse serviço, data e horário? 🤎",
-        replyReference,
-      ));
-      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
-    }
-    if (decision.appointment?.confirmed) {
-      const result = await runWithSpaOperationalStateWriteLock(() =>
-        addAppointmentFromAgent(phone, decision.appointment!),
+    };
+    let createdAppointment: Appointment | null = null;
+    if (bookingUpdate?.cancelled || currentSignals.cancelled) {
+      await saveWhatsappBookingDraft(phone, null);
+    } else if (shouldHandleBooking) {
+      const update = bookingUpdate ?? {
+        service: null,
+        date: null,
+        time: null,
+        professional: null,
+        wantsBooking: false,
+        cancelled: false,
+      };
+      const normalizedProfessional = update.professional
+        ? /^(?:equipe|qualquer(?: profissional)?|sem preferencia|indiferente|tanto faz)$/.test(
+            normalizeCatalogLabel(update.professional),
+          )
+          ? null
+          : professionals.find((professional) =>
+              professional.active &&
+              normalizeCatalogLabel(professional.name) === normalizeCatalogLabel(update.professional!),
+            )?.name ?? update.professional
+        : null;
+      const mergedBookingDraft = mergeWhatsappBookingDraft(
+        savedBookingDraft,
+        { ...update, professional: normalizedProfessional },
+        bookingContextText,
+        bookingContextSignals,
+        today,
+        (value) => findBookingService(value)?.name ?? null,
       );
-      if (!result.ok) {
-        ensureWhatsappDelivery(await sendWhatsappAgentReply(
-          phone,
-          replyClientName,
-          appointment?.id ?? null,
-          agentAppointmentFailureReply(result.reason),
-          replyReference,
-        ));
-        return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+
+      if (!mergedBookingDraft) {
+        await saveWhatsappBookingDraft(phone, null);
+      } else {
+        let bookingDraft: WhatsappBookingDraft = mergedBookingDraft;
+        const service = bookingDraft.service ? findBookingService(bookingDraft.service) : null;
+        const pregnancyMentioned =
+          conversationHistory.some((message) =>
+            message.role === "user" && mentionsPregnancy(message.content),
+          ) ||
+          inboundBatch.some((message) => mentionsPregnancy(message.text));
+        if (service && pregnancyMentioned && isTanningService(service.name, service.category)) {
+          await replyWithBookingProgress(null, pregnancyTanningRefusal);
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+        if (!service) {
+          bookingDraft = { ...bookingDraft, service: null };
+          await replyWithBookingProgress(
+            bookingDraft,
+            "Qual serviço você quer agendar? 🤎",
+          );
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+        if (serviceDurationMinutes(service.duration) == null) {
+          await replyWithBookingProgress(
+            bookingDraft,
+            `A duração de ${service.name} ainda está sendo confirmada, então não consigo reservar esse serviço agora. 🤎`,
+          );
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+        const bookingDate = bookingDraft.date;
+        if (!bookingDate) {
+          await replyWithBookingProgress(bookingDraft, "Qual dia você prefere? 🤎");
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+        if (bookingDate < today) {
+          await replyWithBookingProgress(
+            { ...bookingDraft, date: null, time: null, awaitingSlotChoice: false, awaitingConfirmation: false },
+            "Essa data já passou. Qual outro dia funciona para você? 🤎",
+          );
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+        if (bookingDraft.professional) {
+          const requestedProfessional = bookingDraft.professional;
+          const matchedProfessional = professionals.find((professional) =>
+            professional.active &&
+            normalizeCatalogLabel(professional.name) === normalizeCatalogLabel(requestedProfessional),
+          );
+          if (!matchedProfessional) {
+            await replyWithBookingProgress(
+              { ...bookingDraft, professional: null },
+              "Não encontrei esse profissional na equipe ativa. Prefere outra pessoa ou sem preferência? 🤎",
+            );
+            return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+          }
+          bookingDraft = { ...bookingDraft, professional: matchedProfessional.name };
+        }
+        if (
+          bookingDraft.awaitingClientName &&
+          replyClientName &&
+          normalizeWhatsappPhone(replyClientName) !== normalizeWhatsappPhone(phone)
+        ) {
+          bookingDraft = { ...bookingDraft, awaitingClientName: false };
+        }
+
+        const availableSlots = getAvailableAppointmentSlots(
+          service.name,
+          bookingDate,
+          bookingDraft.professional ?? "",
+        );
+        if (!bookingDraft.time) {
+          if (!availableSlots.length) {
+            bookingDraft = {
+              ...bookingDraft,
+              awaitingSlotChoice: false,
+              awaitingConfirmation: false,
+            };
+            await replyWithBookingProgress(
+              bookingDraft,
+              `Não encontrei horários livres para ${service.name} nesse dia. Qual outra data você prefere? 🤎`,
+            );
+            return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+          }
+          bookingDraft = {
+            ...bookingDraft,
+            awaitingSlotChoice: true,
+            awaitingConfirmation: false,
+          };
+          await replyWithBookingProgress(
+            bookingDraft,
+            whatsappBookingSlotsReply(service.name, bookingDate, availableSlots),
+          );
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+
+        const requestedTime = normalizeLocalBookingTime(bookingDraft.time);
+        const selectedSlot = requestedTime
+          ? availableSlots.find((slot) =>
+              slot.start.slice(11, 16) === requestedTime &&
+              (!bookingDraft!.professional ||
+                normalizeCatalogLabel(slot.professional) === normalizeCatalogLabel(bookingDraft!.professional)),
+            )
+          : undefined;
+        if (!selectedSlot) {
+          bookingDraft = {
+            ...bookingDraft,
+            time: null,
+            awaitingSlotChoice: availableSlots.length > 0,
+            awaitingConfirmation: false,
+          };
+          const reply = availableSlots.length
+            ? whatsappBookingSlotsReply(
+                service.name,
+                bookingDate,
+                availableSlots,
+                "Esse horário não está mais livre.",
+              )
+            : `Esse horário não está livre e não encontrei outras vagas para ${service.name} nesse dia. Qual outra data você prefere? 🤎`;
+          await replyWithBookingProgress(bookingDraft, reply);
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+
+        const selectedTime = selectedSlot.start.slice(11, 16);
+        bookingDraft = {
+          ...bookingDraft,
+          time: selectedTime,
+          professional: selectedSlot.professional,
+          awaitingSlotChoice: false,
+        };
+        if (!bookingDraft.wantsBooking) {
+          bookingDraft = { ...bookingDraft, awaitingConfirmation: true };
+          await replyWithBookingProgress(
+            bookingDraft,
+            `Posso reservar ${service.name} para ${formatBookingDate(bookingDate)} às ${formatBookingTime(selectedTime)} com ${selectedSlot.professional}? 🤎`,
+          );
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+
+        const normalizedPhone = normalizeWhatsappPhone(phone);
+        const matchedClient = clients.find(
+          (clientRecord) => normalizeWhatsappPhone(clientRecord.phone) === normalizedPhone,
+        );
+        const bookingClientName = matchedClient?.name ?? replyClientName;
+        if (
+          !bookingClientName ||
+          normalizeWhatsappPhone(bookingClientName) === normalizedPhone
+        ) {
+          bookingDraft = { ...bookingDraft, awaitingClientName: true };
+          await replyWithBookingProgress(
+            bookingDraft,
+            `Já encontrei o horário. Qual nome devo colocar na reserva? 🤎`,
+          );
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+
+        const result = await runWithSpaOperationalStateWriteLock(() =>
+          addAppointmentFromAgent(phone, {
+            clientName: bookingClientName,
+            service: service.name,
+            professional: selectedSlot.professional,
+            start: selectedSlot.start,
+            confirmed: true,
+          }),
+        );
+        if (!result.ok) {
+          if (result.reason === "conflict") {
+            const refreshedSlots = getAvailableAppointmentSlots(
+              service.name,
+              bookingDate,
+              bookingDraft.professional ?? "",
+            );
+            bookingDraft = {
+              ...bookingDraft,
+              time: null,
+              awaitingSlotChoice: refreshedSlots.length > 0,
+              awaitingConfirmation: false,
+            };
+            await replyWithBookingProgress(
+              bookingDraft,
+              refreshedSlots.length
+                ? whatsappBookingSlotsReply(
+                    service.name,
+                    bookingDate,
+                    refreshedSlots,
+                    "Esse horário acabou de ser ocupado.",
+                  )
+                : `Esse horário acabou de ser ocupado. Qual outra data você prefere para ${service.name}? 🤎`,
+            );
+          } else {
+            await replyWithBookingProgress(bookingDraft, agentAppointmentFailureReply(result.reason));
+          }
+          return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+        }
+        createdAppointment = result.appointment;
+        await saveWhatsappBookingDraft(phone, null);
       }
-      createdAppointment = result.appointment;
     }
     if (decision.document) {
       ensureWhatsappDelivery(await sendWhatsappDocumentMessage(
