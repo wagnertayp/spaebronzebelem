@@ -26,3 +26,9 @@ Never include professional names in any WhatsApp message, including offered slot
 **Why:** the user explicitly requested that no professional names be shared with clients.
 
 **How to apply:** Keep all client-facing WhatsApp text free of professional names and retain the name only in internal booking data.
+
+Before replying, identify the situation, exact subject, and intent; read the full current message and relevant recent context. Answer only the actual question using confirmed facts, and ask a concise clarification when meaning is ambiguous.
+
+**Why:** the user asked that the WhatsApp agent check each message and avoid random or context-free replies.
+
+**How to apply:** Keep this as an explicit pre-response check in both the production prompt and any prompt that simulates the agent.
