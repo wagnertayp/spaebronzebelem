@@ -34,6 +34,13 @@ export const getWhatsappArrivalUpdate = (value: string): WhatsappArrivalUpdate |
   }
 
   if (
+    /\b(?:vou|vamos|estou|to)\s+(?:(?:indo|seguir)\s+)?de\s+(?:uber|99|taxi)\b/.test(normalized) &&
+    !value.trim().endsWith("?")
+  ) {
+    return "on_the_way";
+  }
+
+  if (
     /\b(?:estou|to|vou)\s+(?:a caminho|no caminho|indo|chegando|perto|na porta)\b/.test(normalized) ||
     /\b(?:a caminho|no caminho|chegando)\b/.test(normalized)
   ) {
@@ -48,10 +55,34 @@ export const isClientOnTheWay = (value: string) => {
 };
 
 export const clientOnTheWayReply =
-  "Que bom! Estamos te aguardando por aqui. Venha com cuidado, até já! 🤎";
+  "Perfeito, estamos te aguardando! Ao chegar, é só avisar a recepção; venha com cuidado. 🤎";
 
 export const clientArrivalEtaReply =
   "Obrigada por avisar! A equipe fica ciente e te aguarda. 🤎";
+
+export const isWhatsappDecisionDeferral = (value: string) =>
+  /\b(?:um momento|um minutinho|deixa eu ver|vou (?:ver|conferir|confirmar|consultar)|vou falar com|vou combinar com|preciso falar com|confirmo depois|te aviso depois)\b/.test(
+    normalizeSafetyText(value),
+  );
+
+export const whatsappDecisionDeferralReply =
+  "Claro, sem pressa! Quando decidir, me avise por aqui e eu confiro novamente os horários disponíveis. 🤎";
+
+export const isWhatsappAcceptanceOfServiceOffer = (
+  currentText: string,
+  previousAssistantText: string,
+) => {
+  const response = normalizeSafetyText(currentText).replace(/[.!?]+$/g, "").trim();
+  const previous = normalizeSafetyText(previousAssistantText);
+  const isSimpleAcceptance =
+    /^(?:eu quero|quero|sim|sim quero|quero sim|pode|pode ser|claro|com certeza|quero conhecer)$/.test(
+      response,
+    );
+  const previousOfferedOtherServices =
+    /\b(?:outras opcoes|opcoes de cuidados|outros servicos|servicos para gestante)\b/.test(previous) &&
+    /\b(?:quer|posso|passar|conhecer|mostrar|apresentar)\b/.test(previous);
+  return isSimpleAcceptance && previousOfferedOtherServices;
+};
 
 export const isDapServiceRequest = (value: string) => {
   const normalized = normalizeSafetyText(value);
@@ -124,10 +155,13 @@ export const mentionsSpaInfantil = (value: string) =>
 export const spaInfantilHandoffReply =
   "Temos sim: o Spa Infantil é um banho à base de hidratante e açúcar, sem chumbo ou amônia, para crianças de 2 a 10 anos. Vou encaminhar você para uma atendente, que pode explicar os detalhes e ajudar com os horários. 🤎";
 
-export const isTanningService = (value: string, category = "") =>
-  /\b(?:bronze(?:amento|adas?)?|marquinhas?)\b/.test(
+export const isTanningService = (value: string, category = "") => {
+  const serviceName = normalizeSafetyText(value).replace(/\s+/g, " ").trim();
+  if (serviceName === "banho de lua") return false;
+  return /\b(?:bronze(?:amento|adas?)?|marquinhas?)\b/.test(
     normalizeSafetyText(`${value} ${category}`),
   );
+};
 
 export const pregnancyTanningRefusal =
-  "Por cuidado, não realizamos bronzeamento durante a gravidez. Se quiser, posso te informar sobre outros serviços, sem avaliar se são indicados para você. 🤎";
+  "Por cuidado, não realizamos bronzeamento durante a gravidez. 🤎";

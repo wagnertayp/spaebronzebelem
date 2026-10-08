@@ -5,6 +5,8 @@ import {
   clientOnTheWayReply,
   dapServiceInformationReply,
   getWhatsappArrivalUpdate,
+  isWhatsappAcceptanceOfServiceOffer,
+  isWhatsappDecisionDeferral,
   isDapServiceRequest,
   isClientOnTheWay,
   isWhatsappWalkInService,
@@ -14,12 +16,14 @@ import {
   removeWhatsappProfessionalNames,
   pregnancyTanningRefusal,
   spaInfantilHandoffReply,
+  whatsappDecisionDeferralReply,
 } from "../src/lib/whatsapp-agent-safety.ts";
 import {
   bronzeAudioUnavailableReply,
   bronzeMethodDifferenceReply,
   resolveRequestedWhatsappAudioClip,
   shouldSendBronzeAudio,
+  shouldSendWhatsappAudioClip,
 } from "../src/lib/whatsapp-bronze.ts";
 
 test("detects common pregnancy terms without accent sensitivity", () => {
@@ -31,6 +35,8 @@ test("detects common pregnancy terms without accent sensitivity", () => {
 
 test("recognizes on-the-way updates and avoids booking questions", () => {
   assert.equal(isClientOnTheWay("Estou a caminho"), true);
+  assert.equal(isClientOnTheWay("Vamos de Uber"), true);
+  assert.equal(isClientOnTheWay("Dá para ir de Uber?"), false);
   assert.equal(isClientOnTheWay("Tô chegando agora"), true);
   assert.equal(isClientOnTheWay("Já cheguei ao spa"), true);
   assert.equal(getWhatsappArrivalUpdate("Cheguei"), "arrived");
@@ -40,7 +46,33 @@ test("recognizes on-the-way updates and avoids booking questions", () => {
   assert.equal(isClientOnTheWay("Ainda não cheguei"), false);
   assert.equal(isClientOnTheWay("Qual caminho devo fazer?"), false);
   assert.match(clientOnTheWayReply, /estamos te aguardando/i);
+  assert.match(clientOnTheWayReply, /recepção/i);
   assert.doesNotMatch(clientOnTheWayReply, /agendar|qual serviço/i);
+});
+
+test("acknowledges a pause while the client checks a booking without repeating slot choices", () => {
+  assert.equal(isWhatsappDecisionDeferral("Um momento irei ver que vou com minha amiga"), true);
+  assert.equal(isWhatsappDecisionDeferral("Vou confirmar com minha amiga"), true);
+  assert.equal(isWhatsappDecisionDeferral("Prefiro 15h30"), false);
+  assert.match(whatsappDecisionDeferralReply, /sem pressa/i);
+  assert.match(whatsappDecisionDeferralReply, /confiro novamente os horários/i);
+});
+
+test("continues an accepted offer to show other services instead of asking again", () => {
+  assert.equal(
+    isWhatsappAcceptanceOfServiceOffer(
+      "Eu quero",
+      "Vou te ajudar com carinho. Você quer conhecer quais outros serviços temos para gestante?",
+    ),
+    true,
+  );
+  assert.equal(
+    isWhatsappAcceptanceOfServiceOffer(
+      "Qual o valor?",
+      "Se quiser, posso te passar outras opções de cuidados do Spa.",
+    ),
+    false,
+  );
 });
 
 test("recognizes DAP as a walk-in service and gives only the supplied details", () => {
@@ -48,6 +80,7 @@ test("recognizes DAP as a walk-in service and gives only the supplied details", 
   assert.equal(isDapServiceRequest("Drenagem de Alta Performance"), true);
   assert.equal(isWhatsappWalkInService("DAP"), true);
   assert.equal(isWhatsappWalkInService("Drenagem linfática"), false);
+  assert.equal(isWhatsappWalkInService("Banho de Lua"), false);
   assert.match(dapServiceInformationReply, /ordem de chegada/i);
   assert.match(dapServiceInformationReply, /R\$ 200/);
   assert.match(dapServiceInformationReply, /resultados variam/i);
@@ -69,8 +102,11 @@ test("identifies tanning services and rejects the booking safely", () => {
   assert.equal(isTanningService("Bronzeamento em máquina"), true);
   assert.equal(isTanningService("Marquinha natural"), true);
   assert.equal(isTanningService("Sessão premium", "Bronzeamento"), true);
+  assert.equal(isTanningService("Banho de Lua", "Bronze"), false);
+  assert.equal(isTanningService("Banho de Lua com bronze", "Bronze"), true);
   assert.equal(isTanningService("Massagem relaxante"), false);
   assert.match(pregnancyTanningRefusal, /não realizamos bronzeamento durante a gravidez/i);
+  assert.doesNotMatch(pregnancyTanningRefusal, /outros serviços/i);
 });
 
 test("recognizes Spa Infantil questions, including the common spelling in chat", () => {
@@ -85,7 +121,7 @@ test("recognizes Spa Infantil questions, including the common spelling in chat",
   assert.doesNotMatch(spaInfantilHandoffReply, /sem química/i);
 });
 
-test("does not infer an unsolicited bronze clip and attempts an approved clip only once", () => {
+test("avoids unsolicited bronze audio and never retries a pre-recorded clip in the conversation", () => {
   const inferredBronzeClip = resolveRequestedWhatsappAudioClip(null, "bronze");
   assert.equal(inferredBronzeClip, null);
   assert.equal(shouldSendBronzeAudio(inferredBronzeClip === "bronze", false), false);
@@ -96,6 +132,9 @@ test("does not infer an unsolicited bronze clip and attempts an approved clip on
   assert.equal(shouldSendBronzeAudio(selectedBronzeClip === "bronze", true), false);
   assert.equal(shouldSendBronzeAudio(false, false), false);
   assert.equal(shouldSendBronzeAudio(true, false, true), false);
+  assert.equal(shouldSendWhatsappAudioClip(true, false), true);
+  assert.equal(shouldSendWhatsappAudioClip(true, true), false);
+  assert.equal(shouldSendWhatsappAudioClip(false, true), false);
   assert.match(bronzeMethodDifferenceReply, /exposição solar/i);
   assert.match(bronzeMethodDifferenceReply, /WB Ultra/i);
   assert.match(bronzeMethodDifferenceReply, /72 lâmpadas/i);

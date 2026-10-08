@@ -9,6 +9,11 @@ export const resolveRequestedWhatsappAudioClip = (
 ): "combos" | "bronze" | null =>
   requestedClip ?? (inferredClip === "combos" ? inferredClip : null);
 
+export const shouldSendWhatsappAudioClip = (
+  selectedForCurrentTurn: boolean,
+  alreadyAttempted: boolean,
+) => selectedForCurrentTurn && !alreadyAttempted;
+
 export const shouldSendBronzeAudio = (
   selectedForCurrentTurn: boolean,
   alreadyAttempted: boolean,

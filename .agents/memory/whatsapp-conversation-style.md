@@ -32,3 +32,9 @@ Before replying, identify the situation, exact subject, and intent; read the ful
 **Why:** the user asked that the WhatsApp agent check each message and avoid random or context-free replies.
 
 **How to apply:** Keep this as an explicit pre-response check in both the production prompt and any prompt that simulates the agent.
+
+If a client gives a clear pause while checking a booking or consulting someone, acknowledge it without pressure, preserve the booking draft, and do not repeat the offered time list. If the client accepts an offer in the immediately previous message, carry out that offer instead of asking the same question again.
+
+**Why:** The user shared real conversations where the agent repeated appointment options after the client said she would check with a friend, and where it re-asked about services after the client accepted the offer.
+
+**How to apply:** Use the recent assistant message to interpret short replies such as “Eu quero”; answer the accepted offer directly. For a booking deferral without a new date, time, or cancellation, send a short acknowledgment and leave the saved draft intact.

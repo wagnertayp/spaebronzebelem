@@ -30,6 +30,10 @@ test("recognizes a direct request for appointment availability", () => {
 
 test("resolve relative dates in the configured local calendar", () => {
   assert.equal(normalizeLocalBookingDate("amanhã", "2026-10-03"), "2026-10-04");
+  assert.equal(
+    normalizeLocalBookingDate("Ela disse que pode amanhã", "2026-10-03"),
+    "2026-10-04",
+  );
   assert.equal(normalizeLocalBookingDate("sexta-feira", "2026-10-03"), "2026-10-09");
   assert.equal(normalizeLocalBookingDate("16/10/2026", "2026-10-03"), "2026-10-16");
   assert.equal(
