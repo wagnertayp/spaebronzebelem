@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { evolutionInstanceStore } from "./evolution-instance-repository";
+import { getEvolutionErrorDetails, parseEvolutionResponseBody } from "./evolution-error";
 import { pairingCodeFromResponse, qrCodeFromResponse } from "./evolution-qr";
 import { logger } from "./logger";
 
@@ -304,8 +305,9 @@ export const disconnectEvolutionInstance = async () => {
       },
     );
     if (!response.ok) {
+      const providerError = getEvolutionErrorDetails(await parseEvolutionResponseBody(response));
       logger.warn(
-        { status: response.status },
+        { status: response.status, ...providerError },
         "[Evolution] A solicitação de desconexão não foi aceita",
       );
       const connection = await getEvolutionConnection({ configureWebhook: false });
@@ -321,7 +323,7 @@ export const disconnectEvolutionInstance = async () => {
       return {
         disconnected: false,
         instance,
-        message: `Não foi possível desconectar o WhatsApp (HTTP ${response.status})`,
+        message: `Não foi possível desconectar o WhatsApp (HTTP ${response.status}${providerError.providerCode ? ` · ${providerError.providerCode}` : ""})`,
       };
     }
 
@@ -805,13 +807,17 @@ export const getEvolutionConnection = async ({
       `${config.baseUrl}/instance/connectionState/${encodeURIComponent(config.instance)}`,
       { headers: { apikey: config.apiKey }, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) },
     );
+    const responseBody = await parseEvolutionResponseBody(response);
+    const body = responseBody && typeof responseBody === "object" && !Array.isArray(responseBody)
+      ? responseBody as Record<string, unknown>
+      : {};
+    const providerError = response.ok ? {} : getEvolutionErrorDetails(responseBody);
     if (!response.ok) {
       logger.warn(
-        { status: response.status },
+        { status: response.status, ...providerError },
         "[Evolution] Não foi possível consultar o status da conexão",
       );
     }
-    const body = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (response.status === 404) {
       const instancesResponse = await fetch(`${config.baseUrl}/instance/fetchInstances`, {
         headers: { apikey: config.apiKey },
@@ -858,6 +864,7 @@ export const getEvolutionConnection = async ({
       (response.ok ? "unknown" : `http_${response.status}`),
     );
     const connected = response.ok && ["open", "connected"].includes(state.toLowerCase());
+    const errorContext = ` (HTTP ${response.status}${providerError.providerCode ? ` · ${providerError.providerCode}` : ""})`;
     const webhookReady =
       connected && configureWebhook
         ? await configureEvolutionWebhook(config.instance)
@@ -874,8 +881,8 @@ export const getEvolutionConnection = async ({
         : response.ok && ["connecting", "qr_pending", "created"].includes(state.toLowerCase())
           ? "Aguardando leitura do QR Code"
         : response.status === 401 || response.status === 403
-          ? "Não foi possível autenticar a conexão do WhatsApp"
-          : "Não foi possível consultar o status do WhatsApp",
+          ? `Não foi possível autenticar a conexão do WhatsApp${errorContext}`
+          : `Não foi possível consultar o status do WhatsApp${errorContext}`,
     };
   } catch (error) {
     logger.warn(
