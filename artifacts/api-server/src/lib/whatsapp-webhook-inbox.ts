@@ -10,6 +10,7 @@ import {
 const CLAIM_LEASE_SECONDS = 120;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const WORKER_POLL_INTERVAL_MS = 1_000;
+const WORKER_CONCURRENCY = 4;
 
 export type WhatsappWebhookPayload = Record<string, unknown>;
 export type WhatsappWebhookJobContext = Pick<WhatsappWebhookJob, "id">;
@@ -214,11 +215,11 @@ export const startWhatsappWebhookInboxWorker = (
     job: WhatsappWebhookJobContext,
   ) => Promise<unknown>,
 ) => {
-  let running = false;
+  let activeWorkers = 0;
 
   const runOne = async () => {
-    if (running) return;
-    running = true;
+    if (activeWorkers >= WORKER_CONCURRENCY) return;
+    activeWorkers += 1;
     try {
       const job = await claimNextWhatsappWebhook();
       if (!job) return;
@@ -256,7 +257,7 @@ export const startWhatsappWebhookInboxWorker = (
     } catch (error) {
       logger.error({ err: error }, "WhatsApp webhook inbox worker cycle failed");
     } finally {
-      running = false;
+      activeWorkers -= 1;
     }
   };
 
