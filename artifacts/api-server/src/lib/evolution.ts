@@ -143,6 +143,7 @@ export const configureEvolutionWebhook = async (
   if (!force && configuredWebhookInstance === instance) return true;
 
   try {
+    const webhookTarget = new URL(webhookUrl);
     const response = await fetch(`${config.baseUrl}/webhook/set/${encodeURIComponent(instance)}`, {
       method: "POST",
       headers: {
@@ -168,7 +169,15 @@ export const configureEvolutionWebhook = async (
       return false;
     }
     configuredWebhookInstance = instance;
-    logger.info({ webhookEnabled: true }, "[Evolution] Webhook de mensagens configurado");
+    logger.info(
+      {
+        webhookEnabled: true,
+        webhookHost: webhookTarget.host,
+        webhookPath: webhookTarget.pathname,
+        webhookEvents: ["MESSAGES_UPSERT"],
+      },
+      "[Evolution] Webhook de mensagens configurado",
+    );
     return true;
   } catch (error) {
     logger.warn(
