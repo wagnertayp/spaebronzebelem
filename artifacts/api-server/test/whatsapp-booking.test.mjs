@@ -66,6 +66,14 @@ test("a catalog request, accepted catalog offer, or topic change suppresses stal
     topicChange: false,
     modelSelectedDocument: true,
   }), false);
+  assert.equal(shouldSuppressStaleWhatsappBookingContext({
+    explicitBookingIntent: true,
+    catalogRequest: false,
+    acceptedCatalogOffer: false,
+    topicChange: false,
+    modelSelectedDocument: false,
+    nonBookableServiceIntent: true,
+  }), true);
 });
 
 test("a model booking update is ignored unless the current turn is in an active booking flow", () => {

@@ -5,6 +5,8 @@ import {
   clientOnTheWayReply,
   dapServiceInformationReply,
   getWhatsappArrivalUpdate,
+  getWhatsappTanningFlow,
+  isExplicitWhatsappBronzeInfoRequest,
   isWhatsappAcceptanceOfServiceOffer,
   isWhatsappDecisionDeferral,
   isDapServiceRequest,
@@ -109,6 +111,30 @@ test("identifies tanning services and rejects the booking safely", () => {
   assert.doesNotMatch(pregnancyTanningRefusal, /outros serviços/i);
 });
 
+test("recognizes a natural-bronze follow-up from recent context and honors explicit full-info requests", () => {
+  assert.equal(
+    getWhatsappTanningFlow(
+      "Minha segunda, quero fazer natural amanhã",
+      "Queria saber sobre o bronzeamento. O bronzeamento em máquina é por ordem de chegada?",
+    ),
+    "natural",
+  );
+  assert.equal(
+    getWhatsappTanningFlow(
+      "Queria saber sobre o bronzeamento. Tem que agendar?",
+      "",
+    ),
+    "unspecified",
+  );
+  assert.equal(getWhatsappTanningFlow("Quero fazer uma massagem amanhã", ""), null);
+  assert.equal(isExplicitWhatsappBronzeInfoRequest("Pode me informar tudo sobre o bronze?"), true);
+  assert.equal(isExplicitWhatsappBronzeInfoRequest("Quero fazer natural amanhã"), false);
+  assert.equal(
+    getWhatsappTanningFlow("Pode me informar tudo?", "Falávamos sobre bronzeamento natural."),
+    "unspecified",
+  );
+});
+
 test("recognizes Spa Infantil questions, including the common spelling in chat", () => {
   assert.equal(mentionsSpaInfantil("Ainda tem o spar infantil?"), true);
   assert.equal(mentionsSpaInfantil("Vocês têm Spa Infantil?"), true);
@@ -135,10 +161,9 @@ test("avoids unsolicited bronze audio and never retries a pre-recorded clip in t
   assert.equal(shouldSendWhatsappAudioClip(true, false), true);
   assert.equal(shouldSendWhatsappAudioClip(true, true), false);
   assert.equal(shouldSendWhatsappAudioClip(false, true), false);
-  assert.match(bronzeMethodDifferenceReply, /exposição solar/i);
-  assert.match(bronzeMethodDifferenceReply, /WB Ultra/i);
-  assert.match(bronzeMethodDifferenceReply, /72 lâmpadas/i);
-  assert.match(bronzeMethodDifferenceReply, /8 a 20 minutos/i);
+  assert.match(bronzeMethodDifferenceReply, /ordem de chegada/i);
+  assert.match(bronzeMethodDifferenceReply, /até 11h30/i);
+  assert.doesNotMatch(bronzeMethodDifferenceReply, /exposição solar/i);
   assert.doesNotMatch(bronzeMethodDifferenceReply, /Protocolo Neon/i);
   assert.match(bronzeAudioUnavailableReply, /Não consegui enviar o áudio agora/i);
   assert.doesNotMatch(bronzeAudioUnavailableReply, /Protocolo Neon/i);

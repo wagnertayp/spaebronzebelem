@@ -21,7 +21,7 @@ export const shouldSendBronzeAudio = (
 ) => selectedForCurrentTurn && !alreadyAttempted && !pregnancyMentioned;
 
 export const bronzeMethodDifferenceReply =
-  "O bronze natural é feito com exposição solar. Na máquina, o atendimento usa a WB Ultra, com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, de forma individualizada. 🤎";
+  "O bronze natural é por ordem de chegada até 11h30; o bronze em máquina também é por ordem de chegada, até 20h de segunda a sexta e 18h aos sábados. A equipe pode confirmar contraindicações conforme cada caso. 🤎";
 
 export const bronzeAudioUnavailableReply =
-  "Não consegui enviar o áudio agora, mas o bronze natural é feito com exposição solar. Na máquina, o atendimento usa a WB Ultra, com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, de forma individualizada. 🤎";
+  "Não consegui enviar o áudio agora. O bronze natural é por ordem de chegada até 11h30; o bronze em máquina, até 20h de segunda a sexta e 18h aos sábados. A equipe pode confirmar contraindicações conforme cada caso. 🤎";

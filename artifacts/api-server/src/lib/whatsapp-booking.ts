@@ -67,15 +67,18 @@ export const shouldSuppressStaleWhatsappBookingContext = ({
   acceptedCatalogOffer,
   topicChange,
   modelSelectedDocument,
+  nonBookableServiceIntent = false,
 }: {
   explicitBookingIntent: boolean;
   catalogRequest: boolean;
   acceptedCatalogOffer: boolean;
   topicChange: boolean;
   modelSelectedDocument: boolean;
+  nonBookableServiceIntent?: boolean;
 }) =>
-  !explicitBookingIntent &&
-  (catalogRequest || acceptedCatalogOffer || topicChange || modelSelectedDocument);
+  nonBookableServiceIntent ||
+  (!explicitBookingIntent &&
+    (catalogRequest || acceptedCatalogOffer || topicChange || modelSelectedDocument));
 
 export const canUseWhatsappBookingUpdate = ({
   suppressed,

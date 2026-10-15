@@ -12,3 +12,9 @@ Service flow confirmed by the user: advanced aesthetics and facial ritual requir
 **Why:** The user supplied and approved updated service-specific intake, walk-in hours, spray-tanning care, and escalation rules for the AI agent.
 
 **How to apply:** Handle clear arrival-status phrases before the AI booking flow. Preserve the first-time versus returning-client explanation flow across turns, use only catalog-confirmed information, and avoid sending the bronze audio before the first-time answer or a returning client's consent. Keep the Neon recommendation in the bronze-selection context, use the catalog's three-session-plus-exfoliation offer and price, tailor an objection response to the stated concern, and do not interrupt an arrival update, a confirmed booking, or the client's choice of another option. Classify the requested service before describing its attendance flow; use only the confirmed schedule and care details above.
+
+A current request for natural or machine tanning overrides any stale appointment draft, even if the message contains a date such as “amanhã.” Natural and machine tanning are walk-in services; do not book them. Send the prerecorded bronze audio only when the client explicitly asks for the full explanation or audio. Do not invent a contraindication list; the current catalog has no confirmed list, so direct individual health questions to the team.
+
+**Why:** The user reported the agent turning “quero fazer natural amanhã” into a Ritual Facial reservation and asked for the correct walk-in information, audio on explicit request, and contraindication handling.
+
+**How to apply:** Classify the active tanning method from the current message plus recent tanning context before using saved booking state. Suppress and clear stale booking drafts for walk-in tanning. Provide confirmed walk-in limits and escalate health-specific contraindication questions.

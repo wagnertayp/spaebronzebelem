@@ -245,6 +245,8 @@ import {
   isWhatsappAcceptanceOfServiceOffer,
   isWhatsappDecisionDeferral,
   isDapServiceRequest,
+  getWhatsappTanningFlow,
+  isExplicitWhatsappBronzeInfoRequest,
   isTanningService,
   mentionsPregnancy,
   mentionsSpaInfantil,
@@ -4428,6 +4430,12 @@ const processWhatsappWebhookPayload = async (
     const savedBookingDraft = conversation?.bookingDraft ?? null;
     const today = localAgendaDate();
     const currentSignals = getWhatsappBookingMessageSignals(text, today);
+    const recentTanningContext = conversationHistory
+      .slice(-6)
+      .map((message) => message.content)
+      .join("\n");
+    const tanningFlow = getWhatsappTanningFlow(text, recentTanningContext);
+    const explicitBronzeInfoRequest = isExplicitWhatsappBronzeInfoRequest(text);
     const latestRequestedService = [...conversationHistory].reverse().find((message) =>
       message.role === "user" &&
       (isDapServiceRequest(message.content) || Boolean(findBookingService(message.content))),
@@ -4443,8 +4451,8 @@ const processWhatsappWebhookPayload = async (
     );
     const isDapWalkInRequest =
       isDapServiceRequest(text) ||
-      isDapServiceRequest(savedBookingDraft?.service ?? "") ||
-      dapFollowUpRequested;
+      (!tanningFlow &&
+        (isDapServiceRequest(savedBookingDraft?.service ?? "") || dapFollowUpRequested));
     if (isDapWalkInRequest) {
       if (savedBookingDraft && isDapServiceRequest(savedBookingDraft.service ?? "")) {
         await saveWhatsappBookingDraft(phone, null);
@@ -4499,6 +4507,7 @@ const processWhatsappWebhookPayload = async (
       !currentCatalogRequest &&
       !acceptedCatalogOffer &&
       !explicitTopicChange &&
+      !tanningFlow &&
       isWhatsappDecisionDeferral(text) &&
       !currentSignals.date &&
       !currentSignals.time &&
@@ -4544,6 +4553,7 @@ const processWhatsappWebhookPayload = async (
       acceptedCatalogOffer,
       topicChange: explicitTopicChange,
       modelSelectedDocument: decision.document !== null,
+      nonBookableServiceIntent: Boolean(tanningFlow),
     });
     if (suppressStaleBookingContext && savedBookingDraft) {
       await saveWhatsappBookingDraft(phone, null);
@@ -4915,9 +4925,14 @@ const processWhatsappWebhookPayload = async (
       ));
     }
     const inferredAudioClip = audioClipForWhatsappMessage(normalizedText);
+    const modelAudioRequest = decision.audioClip === "bronze" && !explicitBronzeInfoRequest
+      ? null
+      : decision.audioClip;
     const requestedAudioClip = createdAppointment || responseDocument
       ? null
-      : resolveRequestedWhatsappAudioClip(decision.audioClip, inferredAudioClip);
+      : explicitBronzeInfoRequest && tanningFlow
+        ? "bronze"
+        : resolveRequestedWhatsappAudioClip(modelAudioRequest, inferredAudioClip);
     const requestedAudioAlreadyAttempted = requestedAudioClip === "bronze"
       ? bronzeAudioAlreadyAttempted
       : requestedAudioClip === "combos"
@@ -4937,9 +4952,22 @@ const processWhatsappWebhookPayload = async (
       (requestedAudioClip === "bronze" && !canSendBronzeAudio)
       ? null
       : requestedAudioClip;
+    const tanningServiceReply = pregnancyMentioned && tanningFlow
+      ? pregnancyTanningRefusal
+      : explicitBronzeInfoRequest && tanningFlow
+        ? "Vou te enviar um áudio com as informações do bronzeamento. 🤎"
+      : tanningFlow === "natural"
+      ? `Para o bronze natural${/\bamanha\b/.test(normalizedText) ? " amanhã" : ""}, não precisa agendar: o atendimento é por ordem de chegada até 11h30. Não trabalhamos com exposição direta ao sol. Se tiver alguma condição de saúde, alergia ou usar medicamento, a equipe pode confirmar as contraindicações para o seu caso. 🤎`
+      : tanningFlow === "machine"
+        ? "O bronze em máquina é por ordem de chegada, sem agendamento: até 20h de segunda a sexta e até 18h aos sábados. Se tiver alergia, condição de pele ou usar algum medicamento, posso encaminhar sua dúvida para a equipe. 🤎"
+        : tanningFlow === "unspecified"
+          ? "Os bronzes são por ordem de chegada, sem agendamento: natural até 11h30; em máquina, até 20h de segunda a sexta e até 18h aos sábados. Qual dos dois você quer fazer? 🤎"
+          : null;
     let writtenReply = createdAppointment
       ? appointmentScheduledReply(createdAppointment)
-      : acceptedCatalogOffer
+      : tanningServiceReply
+        ? tanningServiceReply
+        : acceptedCatalogOffer
         ? "Pode olhar o catálogo com calma. Quando algum procedimento específico interessar, me diga qual. 🤎"
         : explicitTopicChange
           ? "Claro! O que você gostaria de ver agora? 🤎"

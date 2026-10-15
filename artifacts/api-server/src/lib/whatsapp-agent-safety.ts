@@ -163,5 +163,33 @@ export const isTanningService = (value: string, category = "") => {
   );
 };
 
+export type WhatsappTanningFlow = "natural" | "machine" | "unspecified";
+
+export const getWhatsappTanningFlow = (
+  currentText: string,
+  recentContext = "",
+): WhatsappTanningFlow | null => {
+  const current = normalizeSafetyText(currentText);
+  const tanningIsInContext =
+    isTanningService(currentText) || isTanningService(recentContext);
+  if (!tanningIsInContext) return null;
+
+  if (/\b(?:maquina|em maquina|na maquina)\b/.test(current)) return "machine";
+  if (
+    /\b(?:bronze(?:amento)? natural|marquinha natural)\b/.test(current) ||
+    (/\bnatural\b/.test(current) && /\b(?:quero|fazer|prefiro|vou|escolhi)\b/.test(current))
+  ) {
+    return "natural";
+  }
+  if (isTanningService(currentText)) return "unspecified";
+  if (isExplicitWhatsappBronzeInfoRequest(currentText)) return "unspecified";
+  return null;
+};
+
+export const isExplicitWhatsappBronzeInfoRequest = (value: string) =>
+  /\b(?:informe tudo|me informe tudo|informar tudo|me informar tudo|me conta tudo|me conte tudo|quero saber tudo|me explica tudo|explique tudo|manda o audio|envia o audio|quero o audio)\b/.test(
+    normalizeSafetyText(value),
+  );
+
 export const pregnancyTanningRefusal =
   "Por cuidado, não realizamos bronzeamento durante a gravidez. 🤎";
