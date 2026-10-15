@@ -58,25 +58,37 @@ export const createDurableInboxWorker = <Payload, Result>({
       heartbeat.unref();
 
       try {
-        const result = await processPayload(job.payload, { id: job.id });
-        const completed = await store.complete(job);
-        if (completed) {
-          logger.info(
-            { inboxId: job.id, eventKey: job.eventKey, result },
-            "WhatsApp webhook inbox item processed",
+        let result: Result;
+        try {
+          result = await processPayload(job.payload, { id: job.id });
+        } catch (error) {
+          await store.retry(job, error);
+          logger.error(
+            { err: error, inboxId: job.id, attempt: job.attempts },
+            "WhatsApp webhook processing failed; the event will be retried",
           );
-        } else {
-          logger.warn(
-            { inboxId: job.id, eventKey: job.eventKey },
-            "WhatsApp webhook inbox lease was lost before completion",
+          return;
+        }
+
+        try {
+          const completed = await store.complete(job);
+          if (completed) {
+            logger.info(
+              { inboxId: job.id, eventKey: job.eventKey, result },
+              "WhatsApp webhook inbox item processed",
+            );
+          } else {
+            logger.warn(
+              { inboxId: job.id, eventKey: job.eventKey },
+              "WhatsApp webhook inbox lease was lost before completion",
+            );
+          }
+        } catch (error) {
+          logger.error(
+            { err: error, inboxId: job.id, attempt: job.attempts },
+            "WhatsApp webhook processed but completion could not be persisted; lease expiry will recover it",
           );
         }
-      } catch (error) {
-        await store.retry(job, error);
-        logger.error(
-          { err: error, inboxId: job.id, attempt: job.attempts },
-          "WhatsApp webhook processing failed; the event will be retried",
-        );
       } finally {
         clearInterval(heartbeat);
       }

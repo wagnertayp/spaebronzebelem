@@ -235,6 +235,7 @@ import {
   type WhatsappWebhookJobContext,
   type WhatsappWebhookPayload,
 } from "../lib/whatsapp-webhook-inbox";
+import { persistWhatsappWebhookBeforeAcknowledgement } from "../lib/whatsapp-webhook-acknowledgement";
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
 import {
   clientOnTheWayReply,
@@ -5061,16 +5062,18 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
     return;
   }
 
-  try {
-    const inserted = await enqueueWhatsappWebhook(makeWhatsappWebhookEventKey(body), body);
-    res.json(ReceiveEvolutionWebhookResponse.parse({
-      received: true,
-      action: inserted ? "queued" : "duplicate_queued",
-    }));
-  } catch (error) {
-    logger.error({ err: error }, "Could not persist Evolution webhook in the durable inbox");
-    res.status(503).json({ error: "Não foi possível registrar a mensagem para processamento." });
+  const acknowledgement = await persistWhatsappWebhookBeforeAcknowledgement({
+    enqueue: enqueueWhatsappWebhook,
+    eventKey: makeWhatsappWebhookEventKey(body),
+    payload: body,
+  });
+  if (acknowledgement.statusCode === 503) {
+    logger.error(
+      { err: acknowledgement.error },
+      "Could not persist Evolution webhook in the durable inbox",
+    );
   }
+  res.status(acknowledgement.statusCode).json(acknowledgement.body);
 });
 
 export const startWhatsappWebhookWorker = () =>
