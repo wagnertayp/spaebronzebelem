@@ -42,6 +42,55 @@ const normalizeText = (value: string) =>
     .replace(/\p{Diacritic}/gu, "")
     .replace(/\s+/g, " ");
 
+export const isWhatsappCatalogRequest = (value: string) =>
+  /\b(?:catalogo|cardapio|portfolio)\b/.test(normalizeText(value));
+
+export const isWhatsappTopicChange = (value: string) =>
+  /\b(?:agora (?:eu )?(?:queria|quero|preciso|gostaria) outra coisa|mudando de assunto|falando de outra coisa)\b/.test(
+    normalizeText(value),
+  );
+
+export const isWhatsappCatalogOffer = (value: string) => {
+  const normalized = normalizeText(value);
+  return /\b(?:catalogo|cardapio|portfolio)\b/.test(normalized) &&
+    /\b(?:posso|quer|enviar|mandar|encaminhar|enviei|segue)\b/.test(normalized);
+};
+
+export const isWhatsappBookingPrompt = (value: string) =>
+  /\b(?:agendar?|reservar?|marcar|horarios livres|qual dia prefere|qual horario prefere|qual servico quer agendar|confirma(?:r)? o agendamento|escolha um horario)\b/.test(
+    normalizeText(value),
+  );
+
+export const shouldSuppressStaleWhatsappBookingContext = ({
+  explicitBookingIntent,
+  catalogRequest,
+  acceptedCatalogOffer,
+  topicChange,
+  modelSelectedDocument,
+}: {
+  explicitBookingIntent: boolean;
+  catalogRequest: boolean;
+  acceptedCatalogOffer: boolean;
+  topicChange: boolean;
+  modelSelectedDocument: boolean;
+}) =>
+  !explicitBookingIntent &&
+  (catalogRequest || acceptedCatalogOffer || topicChange || modelSelectedDocument);
+
+export const canUseWhatsappBookingUpdate = ({
+  suppressed,
+  directBookingIntent,
+  savedDraftHasRelevantInput,
+  hasRecentBookingContext,
+}: {
+  suppressed: boolean;
+  directBookingIntent: boolean;
+  savedDraftHasRelevantInput: boolean;
+  hasRecentBookingContext: boolean;
+}) =>
+  !suppressed &&
+  (directBookingIntent || savedDraftHasRelevantInput || hasRecentBookingContext);
+
 const isValidLocalDate = (value: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);

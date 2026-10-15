@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   bookingFitsScheduleIntervals,
+  canUseWhatsappBookingUpdate,
   formatWhatsappBookingSlotChoices,
   getWhatsappBookingMessageSignals,
   hasWhatsappBookingIntent,
+  isWhatsappBookingPrompt,
+  isWhatsappCatalogOffer,
+  isWhatsappCatalogRequest,
+  isWhatsappTopicChange,
   mergeWhatsappBookingDraft,
   normalizeLocalBookingDate,
   normalizeLocalBookingTime,
+  shouldSuppressStaleWhatsappBookingContext,
 } from "../src/lib/whatsapp-booking.ts";
 
 test("offers distinct times without exposing professional names", () => {
@@ -26,6 +32,55 @@ test("offers distinct times without exposing professional names", () => {
 test("recognizes a direct request for appointment availability", () => {
   assert.equal(hasWhatsappBookingIntent("Sugeriram segunda mas preciso saber os horários?"), true);
   assert.equal(hasWhatsappBookingIntent("Vocês fazem drenagem?"), false);
+});
+
+test("catalog browsing and changing subjects are not booking requests", () => {
+  assert.equal(isWhatsappCatalogRequest("O catálogo de estética avançada pra dar uma olhada"), true);
+  assert.equal(isWhatsappTopicChange("Mas agora eu queria outra coisa"), true);
+  assert.equal(isWhatsappCatalogOffer("Posso te enviar o catálogo de estética avançada?"), true);
+  assert.equal(isWhatsappBookingPrompt("Qual dia você prefere para agendar?"), true);
+  assert.equal(isWhatsappBookingPrompt("Segue o catálogo de estética avançada."), false);
+});
+
+test("a catalog request, accepted catalog offer, or topic change suppresses stale booking context", () => {
+  for (const context of [
+    { catalogRequest: true },
+    { acceptedCatalogOffer: true },
+    { topicChange: true },
+    { modelSelectedDocument: true },
+  ]) {
+    assert.equal(shouldSuppressStaleWhatsappBookingContext({
+      explicitBookingIntent: false,
+      catalogRequest: false,
+      acceptedCatalogOffer: false,
+      topicChange: false,
+      modelSelectedDocument: false,
+      ...context,
+    }), true);
+  }
+
+  assert.equal(shouldSuppressStaleWhatsappBookingContext({
+    explicitBookingIntent: true,
+    catalogRequest: true,
+    acceptedCatalogOffer: false,
+    topicChange: false,
+    modelSelectedDocument: true,
+  }), false);
+});
+
+test("a model booking update is ignored unless the current turn is in an active booking flow", () => {
+  assert.equal(canUseWhatsappBookingUpdate({
+    suppressed: true,
+    directBookingIntent: false,
+    savedDraftHasRelevantInput: true,
+    hasRecentBookingContext: true,
+  }), false);
+  assert.equal(canUseWhatsappBookingUpdate({
+    suppressed: false,
+    directBookingIntent: true,
+    savedDraftHasRelevantInput: false,
+    hasRecentBookingContext: false,
+  }), true);
 });
 
 test("resolve relative dates in the configured local calendar", () => {

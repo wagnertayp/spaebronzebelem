@@ -163,12 +163,18 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import {
   bookingFitsScheduleIntervals,
+  canUseWhatsappBookingUpdate,
   formatWhatsappBookingSlotChoices,
   getWhatsappBookingMessageSignals,
   hasWhatsappBookingIntent,
+  isWhatsappBookingPrompt,
+  isWhatsappCatalogOffer,
+  isWhatsappCatalogRequest,
+  isWhatsappTopicChange,
   mergeWhatsappBookingDraft,
   normalizeLocalBookingDate,
   normalizeLocalBookingTime,
+  shouldSuppressStaleWhatsappBookingContext,
   type WhatsappBookingUpdate,
 } from "../lib/whatsapp-booking.js";
 import {
@@ -630,6 +636,13 @@ const saveWhatsappSettings = async () => {
 const normalizeName = (value: string) => value.trim().toLocaleLowerCase("pt-BR");
 const normalizeCatalogLabel = (value: string) =>
   normalizeName(value).normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/\s+/g, " ");
+const requestedWhatsappDocument = (text: string): WhatsappDocument | null => {
+  const normalized = normalizeCatalogLabel(text);
+  if (/\b(?:portfolio|harmonizacao orofacial)\b/.test(normalized)) return "portfolio";
+  if (/\b(?:estetica avancada|procedimentos avancados)\b/.test(normalized)) return "advanced";
+  if (/\b(?:catalogo|cardapio|menu)\b/.test(normalized)) return "menu";
+  return null;
+};
 const requestSession = (res: Response) => res.locals.session as AuthenticatedSession;
 const disableStaffAccessForProfessional = async (professionalId: number) => {
   await db
@@ -1694,6 +1707,7 @@ REGRAS OBRIGATÓRIAS:
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
 - Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica. Se a cliente relatar alergia, reação ou preocupação de saúde, encaminhe para a equipe humana.
 - Para agendar, leia o histórico e o rascunho salvo antes de responder. Preserve serviço, data, horário e preferência profissional já informados; pergunte apenas o próximo dado que realmente faltar. Nunca reinicie a coleta nem peça de novo um dado que a cliente já forneceu.
+- Pedido de catálogo, interesse em conhecer procedimentos ou uma mudança explícita de assunto não significa intenção de agendar. Não retome um agendamento antigo nesse turno; “ok” após oferta ou envio de catálogo aceita o catálogo, não um horário. Só inicie ou continue a reserva quando a mensagem atual ou a pergunta imediatamente anterior estiver claramente no fluxo de agendamento, com um serviço agendável específico.
 - Ao oferecer horários, liste apenas os horários distintos, sem dizer qual profissional atenderá.
 - O Spa Infantil atende crianças de 2 a 10 anos; é um banho à base de hidratante e açúcar, sem chumbo ou amônia. Ao perguntarem, explique isso e depois encaminhe para uma atendente. Não afirme que é “sem química” nem invente garantias de segurança.
 - Retorne bookingUpdate cumulativo quando a cliente iniciar ou continuar um agendamento. Não use bookingUpdate para o DAP, que funciona por ordem de chegada. Use exatamente um serviço cadastrado; date deve ser AAAA-MM-DD no fuso local; time deve ser HH:mm; professional só deve conter um profissional ativo explicitamente escolhido e nunca deve ser repetido no texto da resposta. Se um dado não mudou, mantenha o valor salvo na resposta cumulativa; use null somente se ainda não foi informado ou se foi removido explicitamente.
@@ -4452,6 +4466,14 @@ const processWhatsappWebhookPayload = async (
     const previousAssistantMessage = [...conversationHistory]
       .reverse()
       .find((message) => message.role === "assistant")?.content ?? "";
+    const currentCatalogRequest = isWhatsappCatalogRequest(text);
+    const acceptedCatalogOffer =
+      currentSignals.affirmative && isWhatsappCatalogOffer(previousAssistantMessage);
+    const explicitTopicChange = isWhatsappTopicChange(text);
+    const currentDocumentRequest = currentCatalogRequest
+      ? requestedWhatsappDocument(text)
+      : null;
+    const explicitBookingIntent = hasWhatsappBookingIntent(text);
     if (
       pregnancyMentioned &&
       isWhatsappAcceptanceOfServiceOffer(text, previousAssistantMessage)
@@ -4473,6 +4495,9 @@ const processWhatsappWebhookPayload = async (
     );
     if (
       hasPendingBookingChoice &&
+      !currentCatalogRequest &&
+      !acceptedCatalogOffer &&
+      !explicitTopicChange &&
       isWhatsappDecisionDeferral(text) &&
       !currentSignals.date &&
       !currentSignals.time &&
@@ -4512,6 +4537,20 @@ const processWhatsappWebhookPayload = async (
       bronzeAudioAlreadyAttempted,
       combosAudioAlreadyAttempted,
     );
+    const suppressStaleBookingContext = shouldSuppressStaleWhatsappBookingContext({
+      explicitBookingIntent,
+      catalogRequest: currentCatalogRequest,
+      acceptedCatalogOffer,
+      topicChange: explicitTopicChange,
+      modelSelectedDocument: decision.document !== null,
+    });
+    if (suppressStaleBookingContext && savedBookingDraft) {
+      await saveWhatsappBookingDraft(phone, null);
+      log.info(
+        { inboxId: inboxJob.id },
+        "WhatsApp booking draft cleared after the client changed to a non-booking topic",
+      );
+    }
     await saveWhatsappClientName(
       phone,
       decision.clientName ?? decision.appointment?.clientName ?? null,
@@ -4529,11 +4568,16 @@ const processWhatsappWebhookPayload = async (
       await setWhatsappConversationStatus(phone, "human");
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" });
     }
-    const directBookingIntent = hasWhatsappBookingIntent(text);
-    const hasRecentBookingContext = conversationHistory.slice(-8).some((message) =>
-      hasWhatsappBookingIntent(message.content),
-    );
-    const bookingContextText = savedBookingDraft
+    const directBookingIntent = explicitBookingIntent;
+    const hasRecentBookingContext =
+      !suppressStaleBookingContext &&
+      isWhatsappBookingPrompt(previousAssistantMessage) &&
+      conversationHistory.slice(-8).some((message) =>
+        message.role === "user" && hasWhatsappBookingIntent(message.content),
+      );
+    const bookingContextText = suppressStaleBookingContext
+      ? text
+      : savedBookingDraft
       ? text
       : currentSignals.affirmative || hasRecentBookingContext || directBookingIntent
         ? [...conversationHistory.slice(-8).map((message) => message.content), text].join("\n")
@@ -4560,13 +4604,13 @@ const processWhatsappWebhookPayload = async (
           cancelled: false,
         }
       : null;
-    const bookingUpdate = decision.bookingUpdate ?? legacyBookingUpdate;
     const savedDraftHasRelevantInput = Boolean(
+      !suppressStaleBookingContext &&
       savedBookingDraft &&
       (
         currentSignals.date ||
         currentSignals.time ||
-        findBookingService(text) ||
+        (isWhatsappBookingPrompt(previousAssistantMessage) && findBookingService(text)) ||
         currentSignals.cancelled ||
         (currentSignals.negative && savedBookingDraft.awaitingConfirmation) ||
         (savedBookingDraft.awaitingClientName && decision.clientName) ||
@@ -4574,6 +4618,7 @@ const processWhatsappWebhookPayload = async (
       ),
     );
     const legacyDraftHasRelevantInput = Boolean(
+      !suppressStaleBookingContext &&
       !savedBookingDraft &&
       (hasRecentBookingContext || directBookingIntent) &&
       (
@@ -4585,8 +4630,18 @@ const processWhatsappWebhookPayload = async (
         currentSignals.cancelled
       ),
     );
+    const canUseModelBookingUpdate = canUseWhatsappBookingUpdate({
+      suppressed: suppressStaleBookingContext,
+      directBookingIntent,
+      savedDraftHasRelevantInput,
+      hasRecentBookingContext,
+    });
+    const bookingUpdate = canUseModelBookingUpdate
+      ? decision.bookingUpdate ?? legacyBookingUpdate
+      : null;
     const shouldHandleBooking = Boolean(
-      bookingUpdate || savedDraftHasRelevantInput || legacyDraftHasRelevantInput,
+      !suppressStaleBookingContext &&
+      (bookingUpdate || savedDraftHasRelevantInput || legacyDraftHasRelevantInput),
     );
     const replyWithBookingProgress = async (
       bookingDraft: WhatsappBookingDraft | null,
@@ -4841,14 +4896,17 @@ const processWhatsappWebhookPayload = async (
         await saveWhatsappBookingDraft(phone, null);
       }
     }
-    if (decision.document) {
+    const responseDocument = acceptedCatalogOffer || explicitTopicChange
+      ? null
+      : currentDocumentRequest ?? decision.document;
+    if (responseDocument) {
       ensureWhatsappDelivery(await sendWhatsappDocumentMessage(
         phone,
         replyClientName,
-        decision.document,
-        decision.document === "menu"
+        responseDocument,
+        responseDocument === "menu"
           ? "Segue o nosso cardápio de serviços e bronzeamento."
-          : decision.document === "portfolio"
+          : responseDocument === "portfolio"
             ? "Segue o portfólio de procedimentos faciais."
             : "Segue o nosso catálogo de serviços de estética avançada.",
         createdAppointment?.id ?? appointment?.id ?? null,
@@ -4856,7 +4914,7 @@ const processWhatsappWebhookPayload = async (
       ));
     }
     const inferredAudioClip = audioClipForWhatsappMessage(normalizedText);
-    const requestedAudioClip = createdAppointment || decision.document
+    const requestedAudioClip = createdAppointment || responseDocument
       ? null
       : resolveRequestedWhatsappAudioClip(decision.audioClip, inferredAudioClip);
     const requestedAudioAlreadyAttempted = requestedAudioClip === "bronze"
@@ -4880,7 +4938,13 @@ const processWhatsappWebhookPayload = async (
       : requestedAudioClip;
     let writtenReply = createdAppointment
       ? appointmentScheduledReply(createdAppointment)
-      : decision.reply;
+      : acceptedCatalogOffer
+        ? "Pode olhar o catálogo com calma. Quando algum procedimento específico interessar, me diga qual. 🤎"
+        : explicitTopicChange
+          ? "Claro! O que você gostaria de ver agora? 🤎"
+          : suppressStaleBookingContext && (currentDocumentRequest || decision.document)
+            ? "Segue o catálogo para você consultar com calma. Quando escolher um procedimento específico, posso ajudar com as informações. 🤎"
+            : decision.reply;
     const replyAppointmentId = createdAppointment?.id ?? appointment?.id ?? null;
     const shouldReplyBeforeAudio = Boolean(
       audioClip === "bronze" ||
