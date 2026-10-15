@@ -38,3 +38,9 @@ If a client gives a clear pause while checking a booking or consulting someone, 
 **Why:** The user shared real conversations where the agent repeated appointment options after the client said she would check with a friend, and where it re-asked about services after the client accepted the offer.
 
 **How to apply:** Use the recent assistant message to interpret short replies such as “Eu quero”; answer the accepted offer directly. For a booking deferral without a new date, time, or cancellation, send a short acknowledgment and leave the saved draft intact.
+
+For every reply, use the full available conversation and the last agent question to interpret intent; preserve all details already given, answer the current subject, and ask only one concise question when an essential detail is missing. Distinguish appointment-only advanced aesthetics and facial rituals from walk-in tanning: natural bronze until 11:30, machine bronze until 20:00 weekdays and 18:00 Saturdays. Do not assume the flow for spray/vapor bronze; use official information only and hand off health concerns or unknowns.
+
+**Why:** The user supplied additional WhatsApp service and conversation rules and asked that all readable content be integrated.
+
+**How to apply:** Keep these continuity, question-review, and service-flow rules in both the production agent prompt and the agent test prompt; never override confirmed catalog facts or validated booking behavior.

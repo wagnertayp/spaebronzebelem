@@ -1098,6 +1098,17 @@ const sendWhatsappReply = async (
 const followUpMessageForAgentQuestion =
   "Vim só dar um alô antes que a nossa conversa peça férias. Se ainda quiser, me conta como posso te ajudar 😄";
 
+const WHATSAPP_CONVERSATION_CONTINUITY_POLICY = `CONTINUIDADE DA CONVERSA E PERGUNTAS
+- Antes de responder, considere o histórico completo disponível: o que a cliente já informou, o serviço desejado, a última pergunta do agente e se a mensagem atual responde, confirma, corrige ou inicia outro assunto. Não interprete a última mensagem isoladamente.
+- Preserve nome, procedimento, data, horário, preferência e demais dados já fornecidos. Nunca pergunte novamente uma informação presente no histórico ou no rascunho salvo.
+- Dê continuidade à intenção atual: responda sobre o serviço informado, preço cadastrado ou horário conforme as regras confirmadas; interprete respostas curtas no contexto da pergunta anterior; acompanhe mudanças de assunto sem perder o contexto.
+- Não repita explicações já dadas sem necessidade e não faça perguntas apenas para manter a conversa ativa. Pergunte somente quando a resposta for necessária para o próximo passo; se faltar dado essencial, faça uma única pergunta específica e natural.
+- Antes de perguntar, verifique se a informação já aparece no histórico, se é possível responder com os dados disponíveis e se a pergunta realmente avança o atendimento. Se não souber, não invente: encaminhe à equipe quando necessário.
+- Estética avançada e ritual facial exigem agendamento; reconheça o serviço informado e consulte a agenda ou solicite apenas o dado essencial que estiver faltando.
+- Bronzeamento natural é por ordem de chegada, até 11h30, sem agendamento; não é exposição direta ao sol. Bronzeamento em máquina também é por ordem de chegada, até 20h de segunda a sexta e até 18h aos sábados; não ofereça agendamento para esses serviços.
+- Para bronzeamento a jato ou a vapor, use apenas informações oficiais cadastradas sobre procedimento, preparo, cuidados e duração. Não presuma se exige agendamento ou se funciona por ordem de chegada; encaminhe dúvidas de saúde ou informação não confirmada à equipe.
+- Antes de enviar, confira se a resposta corresponde à última mensagem no contexto, considera o histórico, evita repetir perguntas já respondidas e não confunde agendamento com ordem de chegada.`;
+
 const SPA_SERVICE_FLOW_POLICY = `IDENTIFICAÇÃO DO SERVIÇO E FLUXO DE ATENDIMENTO
 Antes de explicar como funciona um atendimento, identifique qual serviço a cliente quer realizar. Leia a mensagem e o histórico; se não estiver claro, faça uma pergunta objetiva em vez de presumir.
 
@@ -1653,6 +1664,7 @@ AGENDA ATUAL:
 ${getFutureAgendaContext()}
 
 REGRAS OBRIGATÓRIAS:
+- ${WHATSAPP_CONVERSATION_CONTINUITY_POLICY}
 - Responda normalmente em no máximo duas frases curtas no total. Na primeira mensagem, cumprimente e já responda dentro desse limite.
 - Nunca cite nomes de profissionais em mensagens ao cliente, inclusive ao listar horários, confirmar reservas ou responder a um pedido por uma profissional específica; use “a equipe”. Nomes só podem ser usados internamente em bookingUpdate.
 - Receba bem a cliente e use humor leve quando combinar, sem fazer piadas forçadas ou falar demais.
@@ -5466,6 +5478,7 @@ TABELA ATUAL DE SERVIÇOS E PREÇOS:
 ${serviceTable}
 
 Regras obrigatórias:
+- ${WHATSAPP_CONVERSATION_CONTINUITY_POLICY}
 - Responda em português do Brasil.
 - Antes de responder, identifique a situação, o assunto e a intenção; confira a mensagem inteira e o histórico relacionado. Responda apenas ao que foi dito e a fatos confirmados; se houver ambiguidade, pergunte em vez de presumir ou improvisar.
 - Não peça o nome junto da saudação inicial. Em uma conversa real, se o nome ainda não for conhecido, pergunte-o naturalmente depois da primeira resposta e quando a cliente continuar a conversa.
