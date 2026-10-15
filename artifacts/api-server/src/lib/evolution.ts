@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { evolutionInstanceStore } from "./evolution-instance-repository";
 import { getEvolutionErrorDetails, parseEvolutionResponseBody } from "./evolution-error";
+import { sendTextWithQuoteFallback } from "./evolution-text-fallback";
 import { pairingCodeFromResponse, qrCodeFromResponse } from "./evolution-qr";
 import { logger } from "./logger";
 
@@ -373,9 +374,11 @@ export const sendEvolutionText = async (
   }
 
   try {
-    const response = await fetch(
-      `${config.baseUrl}/message/sendText/${encodeURIComponent(config.instance)}`,
-      {
+    const url = `${config.baseUrl}/message/sendText/${encodeURIComponent(config.instance)}`;
+    let quoteFallbackAttempted = false;
+    const response = await sendTextWithQuoteFallback((includeQuote) => {
+      if (replyTo && !includeQuote) quoteFallbackAttempted = true;
+      return fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -385,7 +388,7 @@ export const sendEvolutionText = async (
         body: JSON.stringify({
           number: normalizeWhatsappPhone(phone),
           text,
-          ...(replyTo
+          ...(replyTo && includeQuote
             ? {
                 quoted: {
                   key: {
@@ -398,8 +401,14 @@ export const sendEvolutionText = async (
               }
             : {}),
         }),
-      },
-    );
+      });
+    }, Boolean(replyTo));
+    if (quoteFallbackAttempted) {
+      logger.warn(
+        { instance: config.instance },
+        "[Evolution] A resposta citada foi rejeitada; reenvio sem citação",
+      );
+    }
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) {
       const providerError = typeof body.message === "string"
