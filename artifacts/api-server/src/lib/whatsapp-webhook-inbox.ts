@@ -10,7 +10,14 @@ import {
 const CLAIM_LEASE_SECONDS = 120;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const WORKER_POLL_INTERVAL_MS = 1_000;
-const WORKER_CONCURRENCY = 4;
+const configuredWorkerConcurrency = process.env["WHATSAPP_WEBHOOK_WORKER_CONCURRENCY"];
+const WORKER_CONCURRENCY = configuredWorkerConcurrency === undefined
+  ? 2
+  : Number(configuredWorkerConcurrency);
+
+if (!Number.isInteger(WORKER_CONCURRENCY) || WORKER_CONCURRENCY < 1) {
+  throw new Error("WHATSAPP_WEBHOOK_WORKER_CONCURRENCY must be a positive integer.");
+}
 
 export type WhatsappWebhookPayload = Record<string, unknown>;
 export type WhatsappWebhookJobContext = Pick<WhatsappWebhookJob, "id">;

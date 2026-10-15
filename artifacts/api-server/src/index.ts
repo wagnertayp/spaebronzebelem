@@ -1,10 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import {
-  runWhatsappFollowUps,
-  runWhatsappReminders,
-  startWhatsappWebhookWorker,
-} from "./routes/spa";
+import { startWhatsappBackgroundServices } from "./routes/spa";
 
 const rawPort = process.env["PORT"];
 
@@ -27,19 +23,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  startWhatsappWebhookWorker();
+  if (process.env["NODE_ENV"] !== "production") {
+    startWhatsappBackgroundServices();
+  }
 });
-
-const reminderInterval = setInterval(() => {
-  void runWhatsappReminders().catch((error) => {
-    logger.error({ err: error }, "WhatsApp reminder cycle failed");
-  });
-}, 60_000);
-reminderInterval.unref();
-
-const followUpInterval = setInterval(() => {
-  void runWhatsappFollowUps().catch((error) => {
-    logger.error({ err: error }, "WhatsApp follow-up cycle failed");
-  });
-}, 60_000);
-followUpInterval.unref();

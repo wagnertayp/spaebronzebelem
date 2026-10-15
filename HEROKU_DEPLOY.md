@@ -9,18 +9,25 @@ the browser and API share an origin.
 - Heroku Node.js buildpack: Node 24 and the exact pnpm version are pinned in the
   root `package.json`.
 - `heroku-postbuild` builds `@workspace/spa-bronze-belem` and `@workspace/api-server`.
-- `Procfile` starts the API on Heroku's assigned `PORT`; in production it also
-  serves the SPA and its client-side routes.
+- `Procfile` defines separate `web` and `worker` process types. The web process
+  serves the SPA/API on Heroku's assigned `PORT`; the worker process handles
+  WhatsApp inbox events, reminders, and follow-ups.
 - The published app uses its existing Neon PostgreSQL database through
   `DATABASE_URL`; do not replace it with Replit's development database or a new
   Heroku Postgres database. Mutable SPA records are stored in the shared
   `spa_operational_state` snapshot and coordinated with a PostgreSQL advisory
   lock. Webhook and follow-up workers claim database-backed jobs, and reminder
-  cycles use a shared lock so only one web dyno sends reminders at a time.
-- Start with one `web` dyno until the Neon schema and initialized SPA state row
-  are confirmed. After that, additional dynos can share committed state, but
-  provider delivery remains at-least-once if a process dies after Evolution
-  accepts a message but before its sent status is saved.
+  cycles use a shared lock so only one worker dyno sends reminders at a time.
+- Start with one `web` and one `worker` dyno until the Neon schema, initialized
+  SPA state row, and WhatsApp delivery are confirmed. After that, the suggested
+  availability formation is two `web` and two `worker` dynos. Use at least
+  Standard-2X for both process types initially: the observed 531 MB R14 is
+  already above a 512 MB quota, while Standard-2X provides 1 GB per dyno. This
+  is headroom, not a fix for a memory leak. The worker concurrency defaults to
+  two jobs per dyno and can be adjusted with
+  `WHATSAPP_WEBHOOK_WORKER_CONCURRENCY`. Provider delivery remains at-least-once
+  if a process dies after Evolution accepts a message but before its sent
+  status is saved.
 - Voice-note conversion shells out to `ffmpeg`. The root `Aptfile` installs it;
   configure Heroku's Apt buildpack before the Node.js buildpack.
 
@@ -59,12 +66,19 @@ Heroku assigns `PORT` at runtime. Do not set it as a fixed Config Var.
    Heroku Config Vars and do not commit them.
 3. Deploy the repository. The `release` process applies the checked-in Drizzle
    migrations to the configured Neon database before the web dyno starts.
-4. Start with one web dyno, confirm the Neon schema and singleton SPA state row
-   are present, then check `https://<app-domain>/api/healthz` and the panel.
-   Scale up gradually only after verifying the production state and message
-   delivery.
-5. Confirm the Evolution webhook points to the Heroku URL, then test one inbound
-   WhatsApp message before enabling normal automation.
+4. Start with one web and one worker dyno, confirm the Neon schema and singleton
+   SPA state row are present, then check `https://<app-domain>/api/healthz` and
+   the panel. Scale gradually after checking memory, queue delay, and delivery.
+5. For high availability after validation, configure
+   `web=2:standard-2x worker=2:standard-2x`; keep webhook concurrency at two per
+   worker to begin. Confirm the Evolution webhook points to the Heroku URL, then
+   test an inbound WhatsApp message before enabling normal automation.
+
+   Apply this formation with:
+
+   ```sh
+   heroku ps:scale web=2:standard-2x worker=2:standard-2x
+   ```
 
 ## Data durability
 

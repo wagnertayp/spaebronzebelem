@@ -5015,6 +5015,33 @@ export const startWhatsappWebhookWorker = () =>
     return result.action;
   });
 
+export const startWhatsappBackgroundServices = (
+  { keepAlive = false }: { keepAlive?: boolean } = {},
+) => {
+  const stopWebhookWorker = startWhatsappWebhookWorker();
+  const reminderInterval = setInterval(() => {
+    void runWhatsappReminders().catch((error) => {
+      logger.error({ err: error }, "WhatsApp reminder cycle failed");
+    });
+  }, 60_000);
+  const followUpInterval = setInterval(() => {
+    void runWhatsappFollowUps().catch((error) => {
+      logger.error({ err: error }, "WhatsApp follow-up cycle failed");
+    });
+  }, 60_000);
+
+  if (!keepAlive) {
+    reminderInterval.unref();
+    followUpInterval.unref();
+  }
+
+  return () => {
+    stopWebhookWorker();
+    clearInterval(reminderInterval);
+    clearInterval(followUpInterval);
+  };
+};
+
 router.get("/clients", (req, res) => {
   const snapshot = dashboardSnapshotForResponse(res);
   const { search } = ListClientsQueryParams.parse(req.query);
