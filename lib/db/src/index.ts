@@ -11,9 +11,20 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 10_000,
+  idleTimeoutMillis: 10_000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10_000,
+  maxLifetimeSeconds: 1_800,
+});
 attachPostgresPoolErrorHandlers(pool, (scope, error) => {
-  console.error(`[db] PostgreSQL ${scope} connection error`, error);
+  const pgError = error as Error & { code?: string };
+  console.error(`[db] PostgreSQL ${scope} connection error`, {
+    message: pgError.message,
+    code: pgError.code,
+  });
 });
 export const db = drizzle(pool, { schema });
 
