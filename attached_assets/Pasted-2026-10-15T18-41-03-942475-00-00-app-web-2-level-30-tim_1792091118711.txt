@@ -1,0 +1,88 @@
+2026-10-15T18:41:03.942475+00:00 app[web.2]: {"level":30,"time":1792089663942,"pid":2,"hostname":"4507aa7a-3ec8-4e1d-82b5-d1129755d421","inboxId":670,"eventKey":"spa-fd871c3c:554899581973:3A0B5A02ABC69437040E","result":"replied","msg":"WhatsApp webhook inbox item processed"}
+2026-10-15T18:41:45.009576+00:00 heroku[router]: at=info method=POST path="/api/integrations/evolution/webhook" host=spaebronzebelem.kalidigital.com.br request_id=804136df-bfdf-da37-2517-f459e60250d4 fwd="212.85.14.18" dyno=web.2 connect=0ms service=16ms status=200 bytes=35 protocol=http1.1 tls=true tls_version=tls1.3
+2026-10-15T18:41:45.009595+00:00 app[web.2]: {"level":30,"time":1792089705009,"pid":2,"hostname":"4507aa7a-3ec8-4e1d-82b5-d1129755d421","req":{"id":5,"method":"POST","url":"/api/integrations/evolution/webhook"},"res":{"statusCode":200},"responseTime":16,"msg":"request completed"}
+2026-10-15T18:41:45.872964+00:00 app[web.2]: {"level":30,"time":1792089705871,"pid":2,"hostname":"4507aa7a-3ec8-4e1d-82b5-d1129755d421","event":"messages.upsert","fromMe":false,"hasRemoteJid":true,"hasMessageId":true,"msg":"Evolution webhook received"}
+2026-10-15T18:43:18.961002+00:00 app[web.2]: {"level":30,"time":1792089798960,"pid":2,"hostname":"4507aa7a-3ec8-4e1d-82b5-d1129755d421","event":"messages.upsert","fromMe":false,"hasRemoteJid":true,"hasMessageId":true,"msg":"Evolution webhook received"}
+2026-10-15T18:57:43.820953+00:00 heroku[router]: at=info method=GET path="/robots.txt" host=spaebronzebelem.kalidigital.com.br request_id=2eaf5486-70d8-37f2-755d-7a9fc1a2645b fwd="216.73.217.165" dyno=web.2 connect=0ms service=5ms status=200 bytes=23 protocol=http2.0 tls=true tls_version=tls1.3
+2026-10-15T18:57:43.821934+00:00 app[web.2]: {"level":30,"time":1792090663821,"pid":2,"hostname":"4507aa7a-3ec8-4e1d-82b5-d1129755d421","req":{"id":6,"method":"GET","url":"/robots.txt"},"res":{"statusCode":200},"responseTime":5,"msg":"request completed"}
+2026-10-15T18:57:43.888350+00:00 heroku[router]: at=info method=GET path="/sitemap.xml" host=spaebronzebelem.kalidigital.com.br request_id=83188d8c-6e01-bdb1-5eb7-deaacbba9997 fwd="216.73.217.165" dyno=web.1 connect=0ms service=9ms status=200 bytes=2151 protocol=http2.0 tls=true tls_version=tls1.3
+2026-10-15T18:57:43.888973+00:00 app[web.1]: {"level":30,"time":1792090663888,"pid":2,"hostname":"cc285b10-3ae7-456d-be7e-29098541b9f6","req":{"id":7,"method":"GET","url":"/sitemap.xml"},"res":{"statusCode":200},"responseTime":8,"msg":"request completed"}
+2026-10-15T18:59:30.469029+00:00 app[api]: Log session created by user contas@hubsprint.com.br
+2026-10-15T19:02:16.455352+00:00 app[web.2]: node:events:505
+2026-10-15T19:02:16.455373+00:00 app[web.2]:     throw er; // Unhandled 'error' event
+2026-10-15T19:02:16.455373+00:00 app[web.2]:     ^
+2026-10-15T19:02:16.455374+00:00 app[web.2]: 
+2026-10-15T19:02:16.455374+00:00 app[web.2]: Error: Connection terminated unexpectedly
+2026-10-15T19:02:16.455376+00:00 app[web.2]:     at Connection2.<anonymous> (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/client.js:199:73)
+2026-10-15T19:02:16.455376+00:00 app[web.2]:     at Connection2.wrapper (node:events:639:12)
+2026-10-15T19:02:16.455376+00:00 app[web.2]:     at Connection2.emit (node:events:514:28)
+2026-10-15T19:02:16.455377+00:00 app[web.2]:     at Socket.<anonymous> (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/connection.js:63:12)
+2026-10-15T19:02:16.455377+00:00 app[web.2]:     at Socket.emit (node:events:526:24)
+2026-10-15T19:02:16.455377+00:00 app[web.2]:     at TCP.<anonymous> (node:net:362:12)
+2026-10-15T19:02:16.455378+00:00 app[web.2]: Emitted 'error' event on Client2 instance at:
+2026-10-15T19:02:16.455378+00:00 app[web.2]:     at Client2._handleErrorEvent (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/client.js:417:10)
+2026-10-15T19:02:16.455378+00:00 app[web.2]:     at Connection2.<anonymous> (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/client.js:217:16)
+2026-10-15T19:02:16.455379+00:00 app[web.2]:     at Connection2.wrapper (node:events:639:12)
+2026-10-15T19:02:16.455379+00:00 app[web.2]:     at Connection2.emit (node:events:514:28)
+2026-10-15T19:02:16.455379+00:00 app[web.2]:     at Socket.<anonymous> (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/connection.js:63:12)
+2026-10-15T19:02:16.455380+00:00 app[web.2]:     at Socket.emit (node:events:526:24)
+2026-10-15T19:02:16.455380+00:00 app[web.2]:     at TCP.<anonymous> (node:net:362:12)
+2026-10-15T19:02:16.455380+00:00 app[web.2]: 
+2026-10-15T19:02:16.455381+00:00 app[web.2]: Node.js v24.21.0
+2026-10-15T19:02:16.526948+00:00 heroku[web.2]: Process exited with status 1
+2026-10-15T19:02:16.637503+00:00 heroku[web.2]: State changed from up to crashed
+2026-10-15T19:02:16.641831+00:00 heroku[web.2]: State changed from crashed to starting
+2026-10-15T19:02:17.310162+00:00 app[web.1]: node:events:505
+2026-10-15T19:02:17.310176+00:00 app[web.1]:     throw er; // Unhandled 'error' event
+2026-10-15T19:02:17.310176+00:00 app[web.1]:     ^
+2026-10-15T19:02:17.310177+00:00 app[web.1]: 
+2026-10-15T19:02:17.310177+00:00 app[web.1]: Error: Connection terminated unexpectedly
+2026-10-15T19:02:17.310178+00:00 app[web.1]:     at Connection2.<anonymous> (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/client.js:199:73)
+2026-10-15T19:02:17.310179+00:00 app[web.1]:     at Connection2.wrapper (node:events:639:12)
+2026-10-15T19:02:17.310179+00:00 app[web.1]:     at Connection2.emit (node:events:514:28)
+2026-10-15T19:02:17.310179+00:00 app[web.1]:     at Socket.<anonymous> (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/connection.js:63:12)
+2026-10-15T19:02:17.310180+00:00 app[web.1]:     at Socket.emit (node:events:526:24)
+2026-10-15T19:02:17.310180+00:00 app[web.1]:     at TCP.<anonymous> (node:net:362:12)
+2026-10-15T19:02:17.310180+00:00 app[web.1]: Emitted 'error' event on Client2 instance at:
+2026-10-15T19:02:17.310181+00:00 app[web.1]:     at Client2._handleErrorEvent (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/client.js:417:10)
+2026-10-15T19:02:17.310181+00:00 app[web.1]:     at Connection2.<anonymous> (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/client.js:217:16)
+2026-10-15T19:02:17.310181+00:00 app[web.1]:     at Connection2.wrapper (node:events:639:12)
+2026-10-15T19:02:17.310182+00:00 app[web.1]:     at Connection2.emit (node:events:514:28)
+2026-10-15T19:02:17.310182+00:00 app[web.1]:     at Socket.<anonymous> (/app/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/connection.js:63:12)
+2026-10-15T19:02:17.310182+00:00 app[web.1]:     at Socket.emit (node:events:526:24)
+2026-10-15T19:02:17.310182+00:00 app[web.1]:     at TCP.<anonymous> (node:net:362:12)
+2026-10-15T19:02:17.310182+00:00 app[web.1]: 
+2026-10-15T19:02:17.310194+00:00 app[web.1]: Node.js v24.21.0
+2026-10-15T19:02:17.469537+00:00 heroku[web.1]: Process exited with status 1
+2026-10-15T19:02:17.810717+00:00 heroku[web.1]: State changed from up to crashed
+2026-10-15T19:02:17.815653+00:00 heroku[web.1]: State changed from crashed to starting
+2026-10-15T19:02:39.567631+00:00 heroku[web.2]: Starting process with command `node --enable-source-maps artifacts/api-server/dist/index.mjs`
+2026-10-15T19:02:41.995595+00:00 app[web.2]: {"level":30,"time":1792090961995,"pid":2,"hostname":"237f2d7b-6fa5-431d-b255-31cf25790c8b","port":41373,"msg":"Server listening"}
+2026-10-15T19:02:42.002285+00:00 app[web.2]: (node:2) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+2026-10-15T19:02:42.002286+00:00 app[web.2]: In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+2026-10-15T19:02:42.002286+00:00 app[web.2]: 
+2026-10-15T19:02:42.002287+00:00 app[web.2]: To prepare for this change:
+2026-10-15T19:02:42.002287+00:00 app[web.2]: - If you want the current behavior, explicitly use 'sslmode=verify-full'
+2026-10-15T19:02:42.002288+00:00 app[web.2]: - If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+2026-10-15T19:02:42.002288+00:00 app[web.2]: 
+2026-10-15T19:02:42.002289+00:00 app[web.2]: See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+2026-10-15T19:02:42.002289+00:00 app[web.2]: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-10-15T19:02:42.503710+00:00 heroku[web.2]: State changed from starting to up
+2026-10-15T19:02:42.799029+00:00 heroku[web.1]: Starting process with command `node --enable-source-maps artifacts/api-server/dist/index.mjs`
+2026-10-15T19:02:42.836955+00:00 app[web.2]: {"level":30,"time":1792090962836,"pid":2,"hostname":"237f2d7b-6fa5-431d-b255-31cf25790c8b","event":"messages.upsert","fromMe":false,"hasRemoteJid":true,"hasMessageId":true,"msg":"Evolution webhook received"}
+2026-10-15T19:02:43.164463+00:00 app[web.2]: {"level":30,"time":1792090963164,"pid":2,"hostname":"237f2d7b-6fa5-431d-b255-31cf25790c8b","event":"messages.upsert","fromMe":false,"hasRemoteJid":true,"hasMessageId":true,"msg":"Evolution webhook received"}
+2026-10-15T19:02:44.783479+00:00 app[web.2]: {"level":40,"time":1792090964783,"pid":2,"hostname":"237f2d7b-6fa5-431d-b255-31cf25790c8b","err":"Evolution API 400: Bad Request","phone":"5977435625","providerMessageId":"3AD6AAD4C0B7ED5729D3","msg":"WhatsApp reaction failed"}
+2026-10-15T19:02:45.433409+00:00 app[web.1]: {"level":30,"time":1792090965431,"pid":2,"hostname":"845b744e-b436-4935-932d-a7dafab88cba","port":16554,"msg":"Server listening"}
+2026-10-15T19:02:45.442530+00:00 app[web.1]: (node:2) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+2026-10-15T19:02:45.442535+00:00 app[web.1]: In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+2026-10-15T19:02:45.442535+00:00 app[web.1]: 
+2026-10-15T19:02:45.442538+00:00 app[web.1]: To prepare for this change:
+2026-10-15T19:02:45.442540+00:00 app[web.1]: - If you want the current behavior, explicitly use 'sslmode=verify-full'
+2026-10-15T19:02:45.442542+00:00 app[web.1]: - If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+2026-10-15T19:02:45.442543+00:00 app[web.1]: 
+2026-10-15T19:02:45.442543+00:00 app[web.1]: See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+2026-10-15T19:02:45.442543+00:00 app[web.1]: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-10-15T19:02:45.778152+00:00 heroku[web.1]: State changed from starting to up
+2026-10-15T19:02:47.406297+00:00 app[web.2]: {"level":50,"time":1792090967233,"pid":2,"hostname":"237f2d7b-6fa5-431d-b255-31cf25790c8b","err":{"type":"Error","message":"Evolution API 400: Bad Request","stack":"Error: Evolution API 400: Bad Request\n    at ensureWhatsappDelivery (/app/artifacts/api-server/src/routes/spa.ts:4039:11)\n    at processWhatsappWebhookPayload (/app/artifacts/api-server/src/routes/spa.ts:4351:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async <anonymous> (/app/artifacts/api-server/src/routes/spa.ts:5014:20)\n    at async runOne (/app/artifacts/api-server/src/lib/whatsapp-webhook-inbox.ts:235:24)"},"inboxId":627,"attempt":346,"msg":"WhatsApp webhook processing failed; the event will be retried"}
+2026-10-15T19:02:52.990769+00:00 app[web.2]: {"level":30,"time":1792090972990,"pid":2,"hostname":"237f2d7b-6fa5-431d-b255-31cf25790c8b","inboxId":671,"eventKey":"spa-fd871c3c:554899581973:3A7A79563CE5C171B484","result":"replied","msg":"WhatsApp webhook inbox item processed"}
+2026-10-15T19:03:42.357819+00:00 app[web.2]: {"level":50,"time":1792091022357,"pid":2,"hostname":"237f2d7b-6fa5-431d-b255-31cf25790c8b","err":{"type":"Error","message":"PostgreSQL advisory lock was not held by the current connection.","stack":"Error: PostgreSQL advisory lock was not held by the current connection.\n    at <anonymous> (/app/lib/db/src/postgres-advisory-lock.ts:33:15)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runWhatsappReminders (/app/artifacts/api-server/src/routes/spa.ts:2100:5)"},"msg":"WhatsApp reminder cycle failed"}
