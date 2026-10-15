@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { pool } from "@workspace/db";
 import { logger } from "./logger";
 import {
+  createDurableInboxWorker,
+  type DurableInboxJob,
+} from "./whatsapp-inbox-worker";
+import {
   makeWhatsappWebhookEventKey,
   stripInlineMedia,
   webhookRetryDelaySeconds,
@@ -22,13 +26,7 @@ if (!Number.isInteger(WORKER_CONCURRENCY) || WORKER_CONCURRENCY < 1) {
 export type WhatsappWebhookPayload = Record<string, unknown>;
 export type WhatsappWebhookJobContext = Pick<WhatsappWebhookJob, "id">;
 
-export type WhatsappWebhookJob = {
-  id: number;
-  eventKey: string;
-  payload: WhatsappWebhookPayload;
-  attempts: number;
-  leaseToken: string;
-};
+export type WhatsappWebhookJob = DurableInboxJob<WhatsappWebhookPayload>;
 
 export { makeWhatsappWebhookEventKey };
 
@@ -216,60 +214,67 @@ const retryWhatsappWebhook = async (job: WhatsappWebhookJob, error: unknown) => 
   );
 };
 
+const releaseUnstartedWhatsappWebhook = async (job: WhatsappWebhookJob) => {
+  await pool.query(
+    `UPDATE whatsapp_webhook_inbox
+     SET status = 'pending',
+         attempts = GREATEST(attempts - 1, 0),
+         available_at = NOW(),
+         locked_at = NULL,
+         lease_token = NULL,
+         updated_at = NOW()
+     WHERE id = $1 AND status = 'processing' AND lease_token = $2`,
+    [job.id, job.leaseToken],
+  );
+};
+
+export const getWhatsappWebhookQueueStats = async () => {
+  const result = await pool.query<{
+    pending_count: number;
+    processing_count: number;
+    oldest_pending_seconds: number;
+  }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'pending')::int AS pending_count,
+       COUNT(*) FILTER (WHERE status = 'processing')::int AS processing_count,
+       COALESCE(
+         FLOOR(EXTRACT(EPOCH FROM (
+           NOW() - (
+             MIN(created_at)
+             FILTER (WHERE status = 'pending' AND available_at <= NOW())
+           )
+         ))),
+         0
+       )::int AS oldest_pending_seconds
+     FROM whatsapp_webhook_inbox`,
+  );
+  const stats = result.rows[0];
+  return {
+    pendingCount: Number(stats?.pending_count ?? 0),
+    processingCount: Number(stats?.processing_count ?? 0),
+    oldestPendingSeconds: Number(stats?.oldest_pending_seconds ?? 0),
+  };
+};
+
 export const startWhatsappWebhookInboxWorker = (
   processPayload: (
     payload: WhatsappWebhookPayload,
     job: WhatsappWebhookJobContext,
   ) => Promise<unknown>,
 ) => {
-  let activeWorkers = 0;
-
-  const runOne = async () => {
-    if (activeWorkers >= WORKER_CONCURRENCY) return;
-    activeWorkers += 1;
-    try {
-      const job = await claimNextWhatsappWebhook();
-      if (!job) return;
-
-      const heartbeat = setInterval(() => {
-        void updateWhatsappWebhookLease(job).catch((error) => {
-          logger.error({ err: error, inboxId: job.id }, "WhatsApp inbox lease renewal failed");
-        });
-      }, HEARTBEAT_INTERVAL_MS);
-      heartbeat.unref();
-
-      try {
-        const result = await processPayload(job.payload, { id: job.id });
-        const completed = await completeWhatsappWebhook(job);
-        if (completed) {
-          logger.info(
-            { inboxId: job.id, eventKey: job.eventKey, result },
-            "WhatsApp webhook inbox item processed",
-          );
-        } else {
-          logger.warn(
-            { inboxId: job.id, eventKey: job.eventKey },
-            "WhatsApp webhook inbox lease was lost before completion",
-          );
-        }
-      } catch (error) {
-        await retryWhatsappWebhook(job, error);
-        logger.error(
-          { err: error, inboxId: job.id, attempt: job.attempts },
-          "WhatsApp webhook processing failed; the event will be retried",
-        );
-      } finally {
-        clearInterval(heartbeat);
-      }
-    } catch (error) {
-      logger.error({ err: error }, "WhatsApp webhook inbox worker cycle failed");
-    } finally {
-      activeWorkers -= 1;
-    }
-  };
-
-  void runOne();
-  const interval = setInterval(() => void runOne(), WORKER_POLL_INTERVAL_MS);
-  interval.unref();
-  return () => clearInterval(interval);
+  const worker = createDurableInboxWorker({
+    store: {
+      claim: claimNextWhatsappWebhook,
+      renewLease: updateWhatsappWebhookLease,
+      complete: completeWhatsappWebhook,
+      retry: retryWhatsappWebhook,
+      releaseUnstarted: releaseUnstartedWhatsappWebhook,
+    },
+    processPayload,
+    logger,
+    concurrency: WORKER_CONCURRENCY,
+    pollIntervalMs: WORKER_POLL_INTERVAL_MS,
+    heartbeatIntervalMs: HEARTBEAT_INTERVAL_MS,
+  });
+  return worker.stop;
 };

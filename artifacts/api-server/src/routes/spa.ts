@@ -5011,23 +5011,60 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
 
 export const startWhatsappWebhookWorker = () =>
   startWhatsappWebhookInboxWorker(async (payload, inboxJob) => {
-    const result = await processWhatsappWebhookPayload(payload, logger, inboxJob);
-    return result.action;
+    const data = (payload["data"] as Record<string, unknown> | undefined) ?? payload;
+    const rawMessage = (data["message"] as Record<string, unknown> | undefined) ?? {};
+    const contentMessage = unwrapWhatsappMessage(rawMessage);
+    const extended = contentMessage["extendedTextMessage"] as Record<string, unknown> | undefined;
+    const messageKind = contentMessage["audioMessage"]
+      ? "audio"
+      : contentMessage["imageMessage"]
+        ? "image"
+        : typeof contentMessage["conversation"] === "string" ||
+            typeof extended?.["text"] === "string"
+          ? "text"
+          : "other";
+    const eventType = typeof payload["event"] === "string" ? payload["event"] : "unknown";
+    const memoryMb = () => Math.round((process.memoryUsage().rss / 1024 / 1024) * 10) / 10;
+    const context = {
+      inboxId: inboxJob.id,
+      eventType,
+      messageKind,
+      rssMbBefore: memoryMb(),
+      dyno: process.env["DYNO"] ?? "local",
+      pid: process.pid,
+    };
+    logger.info(context, "WhatsApp inbox event started");
+    try {
+      const result = await processWhatsappWebhookPayload(payload, logger, inboxJob);
+      return { action: result.action, ...context, rssMbAfter: memoryMb() };
+    } catch (error) {
+      logger.error(
+        { ...context, rssMbAfter: memoryMb(), err: error },
+        "WhatsApp inbox event failed",
+      );
+      throw error;
+    }
   });
 
 export const startWhatsappBackgroundServices = (
   { keepAlive = false }: { keepAlive?: boolean } = {},
 ) => {
   const stopWebhookWorker = startWhatsappWebhookWorker();
-  const reminderInterval = setInterval(() => {
-    void runWhatsappReminders().catch((error) => {
-      logger.error({ err: error }, "WhatsApp reminder cycle failed");
+  let stopping = false;
+  const schedulerRuns = new Set<Promise<void>>();
+  const runScheduler = (run: () => Promise<void>, message: string) => {
+    if (stopping) return;
+    const task = run().catch((error) => {
+      logger.error({ err: error }, message);
     });
+    schedulerRuns.add(task);
+    void task.finally(() => schedulerRuns.delete(task));
+  };
+  const reminderInterval = setInterval(() => {
+    runScheduler(runWhatsappReminders, "WhatsApp reminder cycle failed");
   }, 60_000);
   const followUpInterval = setInterval(() => {
-    void runWhatsappFollowUps().catch((error) => {
-      logger.error({ err: error }, "WhatsApp follow-up cycle failed");
-    });
+    runScheduler(runWhatsappFollowUps, "WhatsApp follow-up cycle failed");
   }, 60_000);
 
   if (!keepAlive) {
@@ -5035,10 +5072,24 @@ export const startWhatsappBackgroundServices = (
     followUpInterval.unref();
   }
 
-  return () => {
-    stopWebhookWorker();
+  return async (drainTimeoutMs = 20_000) => {
+    stopping = true;
     clearInterval(reminderInterval);
     clearInterval(followUpInterval);
+    const deadline = Date.now() + drainTimeoutMs;
+    const webhookDrained = await stopWebhookWorker(drainTimeoutMs);
+    if (!webhookDrained) return false;
+    if (!schedulerRuns.size) return true;
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const schedulersDrained = await Promise.race([
+      Promise.all([...schedulerRuns]).then(() => true),
+      new Promise<boolean>((resolve) => {
+        timeout = setTimeout(() => resolve(false), Math.max(0, deadline - Date.now()));
+      }),
+    ]);
+    if (timeout) clearTimeout(timeout);
+    return schedulersDrained;
   };
 };
 

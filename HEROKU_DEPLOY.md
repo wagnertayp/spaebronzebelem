@@ -54,6 +54,8 @@ Set these values in Heroku Config Vars before starting the app:
   `/api/integrations/evolution/webhook`. Set this explicitly; the Replit
   development-domain fallback is disabled in production.
 - `EVOLUTION_TIMEZONE=America/Belem`
+- `DYNO_MEMORY_LIMIT_MB=1024` when the worker dynos use Standard-2X; the worker
+  uses this to warn before approaching its memory quota.
 
 Heroku assigns `PORT` at runtime. Do not set it as a fixed Config Var.
 
@@ -79,6 +81,16 @@ Heroku assigns `PORT` at runtime. Do not set it as a fixed Config Var.
    ```sh
    heroku ps:scale web=2:standard-2x worker=2:standard-2x
    ```
+
+   Set `DYNO_MEMORY_LIMIT_MB=1024` for Standard-2X dynos. Both web and worker
+   dynos log RSS, heap, external memory, and array buffers once per minute and
+   warn at 80% of this configured limit. Worker health logs additionally warn
+   at 25 pending webhook events or when the oldest due event has waited 60 seconds. These
+   limits can be tuned with `WHATSAPP_WORKER_MEMORY_WARN_PERCENT`,
+   `WHATSAPP_QUEUE_PENDING_WARN_COUNT`, and
+   `WHATSAPP_QUEUE_OLDEST_WARN_SECONDS`. On `SIGTERM`, a worker stops claiming
+   events and drains active work for up to 20 seconds; an interrupted lease is
+   eligible for recovery after it expires.
 
 ## Data durability
 
