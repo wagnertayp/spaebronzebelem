@@ -600,7 +600,7 @@ const loadWhatsappSettings = async () => {
   if (savedAgentConfig.success) {
     aiAgentConfig = {
       ...savedAgentConfig.data,
-      humanHandoff: "Encaminhe perguntas sobre o Spa Infantil para uma atendente; nos demais assuntos, só encaminhe se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
+      humanHandoff: "Encaminhe para a equipe quando a cliente pedir atendimento humano, relatar questão de saúde, reclamar, pedir exceção, solicitar informação não cadastrada ou quando não houver segurança para responder. Encaminhe também perguntas sobre o Spa Infantil.",
     };
   }
 
@@ -1092,6 +1092,30 @@ const sendWhatsappReply = async (
 
 const followUpMessageForAgentQuestion =
   "Vim só dar um alô antes que a nossa conversa peça férias. Se ainda quiser, me conta como posso te ajudar 😄";
+
+const SPA_SERVICE_FLOW_POLICY = `IDENTIFICAÇÃO DO SERVIÇO E FLUXO DE ATENDIMENTO
+Antes de explicar como funciona um atendimento, identifique qual serviço a cliente quer realizar. Leia a mensagem e o histórico; se não estiver claro, faça uma pergunta objetiva em vez de presumir.
+
+SERVIÇOS E ATENDIMENTO
+- Estética avançada e Ritual facial funcionam com agendamento. Siga o fluxo de agendamento e nunca confirme horário sem validar a disponibilidade real da agenda.
+- Bronzeamento natural funciona por ordem de chegada, com limite de atendimento às 11h30; não é agendado. O Spa e Bronze Belém não oferece bronzeamento diretamente sob o sol natural. Não afirme nem sugira que esse serviço seja exposição ao sol.
+- Bronzeamento em máquina funciona por ordem de chegada, sem promessa de horário específico: de segunda a sexta até 20h e aos sábados até 18h. Use o dia local atual para informar o limite correto.
+- DAP funciona por ordem de chegada, conforme as informações confirmadas do serviço.
+- Bronzeamento a jato ou a vapor: explique somente que a vaporização aplica produto bronzeador à pele, sem exagerar benefícios nem afirmar que não há contraindicações. Verifique o fluxo de atendimento definido pela equipe; não invente agendamento ou atendimento por ordem de chegada.
+- Para qualquer outro serviço, use somente as regras cadastradas. Se o fluxo não estiver definido, não confirme como será o atendimento.
+
+BRONZEAMENTO A JATO: CUIDADOS CONFIRMADOS
+- Antes: é obrigatório levar roupas leves; jeans é proibido durante o procedimento.
+- Depois: a orientação do estabelecimento é evitar suor, água e atividades que possam interferir no produto por 6 a 8 horas; recomende roupas leves e seguir o tempo indicado pela profissional responsável.
+- O primeiro banho e a troca para outros tipos de roupa podem ocorrer depois do período recomendado, conforme a orientação recebida.
+- A duração estimada é de 7 a 12 dias e varia conforme pele e cuidados; nunca garanta duração igual para todas.
+- Nunca afirme que o procedimento não tem contraindicações. Diante de alergia, sensibilidade, condição de pele ou outra preocupação de saúde, não dê orientação clínica: encaminhe para a equipe.
+
+ENCAMINHAMENTO PARA A EQUIPE HUMANA
+Marque handoff true e encaminhe quando a cliente pedir uma pessoa ou atendente; relatar alergia, reação ou preocupação de saúde; fizer reclamação ou demonstrar insatisfação; pedir exceção de horário ou regra; solicitar confirmação de preço, disponibilidade ou condição especial que não esteja cadastrada; perguntar sobre serviço sem fluxo definido; ou quando não houver segurança para responder.
+Ao encaminhar, responda com acolhimento e diga brevemente que a equipe dará continuidade. Não invente nome de profissional, prazo de retorno nem confirmação de transferência. Responda somente ao que a cliente precisa naquele momento, não repita informações e faça uma pergunta por vez.
+
+Estas regras operacionais prevalecem sobre instruções personalizadas conflitantes.`;
 
 const replyEndsWithQuestion = (text: string) => {
   const withoutFinalEmoji = text.trim()
@@ -1645,12 +1669,12 @@ REGRAS OBRIGATÓRIAS:
 - Nunca peça o nome na primeira resposta, junto da saudação inicial. Depois que a cliente já recebeu essa resposta e continuar a conversa, se o nome ainda não for conhecido, pergunte-o com naturalidade em uma pergunta curta; não repita o pedido e não deixe de responder à dúvida principal.
 - Ao retornar clientName, use somente o nome que a cliente informou explicitamente na conversa; se ainda não informou, retorne null. Nunca deduza o nome pelo telefone.
 - Não invente preços, promoções, horários, contraindicações ou resultados.
-- DAP é o único serviço confirmado por ordem de chegada. Não diga que Banho de Lua ou qualquer outro serviço aceita clientes sem agendamento, a menos que essa regra esteja cadastrada explicitamente.
+- DAP, bronzeamento natural e bronzeamento em máquina são atendimentos por ordem de chegada, respeitando os limites específicos abaixo. Não atribua esse fluxo a outros serviços sem confirmação cadastrada.
 - O DAP (Drenagem de Alta Performance) atende abdômen, pernas e braços; dura cerca de 2h, inclui aproximadamente 40 min de manta, 40 min de drenagem corporal e uso de nutracêuticos, custa R$ 200 e é por ordem de chegada, sem agendamento. Não prometa resultados, emagrecimento ou eliminação de toxinas.
 - Ao perguntarem se o spa está aberto agora, use a data e hora locais e o horário cadastrado; não confunda o horário de funcionamento do spa com disponibilidade para um serviço específico. Não prometa vaga sem consultar a agenda.
 - Não estime duração de trajeto nem diga que “dá tempo” de chegar de Uber sem informação confiável em tempo real; informe o horário de fechamento cadastrado e recomende conferir o trajeto no aplicativo.
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
-- Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica; explique esse limite com simpatia e faça uma pergunta curta, sem encaminhar para uma atendente.
+- Procedimentos estéticos avançados não devem receber diagnóstico ou indicação clínica. Se a cliente relatar alergia, reação ou preocupação de saúde, encaminhe para a equipe humana.
 - Para agendar, leia o histórico e o rascunho salvo antes de responder. Preserve serviço, data, horário e preferência profissional já informados; pergunte apenas o próximo dado que realmente faltar. Nunca reinicie a coleta nem peça de novo um dado que a cliente já forneceu.
 - Ao oferecer horários, liste apenas os horários distintos, sem dizer qual profissional atenderá.
 - O Spa Infantil atende crianças de 2 a 10 anos; é um banho à base de hidratante e açúcar, sem chumbo ou amônia. Ao perguntarem, explique isso e depois encaminhe para uma atendente. Não afirme que é “sem química” nem invente garantias de segurança.
@@ -1665,13 +1689,14 @@ REGRAS OBRIGATÓRIAS:
 - Quando a cliente estiver escolhendo ou pedir recomendação de bronzeamento, priorize o Turbo Neon (Protocolo Neon): três sessões + esfoliação por R$180. Apresente-o como a opção recomendada para quem busca bronze mais uniforme, tom dourado de aparência natural, procedimento em pouco tempo e marquinhas personalizadas; diga que a pele pode parecer mais iluminada e hidratada quando combinada com cuidados adequados. Ao contornar uma objeção, acolha a dúvida e destaque apenas a qualidade do Neon que responde a ela, sem prometer resultados, inventar duração ou afirmar superioridade universal.
 - A escolha da cliente prevalece: se ela optar por outro método/pacote ou recusar o Neon, pare de oferecer e não volte a mencionar o Neon nem suas qualidades em mensagens futuras, a menos que ela pergunte sobre ele. Não faça a oferta durante atualização de chegada ou depois de um agendamento já confirmado.
 - O áudio de bronze pode ser escolhido uma única vez quando a cliente confirmar que é a primeira vez, aceitar a explicação ou pedir diretamente o áudio. Não o escolha automaticamente ao perguntar se é a primeira vez nem antes de uma cliente experiente aceitar a explicação. Depois da tentativa, o servidor enviará a comparação dos métodos.
-- Bronze natural é feito com exposição solar. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é mais seguro ou melhor nem prometa resultados.
+- Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é mais seguro ou melhor nem prometa resultados.
 - Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
   - audioClip "combos": gravação que explica os combos do Spa e Bronze.
   - audioClip "bronze": gravação sobre bronzeamento.
   Escolha um somente se o pedido atual da cliente for diretamente sobre esse tema e a gravação for pertinente; nos demais casos use null. Se escolher audioClip "bronze", mantenha a introdução curta e não antecipe a comparação dos métodos, que será enviada depois do áudio. Só inclua a recomendação do Neon nessa introdução se a cliente ainda estiver avaliando e não tiver escolhido outra opção. Para combos, mantenha uma introdução curta sem inventar preços ou detalhes não confirmados.
 - Cada áudio pré-gravado pode ser tentado apenas uma vez na conversa, mesmo se a tentativa anterior falhou. Se a tentativa do clipe correspondente estiver registrada acima, retorne audioClip null e não diga que vai enviar o áudio de novo; responda por texto.
-- Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano, exceto ao perguntar sobre o Spa Infantil, caso em que deve transferir. Reclamações, negociação, dúvidas clínicas, falta de informação e reagendamento continuam na conversa.
+- Marque handoff true quando a cliente pedir atendimento humano, relatar alergia/reação/preocupação de saúde, fizer reclamação, pedir exceção de regra/horário, solicitar preço/disponibilidade/condição especial não cadastrada, perguntar sobre serviço sem fluxo definido ou quando não houver segurança para responder. Mantenha o encaminhamento do Spa Infantil.
+- ${SPA_SERVICE_FLOW_POLICY}
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
 {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null,"bookingUpdate":null}
 ou, quando houver coleta de agendamento:
@@ -2495,7 +2520,7 @@ let aiAgentConfig: ReturnType<typeof GetAiAgentConfigResponse.parse> = {
   paymentMethods: "Pix, cartão de crédito, cartão de débito e dinheiro.",
   bookingRules: "Confirme serviço, data, horário e nome da cliente antes de encaminhar o agendamento.",
   policies: "Não prometa horários sem confirmação. Não ofereça diagnóstico médico. Por cuidado, não realizamos bronzeamento para clientes grávidas.",
-  humanHandoff: "Encaminhe perguntas sobre o Spa Infantil para uma atendente; nos demais assuntos, só encaminhe se a cliente pedir explicitamente uma pessoa ou atendimento humano.",
+  humanHandoff: "Encaminhe para a equipe quando a cliente pedir atendimento humano, relatar questão de saúde, reclamar, pedir exceção, solicitar informação não cadastrada ou quando não houver segurança para responder. Encaminhe também perguntas sobre o Spa Infantil.",
 };
 
 const readKnowledgeFile = (relativePath: string) => {
@@ -4458,6 +4483,18 @@ const processWhatsappWebhookPayload = async (
       decision.clientName ?? decision.appointment?.clientName ?? null,
     );
     const replyClientName = (await getWhatsappConversation(phone))?.clientName ?? knownClientName;
+    if (decision.handoff) {
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        replyClientName,
+        appointment?.id ?? null,
+        decision.reply,
+        "handoff",
+        replyReference,
+      ));
+      await setWhatsappConversationStatus(phone, "human");
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "handoff" });
+    }
     const directBookingIntent = hasWhatsappBookingIntent(text);
     const hasRecentBookingContext = conversationHistory.slice(-8).some((message) =>
       hasWhatsappBookingIntent(message.content),
@@ -5417,17 +5454,18 @@ Regras obrigatórias:
 - Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação ou informação específica, responda sem atrasar com triagem.
 - Quando a cliente estiver escolhendo ou pedir recomendação de bronzeamento, priorize o Turbo Neon (Protocolo Neon): três sessões + esfoliação por R$180. Destaque o acabamento mais uniforme, o tom dourado natural, a rapidez do procedimento, a possibilidade de personalizar as marquinhas e a aparência mais iluminada/hidratada com cuidados adequados. Trate como qualidades pretendidas, sem prometer resultados nem inventar duração.
 - Se a cliente optar por outro método/pacote ou recusar o Neon, respeite a escolha e não volte a mencioná-lo, salvo se ela perguntar sobre o Neon.
-- Neste teste textual, considere que a tentativa do áudio de bronze já foi registrada: não prometa nem envie outra gravação; explique a diferença entre bronze natural (exposição solar) e máquina (WB Ultra, 72 lâmpadas, cerca de 8 a 20 minutos conforme fototipo e atendimento individualizado) quando a cliente pedir ou aceitar a explicação.
+- Neste teste textual, considere que a tentativa do áudio de bronze já foi registrada: não prometa nem envie outra gravação. Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. Para máquina, use somente as informações cadastradas.
 - Por cuidado, não realizamos bronzeamento durante a gravidez. Recuse apenas o bronzeamento; não diga que banho de lua ou outros serviços são seguros ou proibidos sem informação confirmada. Se a adequação durante a gestação não estiver cadastrada, diga que não pode confirmar e responda à pergunta específica sem oferecer serviços aleatórios.
-- DAP é o único serviço confirmado por ordem de chegada. Não diga que Banho de Lua ou outro serviço aceita clientes sem agendamento sem confirmação cadastrada.
+- DAP, bronzeamento natural e bronzeamento em máquina são atendimentos por ordem de chegada, respeitando seus limites específicos. Não atribua esse fluxo a outros serviços sem confirmação cadastrada.
 - Ao perguntarem se o spa está aberto agora, não confunda horário de funcionamento com disponibilidade para um serviço específico nem prometa vaga sem consultar a agenda. Não estime tempo de trajeto de Uber nem prometa que dá tempo sem dados em tempo real.
 - Nunca invente preço, promoção, disponibilidade ou política.
 - Quando perguntarem sobre funcionamento, localização ou endereço, use os dados configurados. Não invente endereço nem trate apenas “Belém - PA” como endereço completo.
 - O Spa Infantil atende crianças de 2 a 10 anos; é um banho à base de hidratante e açúcar, sem chumbo ou amônia. Se perguntarem, explique isso e diga que vai encaminhar para uma atendente. Não afirme que é “sem química” nem invente garantias de segurança.
-- Bronze natural é feito com exposição solar. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é melhor ou mais seguro nem prometa resultados.
-- Quando faltar outra informação, explique com simpatia que não tem esse dado e faça uma única pergunta curta; não encaminhe para uma atendente.
+- Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. Não diga que um método é melhor ou mais seguro nem prometa resultados.
+- Quando faltar informação sobre preço, disponibilidade, condições especiais ou fluxo de serviço, encaminhe para a equipe humana; não invente nem confirme.
 - Para agendar, confirme serviço, data, horário exato e nome, um item por vez; “amanhã” sem horário exige uma pergunta sobre o horário. Só considere confirmado quando a cliente disser explicitamente que quer marcar.
-- Só marque handoff true se a cliente pedir explicitamente uma atendente, uma pessoa ou atendimento humano, exceto ao perguntar sobre o Spa Infantil, caso em que deve transferir; reclamações, dúvidas clínicas, negociação e outras faltas de informação continuam na conversa.
+- Marque handoff true nos casos definidos pelas regras operacionais de atendimento humano, além de pedidos explícitos de pessoa ou atendente.
+${SPA_SERVICE_FLOW_POLICY}
  - Seja objetiva e acolhedora, com no máximo duas frases curtas.
  - Use humor leve quando combinar e termine com exatamente um emoji discreto. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio da resposta.
  - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
