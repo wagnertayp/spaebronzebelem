@@ -265,6 +265,7 @@ router.use((req, res, next) => {
 });
 
 type AppointmentStatus =
+  | "pending_assignment"
   | "confirmed"
   | "in_progress"
   | "completed"
@@ -286,6 +287,7 @@ type Appointment = {
   service: string;
   professional: string;
   professionalId: number | null;
+  reservationProfessionalId?: number | null;
   room: string;
   status: AppointmentStatus;
   attendance: "pending" | "attended" | "no_show";
@@ -764,6 +766,9 @@ const appointmentOperationalDetails = (includeHours: boolean) => {
 const appointmentScheduledReply = (appointment: Appointment) => {
   const formattedDate = formatAppointmentDate(appointment) ?? appointment.start;
   const details = appointmentOperationalDetails(true);
+  if (appointment.status === "pending_assignment") {
+    return `Recebi seu pedido de ${appointment.service} para ${formattedDate}. O horário está reservado provisoriamente; a equipe confirmará quem fará o atendimento.${details ? ` ${details}` : ""} 🤎`;
+  }
   return `Pronto! Seu atendimento de ${appointment.service} ficou agendado para ${formattedDate}.${details ? ` ${details}` : ""} 🤎`;
 };
 
@@ -1365,6 +1370,7 @@ type AgentAppointmentDraft = {
   professional: string;
   start: string;
   confirmed: boolean;
+  pendingAssignment?: boolean;
 };
 
 type AgentBookingUpdate = WhatsappBookingUpdate;
@@ -1732,7 +1738,9 @@ type AgentAppointmentResult =
   | { ok: false; reason: AgentAppointmentFailure };
 
 const appointmentBlocksTime = (appointment: Appointment) =>
-  appointment.status === "confirmed" || appointment.status === "in_progress";
+  appointment.status === "pending_assignment" ||
+  appointment.status === "confirmed" ||
+  appointment.status === "in_progress";
 
 const appointmentSlotIssue = (
   candidate: AppointmentSlotCandidate,
@@ -1771,8 +1779,10 @@ const appointmentSlotIssue = (
     const existingStart = appointmentDateTimeInAgenda(appointment.start, agendaDate)?.getTime();
     const existingEnd = appointmentDateTimeInAgenda(appointment.end, agendaDate)?.getTime();
     if (existingStart == null || existingEnd == null) return false;
-    const existingProfessionalId = appointment.professionalId ??
-      professionals.find((professional) => normalizeName(professional.name) === normalizeName(appointment.professional))?.id;
+    const existingProfessionalId = appointment.status === "pending_assignment"
+      ? appointment.reservationProfessionalId ?? null
+      : appointment.professionalId ??
+        professionals.find((professional) => normalizeName(professional.name) === normalizeName(appointment.professional))?.id;
     const sameProfessional = selectedProfessional
       ? existingProfessionalId === selectedProfessional.id
       : !candidate.professional || !appointment.professional ||
@@ -2022,10 +2032,11 @@ const addAppointmentFromAgent = (phone: string, draft: AgentAppointmentDraft) =>
     end,
     client: client.name,
     service: service.name,
-    professional: assignedProfessional,
-    professionalId: matchedProfessional?.id ?? null,
+    professional: draft.pendingAssignment ? "A definir" : assignedProfessional,
+    professionalId: draft.pendingAssignment ? null : matchedProfessional?.id ?? null,
+    reservationProfessionalId: draft.pendingAssignment ? matchedProfessional?.id ?? null : null,
     room: "",
-    status: "confirmed",
+    status: draft.pendingAssignment ? "pending_assignment" : "confirmed",
     attendance: "pending",
     avatar: getInitials(client.name),
   };
@@ -2588,6 +2599,9 @@ const nextId = (items: Array<{ id: number }>) =>
   Math.max(0, ...items.map((item) => item.id)) + 1;
 
 const createWorkOrderFromQuoteAppointment = (quote: Quote, appointment: Appointment) => {
+  if (appointment.status === "pending_assignment") {
+    throw new Error("Não é possível criar uma ordem de serviço antes de atribuir uma profissional.");
+  }
   const now = new Date().toISOString();
   const id = nextId(workOrders);
   const workOrder: WorkOrder = {
@@ -3807,7 +3821,11 @@ router.patch("/appointments/:id", (req, res) => {
   Object.assign(
     appointment,
     input,
-    { professional: nextProfessionalName, professionalId: nextProfessionalId },
+    {
+      professional: nextProfessionalName,
+      professionalId: nextProfessionalId,
+      reservationProfessionalId: professionalWasUpdated ? null : appointment.reservationProfessionalId,
+    },
     input.client ? { avatar: getInitials(input.client) } : {},
   );
   syncWorkOrderFromAppointment(appointment);
@@ -3991,6 +4009,10 @@ router.post("/whatsapp/appointments/:id/confirmation", async (req, res) => {
   const snapshot = dashboardSnapshotForResponse(res);
   const appointment = snapshot.appointments.find((item) => item.id === id);
   if (!appointment) return void res.status(404).json({ error: "Agendamento não encontrado" });
+  if (appointment.status === "pending_assignment") {
+    res.status(409).json({ error: "Atribua uma profissional antes de confirmar o agendamento." });
+    return;
+  }
   const message = await sendAppointmentMessage(appointment, "confirmation");
   res.json(SendWhatsappAppointmentConfirmationResponse.parse({
     sent: message.status === "sent" || message.status === "delivered",
@@ -4771,6 +4793,7 @@ const processWhatsappWebhookPayload = async (
             professional: selectedSlot.professional,
             start: selectedSlot.start,
             confirmed: true,
+            pendingAssignment: true,
           }),
         );
         if (!result.ok) {

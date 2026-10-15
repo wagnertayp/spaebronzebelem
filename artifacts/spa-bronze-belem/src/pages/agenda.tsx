@@ -52,6 +52,7 @@ export function Agenda() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [professionalFilter, setProfessionalFilter] = useState('all');
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [assignmentChoices, setAssignmentChoices] = useState<Record<number, string>>({});
   
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -100,7 +101,14 @@ export function Agenda() {
   
   // Format date as YYYY-MM-DD for API
   const dateStr = format(date, 'yyyy-MM-dd');
-  const { data: appointments = [], isLoading } = useListAppointments({ date: dateStr });
+  const { data: appointments = [], isLoading } = useListAppointments(
+    { date: dateStr },
+    { query: { queryKey: getListAppointmentsQueryKey({ date: dateStr }), refetchInterval: 15_000 } },
+  );
+  const { data: allAppointments = [] } = useListAppointments(
+    undefined,
+    { query: { queryKey: getListAppointmentsQueryKey(), refetchInterval: 15_000 } },
+  );
   const visibleProfessionals = professionalFilter === 'all'
     ? professionals
     : professionals.filter((professional) => String(professional.id) === professionalFilter);
@@ -156,6 +164,9 @@ export function Agenda() {
     }
     return true;
   });
+  const pendingAssignments = allAppointments
+    .filter((appointment) => appointment.status === 'pending_assignment')
+    .sort((left, right) => left.start.localeCompare(right.start));
   const archiveSelection = useBulkArchiveSelection({
     action: 'archive',
     records: visibleAppointments.map((appointment) => ({ entity: 'appointment' as const, id: String(appointment.id) })),
@@ -163,6 +174,7 @@ export function Agenda() {
 
   const getStatusColor = (status: string) => {
     switch(status) {
+      case 'pending_assignment': return 'bg-[#FFF3D9] text-[#8A6420] border-[#D4A84F]/30';
       case 'confirmed': return 'bg-[#E7EEE4] text-[#596653] border-[#7D8B78]/20';
       case 'in_progress': return 'bg-[rgba(200,169,130,0.16)] text-[#8A6B3F] border-[#C8A982]/20';
       case 'completed': return 'bg-surface-soft text-text-secondary border-border';
@@ -200,6 +212,84 @@ export function Agenda() {
           </div>
         }
       />
+
+      {!isStaff && (
+        <Card className="overflow-hidden border-[#D4A84F]/30">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary">Fila do WhatsApp</h2>
+              <p className="mt-1 text-xs text-text-muted">
+                Reservas provisórias. O horário fica bloqueado até a equipe atribuir quem fará o atendimento.
+              </p>
+            </div>
+            <span className="rounded-full bg-[#FFF3D9] px-2.5 py-1 text-xs font-semibold text-[#8A6420]">
+              {pendingAssignments.length} aguardando atribuição
+            </span>
+          </div>
+          <ol className="divide-y divide-border">
+            {pendingAssignments.length === 0 ? (
+              <li className="px-5 py-6 text-sm text-text-muted">Nenhuma reserva aguardando atribuição.</li>
+            ) : pendingAssignments.map((appointment) => {
+              const selection = assignmentChoices[appointment.id] ?? '';
+              return (
+                <li key={appointment.id} className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-center">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-text-primary">{appointment.client}</span>
+                      <span className="rounded-full border px-2 py-0.5 text-[10px] font-semibold text-[#8A6420]">
+                        Aguardando profissional
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-text-secondary">
+                      {appointment.service} · {format(new Date(appointment.start), "EEEE, d 'de' MMMM", { locale: ptBR })} · {appointmentTime(appointment.start)}–{appointmentTime(appointment.end)}
+                    </p>
+                  </div>
+                  <select
+                    aria-label={`Escolher profissional para ${appointment.client}`}
+                    value={selection}
+                    onChange={(event) => setAssignmentChoices((current) => ({ ...current, [appointment.id]: event.target.value }))}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Escolha quem atenderá</option>
+                    {professionalUsers.filter((professional) => professional.active).map((professional) => (
+                      <option key={professional.id} value={String(professional.id)}>{professional.name}</option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    disabled={!selection || updateMutation.isPending}
+                    onClick={() => {
+                      const selected = professionalUsers.find((professional) => String(professional.id) === selection);
+                      if (!selected) return;
+                      updateMutation.mutate({
+                        id: appointment.id,
+                        data: {
+                          professional: selected.name,
+                          professionalId: selected.id,
+                          status: 'confirmed',
+                        },
+                      }, {
+                        onSuccess: () => {
+                          void queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+                          setAssignmentChoices((current) => {
+                            const next = { ...current };
+                            delete next[appointment.id];
+                            return next;
+                          });
+                          toast({ title: 'Profissional atribuída', description: 'O agendamento foi confirmado na agenda.' });
+                        },
+                        onError: (error) => reportAppointmentMutationError(error, 'Não foi possível atribuir o atendimento.'),
+                      });
+                    }}
+                  >
+                    Atribuir e confirmar
+                  </Button>
+                </li>
+              );
+            })}
+          </ol>
+        </Card>
+      )}
 
       <Card className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3 bg-surface-soft/50">

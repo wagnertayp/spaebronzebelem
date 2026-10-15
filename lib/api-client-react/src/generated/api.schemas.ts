@@ -439,6 +439,7 @@ export type AppointmentStatus = typeof AppointmentStatus[keyof typeof Appointmen
 
 
 export const AppointmentStatus = {
+  pending_assignment: 'pending_assignment',
   confirmed: 'confirmed',
   in_progress: 'in_progress',
   completed: 'completed',

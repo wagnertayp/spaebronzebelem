@@ -12,6 +12,7 @@
 - [Human handoff rule](human-handoff-rule.md) — keep the AI in the conversation unless the client explicitly asks for a human.
 - [WhatsApp webhook reliability](whatsapp-webhook-idempotency.md) — dedupe and validate bookings, bound AI calls below Heroku's 30-second limit, and use a durable inbox for crash-safe processing.
 - [Booking service durations](booking-service-durations.md) — use the user-confirmed 30-minute duration for meia perna; never infer durations for other services.
+- [WhatsApp booking assignment](whatsapp-booking-assignment.md) — reserve client-selected WhatsApp slots provisionally, then let staff assign the attendee in the agenda queue.
 - [OpenAPI date codegen](openapi-date-codegen.md) — date-formatted strings can become `Date` in generated Zod types but stay strings in the React client.
 - [Drizzle migration generation](drizzle-migration-generation.md) — keep a package-relative `out` in config; this version rejects extra generate flags with `--config`.
 - [Legacy dev migration state](legacy-dev-migration-state.md) — this workspace's existing tables are not tracked in the Drizzle ledger; don't replay migrations blindly.
