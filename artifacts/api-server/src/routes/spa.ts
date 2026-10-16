@@ -242,6 +242,7 @@ import {
   clientArrivalEtaReply,
   dapServiceInformationReply,
   getWhatsappArrivalUpdate,
+  isWhatsappTanningVisitIntent,
   isWhatsappAcceptanceOfServiceOffer,
   isWhatsappDecisionDeferral,
   isDapServiceRequest,
@@ -1122,6 +1123,7 @@ const WHATSAPP_CONVERSATION_CONTINUITY_POLICY = `CONTINUIDADE DA CONVERSA E PERG
 - Antes de perguntar, verifique se a informação já aparece no histórico, se é possível responder com os dados disponíveis e se a pergunta realmente avança o atendimento. Se não souber, não invente: encaminhe à equipe quando necessário.
 - Estética avançada e ritual facial exigem agendamento; reconheça o serviço informado e consulte a agenda ou solicite apenas o dado essencial que estiver faltando.
 - Bronzeamento natural é por ordem de chegada, até 11h30, sem agendamento; não é exposição direta ao sol. Bronzeamento em máquina também é por ordem de chegada, até 20h de segunda a sexta e até 18h aos sábados; não ofereça agendamento para esses serviços.
+- Quando a cliente disser que pretende ir fazer bronzeamento natural ou em máquina, não pergunte qual serviço quer agendar. Informe a ordem de chegada e o limite do método escolhido, envie o áudio de bronzeamento e a imagem de preparo, explique que não realizamos bronzeamento durante a gravidez e encaminhe outras dúvidas de saúde à equipe. Confirme que a equipe estará aguardando e envie o endereço completo em mensagem separada.
 - Para bronzeamento a jato ou a vapor, use apenas informações oficiais cadastradas sobre procedimento, preparo, cuidados e duração. Não presuma se exige agendamento ou se funciona por ordem de chegada; encaminhe dúvidas de saúde ou informação não confirmada à equipe.
 - Antes de enviar, confira se a resposta corresponde à última mensagem no contexto, considera o histórico, evita repetir perguntas já respondidas e não confunde agendamento com ordem de chegada.`;
 
@@ -1196,6 +1198,27 @@ const sendWhatsappAgentReply = async (
   return message;
 };
 
+const sendWhatsappReplyOnce = async (
+  phone: string,
+  clientName: string,
+  text: string,
+  replyTo?: EvolutionReplyReference,
+) => {
+  const [existing] = await db
+    .select()
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+      eq(whatsappMessagesTable.direction, "outbound"),
+      eq(whatsappMessagesTable.text, text),
+      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
+    ))
+    .limit(1);
+  return existing
+    ? toWhatsappMessage(existing)
+    : sendWhatsappReply(phone, clientName, null, text, "reply", replyTo);
+};
+
 const sendWhatsappDocumentMessage = async (
   phone: string,
   clientName: string,
@@ -1229,23 +1252,28 @@ const sendWhatsappDocumentMessage = async (
 };
 
 const sendWhatsappSessionPreparationImage = async (
-  appointment: Appointment,
+  appointment: Appointment | null,
   phone: string,
   clientName: string,
 ) => {
-  const service = serviceForAppointment(appointment);
-  const serviceLabel = normalizeName(`${appointment.service} ${service?.category ?? ""}`);
-  if (!serviceLabel.includes("bronze")) return null;
+  if (appointment) {
+    const service = serviceForAppointment(appointment);
+    const serviceLabel = normalizeName(`${appointment.service} ${service?.category ?? ""}`);
+    if (!serviceLabel.includes("bronze")) return null;
+  }
 
   const caption = "Para sua sessão de bronzeamento, traga 1 toalha e 1 protetor solar facial. Venha com roupa escura e leve e com a pele limpa, sem cremes ou hidratantes.";
+  const conditions = [
+    eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+    eq(whatsappMessagesTable.kind, "image"),
+    eq(whatsappMessagesTable.text, caption),
+    inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
+  ];
+  if (appointment) conditions.push(eq(whatsappMessagesTable.appointmentId, appointment.id));
   const [existing] = await db
     .select()
     .from(whatsappMessagesTable)
-    .where(and(
-      eq(whatsappMessagesTable.appointmentId, appointment.id),
-      eq(whatsappMessagesTable.kind, "image"),
-      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
-    ))
+    .where(and(...conditions))
     .orderBy(desc(whatsappMessagesTable.createdAt))
     .limit(1);
   if (existing) return toWhatsappMessage(existing);
@@ -1254,7 +1282,7 @@ const sendWhatsappSessionPreparationImage = async (
     direction: "outbound",
     phone: normalizeWhatsappPhone(phone),
     clientName,
-    appointmentId: appointment.id,
+    appointmentId: appointment?.id ?? null,
     text: caption,
     status: "pending",
     kind: "image",
@@ -1264,7 +1292,7 @@ const sendWhatsappSessionPreparationImage = async (
   const result = await sendEvolutionSessionPreparationImage(phone, caption);
   if (!result.ok) {
     logger.warn(
-      { err: result.error, phone, appointmentId: appointment.id },
+      { err: result.error, phone, appointmentId: appointment?.id ?? null },
       "WhatsApp session preparation image send failed",
     );
   }
@@ -4434,8 +4462,16 @@ const processWhatsappWebhookPayload = async (
       .slice(-6)
       .map((message) => message.content)
       .join("\n");
+    const recentTanningUserContext = conversationHistory
+      .filter((message) => message.role === "user")
+      .slice(-4)
+      .map((message) => message.content)
+      .join("\n");
     const tanningFlow = getWhatsappTanningFlow(text, recentTanningContext);
     const explicitBronzeInfoRequest = isExplicitWhatsappBronzeInfoRequest(text);
+    const tanningVisitIntent = Boolean(
+      tanningFlow && isWhatsappTanningVisitIntent(text, recentTanningUserContext),
+    );
     const latestRequestedService = [...conversationHistory].reverse().find((message) =>
       message.role === "user" &&
       (isDapServiceRequest(message.content) || Boolean(findBookingService(message.content))),
@@ -4561,6 +4597,19 @@ const processWhatsappWebhookPayload = async (
         { inboxId: inboxJob.id },
         "WhatsApp booking draft cleared after the client changed to a non-booking topic",
       );
+    }
+    if (tanningVisitIntent && !pregnancyMentioned) {
+      const updated = await runWithSpaOperationalStateWriteLock(() => {
+        const clientRecord = clients.find(
+          (item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone),
+        );
+        if (!clientRecord) return false;
+        clientRecord.service = "Bronzeamento";
+        return true;
+      });
+      if (!updated) {
+        log.warn({ inboxId: inboxJob.id }, "Bronze visit intent had no matching client profile");
+      }
     }
     await saveWhatsappClientName(
       phone,
@@ -4925,12 +4974,15 @@ const processWhatsappWebhookPayload = async (
       ));
     }
     const inferredAudioClip = audioClipForWhatsappMessage(normalizedText);
-    const modelAudioRequest = decision.audioClip === "bronze" && !explicitBronzeInfoRequest
+    const bronzeVisitBundle = tanningVisitIntent && !pregnancyMentioned;
+    const modelAudioRequest = decision.audioClip === "bronze" &&
+      !explicitBronzeInfoRequest &&
+      !tanningVisitIntent
       ? null
       : decision.audioClip;
     const requestedAudioClip = createdAppointment || responseDocument
       ? null
-      : explicitBronzeInfoRequest && tanningFlow
+      : (explicitBronzeInfoRequest || bronzeVisitBundle) && tanningFlow
         ? "bronze"
         : resolveRequestedWhatsappAudioClip(modelAudioRequest, inferredAudioClip);
     const requestedAudioAlreadyAttempted = requestedAudioClip === "bronze"
@@ -4952,17 +5004,20 @@ const processWhatsappWebhookPayload = async (
       (requestedAudioClip === "bronze" && !canSendBronzeAudio)
       ? null
       : requestedAudioClip;
+    const tanningScheduleReply = tanningFlow === "natural"
+      ? `O bronze natural é por ordem de chegada, sem agendamento, até 11h30${/\bamanha\b/.test(normalizedText) ? " amanhã" : ""}. Não trabalhamos com exposição direta ao sol.`
+      : tanningFlow === "machine"
+        ? "O bronze em máquina é por ordem de chegada, sem agendamento: até 20h de segunda a sexta e até 18h aos sábados."
+        : "Os bronzes são por ordem de chegada, sem agendamento: natural até 11h30; em máquina, até 20h de segunda a sexta e até 18h aos sábados.";
     const tanningServiceReply = pregnancyMentioned && tanningFlow
       ? pregnancyTanningRefusal
-      : explicitBronzeInfoRequest && tanningFlow
-        ? "Vou te enviar um áudio com as informações do bronzeamento. 🤎"
-      : tanningFlow === "natural"
-      ? `Para o bronze natural${/\bamanha\b/.test(normalizedText) ? " amanhã" : ""}, não precisa agendar: o atendimento é por ordem de chegada até 11h30. Não trabalhamos com exposição direta ao sol. Se tiver alguma condição de saúde, alergia ou usar medicamento, a equipe pode confirmar as contraindicações para o seu caso. 🤎`
-      : tanningFlow === "machine"
-        ? "O bronze em máquina é por ordem de chegada, sem agendamento: até 20h de segunda a sexta e até 18h aos sábados. Se tiver alergia, condição de pele ou usar algum medicamento, posso encaminhar sua dúvida para a equipe. 🤎"
-        : tanningFlow === "unspecified"
-          ? "Os bronzes são por ordem de chegada, sem agendamento: natural até 11h30; em máquina, até 20h de segunda a sexta e até 18h aos sábados. Qual dos dois você quer fazer? 🤎"
-          : null;
+      : bronzeVisitBundle
+        ? `${tanningScheduleReply} Por cuidado, não realizamos bronzeamento durante a gravidez. Para outras condições de saúde, alergias ou uso de medicamentos, a equipe precisa confirmar antes. Vamos aguardar vocês no Spa. 🤎`
+        : explicitBronzeInfoRequest && tanningFlow
+          ? "Vou te enviar um áudio com as informações do bronzeamento. 🤎"
+          : tanningFlow
+            ? `${tanningScheduleReply} 🤎`
+            : null;
     let writtenReply = createdAppointment
       ? appointmentScheduledReply(createdAppointment)
       : tanningServiceReply
@@ -4980,13 +5035,16 @@ const processWhatsappWebhookPayload = async (
         (audioClip && /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText)),
     );
     if (shouldReplyBeforeAudio) {
-      ensureWhatsappDelivery(await sendWhatsappAgentReply(
-        phone,
-        replyClientName,
-        replyAppointmentId,
-        writtenReply,
-        replyReference,
-      ));
+      const intro = bronzeVisitBundle
+        ? await sendWhatsappReplyOnce(phone, replyClientName, writtenReply, replyReference)
+        : await sendWhatsappAgentReply(
+            phone,
+            replyClientName,
+            replyAppointmentId,
+            writtenReply,
+            replyReference,
+          );
+      ensureWhatsappDelivery(intro);
     }
     if (audioClip === "bronze") {
       let bronzeAudioDelivered = false;
@@ -5001,13 +5059,14 @@ const processWhatsappWebhookPayload = async (
       } catch (error) {
         logger.warn({ err: error, phone }, "WhatsApp bronze audio attempt failed");
       }
-      ensureWhatsappDelivery(await sendWhatsappAgentReply(
-        phone,
-        replyClientName,
-        replyAppointmentId,
-        bronzeAudioDelivered ? bronzeMethodDifferenceReply : bronzeAudioUnavailableReply,
-        replyReference,
-      ));
+      if (!bronzeVisitBundle || !bronzeAudioDelivered) {
+        ensureWhatsappDelivery(await sendWhatsappReplyOnce(
+          phone,
+          replyClientName,
+          bronzeAudioDelivered ? bronzeMethodDifferenceReply : bronzeAudioUnavailableReply,
+          replyReference,
+        ));
+      }
     } else if (audioClip) {
       const audioMessage = ensureWhatsappDelivery(await sendWhatsappAudioMessage(
         phone,
@@ -5037,6 +5096,30 @@ const processWhatsappWebhookPayload = async (
           writtenReply,
           replyReference,
         ));
+      }
+    }
+    if (bronzeVisitBundle) {
+      const preparationImage = await sendWhatsappSessionPreparationImage(null, phone, replyClientName);
+      if (preparationImage?.status === "failed") {
+        ensureWhatsappDelivery(await sendWhatsappReplyOnce(
+          phone,
+          replyClientName,
+          "Para a sessão, leve 1 toalha e 1 protetor solar facial. Venha com roupa escura e leve, e com a pele limpa, sem cremes ou hidratantes.",
+          replyReference,
+        ));
+      }
+      const address = aiAgentConfig.address.trim();
+      const normalizedAddress = normalizeCatalogLabel(address);
+      const addressIsOnlyCityAndState = /^belem(?:\s*[-,]\s*(?:pa|para))?$/.test(normalizedAddress);
+      if (address && !addressIsOnlyCityAndState) {
+        ensureWhatsappDelivery(await sendWhatsappReplyOnce(
+          phone,
+          replyClientName,
+          `Endereço do Spa: ${address}`,
+          replyReference,
+        ));
+      } else {
+        log.warn({ inboxId: inboxJob.id }, "Bronze visit address was not sent because no full address is configured");
       }
     }
     if (createdAppointment) {

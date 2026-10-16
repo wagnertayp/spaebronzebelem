@@ -170,6 +170,7 @@ export const getWhatsappTanningFlow = (
   recentContext = "",
 ): WhatsappTanningFlow | null => {
   const current = normalizeSafetyText(currentText);
+  const recent = normalizeSafetyText(recentContext);
   const tanningIsInContext =
     isTanningService(currentText) || isTanningService(recentContext);
   if (!tanningIsInContext) return null;
@@ -183,6 +184,11 @@ export const getWhatsappTanningFlow = (
   }
   if (isTanningService(currentText)) return "unspecified";
   if (isExplicitWhatsappBronzeInfoRequest(currentText)) return "unspecified";
+  if (/\b(?:posso ir|podemos ir|vou ir|estou indo|amanha|hoje|as [0-2]?\d)\b/.test(current)) {
+    if (/\b(?:bronze(?:amento)? natural|marquinha natural)\b/.test(recent)) return "natural";
+    if (/\b(?:bronzeamento em maquina|bronze em maquina|na maquina)\b/.test(recent)) return "machine";
+    return "unspecified";
+  }
   return null;
 };
 
@@ -190,6 +196,32 @@ export const isExplicitWhatsappBronzeInfoRequest = (value: string) =>
   /\b(?:informe tudo|me informe tudo|informar tudo|me informar tudo|me conta tudo|me conte tudo|quero saber tudo|me explica tudo|explique tudo|manda o audio|envia o audio|quero o audio)\b/.test(
     normalizeSafetyText(value),
   );
+
+export const isWhatsappTanningVisitIntent = (
+  currentText: string,
+  recentUserContext = "",
+) => {
+  const current = normalizeSafetyText(currentText);
+  const recent = normalizeSafetyText(recentUserContext);
+  const currentMentionsTanning = isTanningService(currentText);
+  const previousExplicitTanningIntent =
+    /\b(?:quero|queria|pretendo|vamos|vou)\b.{0,45}\b(?:fazer|ir|bronze|bronzeamento|natural|maquina)\b/.test(
+      recent,
+    );
+  const currentExplicitVisitIntent =
+    currentMentionsTanning &&
+    /\b(?:quero|queria|pretendo|vamos|vou|posso|podemos)\b/.test(current) &&
+    /\b(?:fazer|ir|bronze|bronzeamento|natural|maquina)\b/.test(current);
+  const currentIsVisitFollowUp =
+    /\b(?:posso ir|podemos ir|vou ir|estou indo|estamos indo|amanha|hoje|as [0-2]?\d)\b/.test(
+      current,
+    );
+  const currentIsShortServiceAnswer =
+    current.length <= 50 && currentMentionsTanning;
+
+  return currentExplicitVisitIntent ||
+    (previousExplicitTanningIntent && (currentIsVisitFollowUp || currentIsShortServiceAnswer));
+};
 
 export const pregnancyTanningRefusal =
   "Por cuidado, não realizamos bronzeamento durante a gravidez. 🤎";

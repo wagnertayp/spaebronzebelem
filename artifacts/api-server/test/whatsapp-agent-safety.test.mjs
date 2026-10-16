@@ -7,6 +7,7 @@ import {
   getWhatsappArrivalUpdate,
   getWhatsappTanningFlow,
   isExplicitWhatsappBronzeInfoRequest,
+  isWhatsappTanningVisitIntent,
   isWhatsappAcceptanceOfServiceOffer,
   isWhatsappDecisionDeferral,
   isDapServiceRequest,
@@ -126,12 +127,32 @@ test("recognizes a natural-bronze follow-up from recent context and honors expli
     ),
     "unspecified",
   );
+  assert.equal(
+    getWhatsappTanningFlow(
+      "Então posso ir amanhã às 09h?",
+      "Quero fazer bronzeamento natural.",
+    ),
+    "natural",
+  );
   assert.equal(getWhatsappTanningFlow("Quero fazer uma massagem amanhã", ""), null);
   assert.equal(isExplicitWhatsappBronzeInfoRequest("Pode me informar tudo sobre o bronze?"), true);
   assert.equal(isExplicitWhatsappBronzeInfoRequest("Quero fazer natural amanhã"), false);
   assert.equal(
     getWhatsappTanningFlow("Pode me informar tudo?", "Falávamos sobre bronzeamento natural."),
     "unspecified",
+  );
+  assert.equal(
+    isWhatsappTanningVisitIntent(
+      "Quero fazer um bronzeamento com minha amiga, pode me explicar melhor o natural?",
+    ),
+    true,
+  );
+  assert.equal(
+    isWhatsappTanningVisitIntent(
+      "Então posso ir amanhã às 09h?",
+      "Quero fazer um bronzeamento com minha amiga.",
+    ),
+    true,
   );
 });
 
