@@ -29,6 +29,36 @@ export const bronzeAudioUnavailableReply =
 export const bronzeNeonRecommendationReply =
   "Temos opções de bronze a partir de R$ 150. O Protocolo Neon reúne 3 sessões + esfoliação por R$ 180 e foi pensado para um tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; o procedimento é rápido e, com os cuidados adequados, a pele pode parecer mais iluminada. Quer que eu te explique como funciona? 🤎";
 
+const normalizeBronzeText = (value: string) =>
+  value.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+const bronzeSalesIntentPattern =
+  /\b(?:preco|valor|quanto|opcoes?|pacotes?|recomenda|beneficios?|neon|me indica|qual opcao|quero fazer (?:um )?bronze(?:amento)?|queria fazer (?:um )?bronze(?:amento)?)\b/;
+
+const bronzeLogisticsPattern =
+  /\b(?:horario|que horas|agendar|agenda|ordem de chegada|posso ir|onde fica|endereco|aberto|abre|fecha|funcionando)\b/;
+
+export const shouldAskWhatsappBronzeMethod = ({
+  text,
+  flow,
+  visitIntent,
+  explicitInfoRequest,
+  pregnancyMentioned,
+}: {
+  text: string;
+  flow: "natural" | "machine" | "unspecified" | null;
+  visitIntent: boolean;
+  explicitInfoRequest: boolean;
+  pregnancyMentioned: boolean;
+}) => {
+  const normalizedText = normalizeBronzeText(text);
+  return !pregnancyMentioned &&
+    flow === "unspecified" &&
+    !explicitInfoRequest &&
+    !bronzeLogisticsPattern.test(normalizedText) &&
+    (visitIntent || bronzeSalesIntentPattern.test(normalizedText));
+};
+
 export const shouldSuggestWhatsappNeon = ({
   text,
   recentUserContext,
@@ -44,8 +74,8 @@ export const shouldSuggestWhatsappNeon = ({
   explicitInfoRequest: boolean;
   pregnancyMentioned: boolean;
 }) => {
-  const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const recent = recentUserContext.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const normalizedText = normalizeBronzeText(text);
+  const recent = normalizeBronzeText(recentUserContext);
   const conversation = `${recent}\n${normalizedText}`;
   const neonWasDeclined = /\b(?:nao|dispenso)\b.{0,40}\bneon\b/.test(normalizedText);
   const anotherPackageWasChosen =
@@ -54,10 +84,8 @@ export const shouldSuggestWhatsappNeon = ({
   return !pregnancyMentioned &&
     !neonWasDeclined &&
     !anotherPackageWasChosen &&
-    flow !== "natural" &&
-    (
-      (visitIntent && flow === "unspecified") ||
-      (!explicitInfoRequest &&
-        /\b(?:preco|valor|quanto|opcoes?|pacotes?|recomenda|beneficios?|neon|quero fazer bronze|queria fazer bronze)\b/.test(normalizedText))
-    );
+    flow === "machine" &&
+    !explicitInfoRequest &&
+    !bronzeLogisticsPattern.test(normalizedText) &&
+    (visitIntent || bronzeSalesIntentPattern.test(normalizedText) || normalizedText === "maquina");
 };
