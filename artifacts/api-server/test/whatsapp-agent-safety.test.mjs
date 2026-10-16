@@ -186,7 +186,8 @@ test("avoids unsolicited bronze audio and never retries a pre-recorded clip in t
   assert.equal(shouldSendWhatsappAudioClip(true, true), false);
   assert.equal(shouldSendWhatsappAudioClip(false, true), false);
   assert.match(bronzeMethodDifferenceReply, /ordem de chegada/i);
-  assert.match(bronzeMethodDifferenceReply, /até 11h30/i);
+  assert.match(bronzeMethodDifferenceReply, /das 07h30 às 11h/i);
+  assert.match(bronzeAudioUnavailableReply, /das 07h30 às 11h/i);
   assert.doesNotMatch(bronzeMethodDifferenceReply, /exposição solar/i);
   assert.doesNotMatch(bronzeMethodDifferenceReply, /Protocolo Neon/i);
   assert.match(bronzeAudioUnavailableReply, /Não consegui enviar o áudio agora/i);

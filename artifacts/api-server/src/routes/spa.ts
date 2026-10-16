@@ -1127,7 +1127,7 @@ const WHATSAPP_CONVERSATION_CONTINUITY_POLICY = `CONTINUIDADE DA CONVERSA E PERG
 - Não repita explicações já dadas sem necessidade e não faça perguntas apenas para manter a conversa ativa. Pergunte somente quando a resposta for necessária para o próximo passo; se faltar dado essencial, faça uma única pergunta específica e natural.
 - Antes de perguntar, verifique se a informação já aparece no histórico, se é possível responder com os dados disponíveis e se a pergunta realmente avança o atendimento. Se não souber, não invente: encaminhe à equipe quando necessário.
 - Estética avançada e ritual facial exigem agendamento; reconheça o serviço informado e consulte a agenda ou solicite apenas o dado essencial que estiver faltando.
-- Bronzeamento natural é por ordem de chegada, até 11h30, sem agendamento; não é exposição direta ao sol. Bronzeamento em máquina também é por ordem de chegada, até 20h de segunda a sexta e até 18h aos sábados; não ofereça agendamento para esses serviços.
+- Bronzeamento natural é por ordem de chegada, das 07h30 às 11h, sem agendamento; esse limite não se estende se o horário geral do Spa for maior. Não é exposição direta ao sol. Bronzeamento em máquina também é por ordem de chegada, até 20h de segunda a sexta e até 18h aos sábados; não ofereça agendamento para esses serviços.
 - Quando a cliente disser que pretende ir fazer bronzeamento natural ou em máquina, não pergunte qual serviço quer agendar. Informe a ordem de chegada e o limite do método escolhido, envie o áudio de bronzeamento e a imagem de preparo, explique que não realizamos bronzeamento durante a gravidez e encaminhe outras dúvidas de saúde à equipe. Confirme que a equipe estará aguardando e envie o endereço completo em mensagem separada.
 - Para bronzeamento a jato ou a vapor, use apenas informações oficiais cadastradas sobre procedimento, preparo, cuidados e duração. Não presuma se exige agendamento ou se funciona por ordem de chegada; encaminhe dúvidas de saúde ou informação não confirmada à equipe.
 - Antes de enviar, confira se a resposta corresponde à última mensagem no contexto, considera o histórico, evita repetir perguntas já respondidas e não confunde agendamento com ordem de chegada.`;
@@ -1137,7 +1137,7 @@ Antes de explicar como funciona um atendimento, identifique qual serviço a clie
 
 SERVIÇOS E ATENDIMENTO
 - Estética avançada e Ritual facial funcionam com agendamento. Siga o fluxo de agendamento e nunca confirme horário sem validar a disponibilidade real da agenda.
-- Bronzeamento natural funciona por ordem de chegada, com limite de atendimento às 11h30; não é agendado. O Spa e Bronze Belém não oferece bronzeamento diretamente sob o sol natural. Não afirme nem sugira que esse serviço seja exposição ao sol.
+- Bronzeamento natural funciona por ordem de chegada, das 07h30 às 11h; esse limite é específico do bronze e não se estende pelo horário geral do Spa. Não é agendado. O Spa e Bronze Belém não oferece bronzeamento diretamente sob o sol natural. Não afirme nem sugira que esse serviço seja exposição ao sol.
 - Bronzeamento em máquina funciona por ordem de chegada, sem promessa de horário específico: de segunda a sexta até 20h e aos sábados até 18h. Use o dia local atual para informar o limite correto.
 - DAP funciona por ordem de chegada, conforme as informações confirmadas do serviço.
 - Bronzeamento a jato ou a vapor: explique somente que a vaporização aplica produto bronzeador à pele, sem exagerar benefícios nem afirmar que não há contraindicações. Verifique o fluxo de atendimento definido pela equipe; não invente agendamento ou atendimento por ordem de chegada.
@@ -5030,10 +5030,10 @@ const processWhatsappWebhookPayload = async (
       ? null
       : requestedAudioClip;
     const tanningScheduleReply = tanningFlow === "natural"
-      ? `O bronze natural é por ordem de chegada, sem agendamento, até 11h30${/\bamanha\b/.test(normalizedText) ? " amanhã" : ""}. Não trabalhamos com exposição direta ao sol.`
+      ? `O bronze natural é por ordem de chegada, sem agendamento, das 07h30 às 11h${/\bamanha\b/.test(normalizedText) ? " amanhã" : ""}. Não trabalhamos com exposição direta ao sol.`
       : tanningFlow === "machine"
         ? "O bronze em máquina é por ordem de chegada, sem agendamento: até 20h de segunda a sexta e até 18h aos sábados."
-        : "Os bronzes são por ordem de chegada, sem agendamento: natural até 11h30; em máquina, até 20h de segunda a sexta e até 18h aos sábados.";
+        : "Os bronzes são por ordem de chegada, sem agendamento: natural das 07h30 às 11h; em máquina, até 20h de segunda a sexta e até 18h aos sábados.";
     const shouldAskBronzeMethod = shouldAskWhatsappBronzeMethod({
       text: normalizedText,
       recentUserContext: recentTanningUserContext,
