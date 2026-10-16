@@ -44,3 +44,9 @@ For every reply, use the full available conversation and the last agent question
 **Why:** The user supplied additional WhatsApp service and conversation rules and asked that all readable content be integrated.
 
 **How to apply:** Keep these continuity, question-review, and service-flow rules in both the production agent prompt and the agent test prompt; never override confirmed catalog facts or validated booking behavior.
+
+Keep WhatsApp conversation history unified by customer phone when the Spa changes its connected Evolution number. Do not clear or partition the customer's saved conversation solely because the Spa line changed.
+
+**Why:** The user chose to preserve a unified history across connected Spa numbers so returning clients keep continuity.
+
+**How to apply:** Continue retrieving app-saved conversation messages by customer phone; do not introduce instance-based history isolation unless the user changes this rule.
