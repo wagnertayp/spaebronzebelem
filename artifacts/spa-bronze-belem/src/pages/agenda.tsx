@@ -31,7 +31,7 @@ const isAppointmentConflictError = (error: unknown) =>
   error.status === 409;
 
 const DEFAULT_TIME_SLOTS = [
-  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+  '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
   '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
   '17:00', '17:30', '18:00'
@@ -131,9 +131,9 @@ export function Agenda() {
       const [hours, mins] = time.split(':').map(Number);
       return hours * 60 + mins;
     };
-    const firstOpen = intervals.length ? Math.min(...intervals.map((interval) => minutes(interval.start))) : 8 * 60;
+    const firstOpen = intervals.length ? Math.min(...intervals.map((interval) => minutes(interval.start))) : 7 * 60 + 30;
     const lastClose = intervals.length ? Math.max(...intervals.map((interval) => minutes(interval.end))) : 18 * 60;
-    const firstSlot = Math.min(8 * 60, Math.floor(firstOpen / 30) * 30);
+    const firstSlot = Math.min(7 * 60 + 30, Math.floor(firstOpen / 30) * 30);
     const lastSlot = Math.max(18 * 60, Math.ceil(lastClose / 30) * 30);
     const slots: string[] = [];
     for (let minute = firstSlot; minute <= lastSlot; minute += 30) {
