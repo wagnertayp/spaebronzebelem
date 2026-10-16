@@ -22,9 +22,11 @@ import {
   whatsappDecisionDeferralReply,
 } from "../src/lib/whatsapp-agent-safety.ts";
 import {
+  bronzeNeonRecommendationReply,
   bronzeAudioUnavailableReply,
   bronzeMethodDifferenceReply,
   resolveRequestedWhatsappAudioClip,
+  shouldSuggestWhatsappNeon,
   shouldSendBronzeAudio,
   shouldSendWhatsappAudioClip,
 } from "../src/lib/whatsapp-bronze.ts";
@@ -188,4 +190,37 @@ test("avoids unsolicited bronze audio and never retries a pre-recorded clip in t
   assert.doesNotMatch(bronzeMethodDifferenceReply, /Protocolo Neon/i);
   assert.match(bronzeAudioUnavailableReply, /Não consegui enviar o áudio agora/i);
   assert.doesNotMatch(bronzeAudioUnavailableReply, /Protocolo Neon/i);
+});
+
+test("bronze sales recommendation uses the confirmed starting price and Neon offer without guaranteeing results", () => {
+  assert.match(bronzeNeonRecommendationReply, /a partir de R\$ 150/i);
+  assert.match(bronzeNeonRecommendationReply, /3 sessões \+ esfoliação por R\$ 180/i);
+  assert.match(bronzeNeonRecommendationReply, /tom dourado de aparência natural/i);
+  assert.match(bronzeNeonRecommendationReply, /acabamento mais uniforme/i);
+  assert.match(bronzeNeonRecommendationReply, /marquinhas personalizadas/i);
+  assert.match(bronzeNeonRecommendationReply, /pode parecer mais iluminada/i);
+  assert.doesNotMatch(bronzeNeonRecommendationReply, /garantido|garante|garantir/i);
+});
+
+test("suggests Neon only while the client is choosing bronze and respects a declined or chosen option", () => {
+  const common = {
+    recentUserContext: "",
+    flow: "unspecified",
+    visitIntent: true,
+    explicitInfoRequest: false,
+    pregnancyMentioned: false,
+  };
+  assert.equal(shouldSuggestWhatsappNeon({ ...common, text: "Quero fazer bronzeamento" }), true);
+  assert.equal(shouldSuggestWhatsappNeon({ ...common, flow: "natural", text: "Quero fazer bronze natural" }), false);
+  assert.equal(shouldSuggestWhatsappNeon({ ...common, text: "Não quero o Neon" }), false);
+  assert.equal(shouldSuggestWhatsappNeon({
+    ...common,
+    text: "Posso ir amanhã?",
+    recentUserContext: "Prefiro Glam Potência",
+  }), false);
+  assert.equal(shouldSuggestWhatsappNeon({
+    ...common,
+    visitIntent: false,
+    text: "Bronze precisa agendar?",
+  }), false);
 });

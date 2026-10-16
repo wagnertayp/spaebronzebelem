@@ -18,3 +18,9 @@ A current intent to visit for natural or machine tanning overrides any stale app
 **Why:** The user reported repeated booking confusion and specified the complete walk-in bronze response, including audio, prep information, separate address, and only the service label in the client record.
 
 **How to apply:** Classify active tanning intent from the current turn and recent user messages before using saved booking state. Suppress and clear stale booking drafts; never create a bronze appointment. Send the configured full address as a separate message, and never replace it with “Belém - PA.”
+
+The user confirmed that bronze services of every modality start at R$150. Do not quote older catalog values below that minimum until the Spa provides updated package prices.
+
+**Why:** The user explicitly corrected the minimum bronze price across all modalities.
+
+**How to apply:** Use R$150 as the floor in all bronze recommendations, including natural, machine, and vapor. Treat any legacy package price below R$150 as stale and hand off for the current price rather than inventing a replacement.

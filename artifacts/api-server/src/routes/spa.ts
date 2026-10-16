@@ -238,6 +238,10 @@ import {
 import { persistWhatsappWebhookBeforeAcknowledgement } from "../lib/whatsapp-webhook-acknowledgement";
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
 import {
+  bronzeNeonRecommendationReply,
+  shouldSuggestWhatsappNeon,
+} from "../lib/whatsapp-bronze";
+import {
   clientOnTheWayReply,
   clientArrivalEtaReply,
   dapServiceInformationReply,
@@ -1749,7 +1753,8 @@ REGRAS OBRIGATÓRIAS:
 - Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta nem mencione o nome da profissional.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Se pedir o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
 - Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar ou enviar áudio e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação, comparação ou resposta específica, responda sem atrasar com triagem.
-- Quando a cliente estiver escolhendo ou pedir recomendação de bronzeamento, priorize o Turbo Neon (Protocolo Neon): três sessões + esfoliação por R$180. Apresente-o como a opção recomendada para quem busca bronze mais uniforme, tom dourado de aparência natural, procedimento em pouco tempo e marquinhas personalizadas; diga que a pele pode parecer mais iluminada e hidratada quando combinada com cuidados adequados. Ao contornar uma objeção, acolha a dúvida e destaque apenas a qualidade do Neon que responde a ela, sem prometer resultados, inventar duração ou afirmar superioridade universal.
+- O bronze começa em R$150 em qualquer modalidade. Ignore preços antigos abaixo desse piso e não os cite nem ofereça esses pacotes até a equipe atualizar os valores.
+- Quando a cliente demonstrar interesse em escolher ou comparar bronze, faça uma recomendação comercial acolhedora do Turbo Neon (Protocolo Neon), mesmo que ela não peça recomendação: três sessões + esfoliação por R$180. Explique que foi pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; o procedimento é rápido e, com cuidados adequados, a pele pode parecer mais iluminada. Apresente como benefícios possíveis, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Não ofereça se ela já escolheu bronze natural/outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.
 - A escolha da cliente prevalece: se ela optar por outro método/pacote ou recusar o Neon, pare de oferecer e não volte a mencionar o Neon nem suas qualidades em mensagens futuras, a menos que ela pergunte sobre ele. Não faça a oferta durante atualização de chegada ou depois de um agendamento já confirmado.
 - O áudio de bronze pode ser escolhido uma única vez quando a cliente confirmar que é a primeira vez, aceitar a explicação ou pedir diretamente o áudio. Não o escolha automaticamente ao perguntar se é a primeira vez nem antes de uma cliente experiente aceitar a explicação. Depois da tentativa, o servidor enviará a comparação dos métodos.
 - Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é mais seguro ou melhor nem prometa resultados.
@@ -5028,12 +5033,22 @@ const processWhatsappWebhookPayload = async (
       : tanningFlow === "machine"
         ? "O bronze em máquina é por ordem de chegada, sem agendamento: até 20h de segunda a sexta e até 18h aos sábados."
         : "Os bronzes são por ordem de chegada, sem agendamento: natural até 11h30; em máquina, até 20h de segunda a sexta e até 18h aos sábados.";
+    const shouldSuggestNeon = shouldSuggestWhatsappNeon({
+      text: normalizedText,
+      recentUserContext: recentTanningUserContext,
+      flow: tanningFlow,
+      visitIntent: bronzeVisitBundle,
+      explicitInfoRequest: explicitBronzeInfoRequest,
+      pregnancyMentioned,
+    });
     const tanningServiceReply = pregnancyMentioned && tanningFlow
       ? pregnancyTanningRefusal
       : bronzeVisitBundle
-        ? `${tanningScheduleReply} Por cuidado, não realizamos bronzeamento durante a gravidez. Para outras condições de saúde, alergias ou uso de medicamentos, a equipe precisa confirmar antes. Vamos aguardar vocês no Spa. 🤎`
+        ? `${tanningScheduleReply} Por cuidado, não realizamos bronzeamento durante a gravidez. Para outras condições de saúde, alergias ou uso de medicamentos, a equipe precisa confirmar antes. Vamos aguardar vocês no Spa.${shouldSuggestNeon ? ` ${bronzeNeonRecommendationReply}` : " 🤎"}`
         : explicitBronzeInfoRequest && tanningFlow
           ? "Vou te enviar um áudio com as informações do bronzeamento. 🤎"
+          : shouldSuggestNeon
+            ? bronzeNeonRecommendationReply
           : tanningFlow
             ? `${tanningScheduleReply} 🤎`
             : null;
@@ -5763,7 +5778,8 @@ Regras obrigatórias:
 - Se a cliente disser que vai conferir, pensar ou consultar alguém, reconheça sem pressionar e não repita uma lista de horários.
 - Se a cliente aceitar uma oferta feita na mensagem anterior, cumpra a oferta sem repetir a mesma pergunta; peça esclarecimento apenas quando a intenção ou a opção escolhida não estiver clara.
 - Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação ou informação específica, responda sem atrasar com triagem.
-- Quando a cliente estiver escolhendo ou pedir recomendação de bronzeamento, priorize o Turbo Neon (Protocolo Neon): três sessões + esfoliação por R$180. Destaque o acabamento mais uniforme, o tom dourado natural, a rapidez do procedimento, a possibilidade de personalizar as marquinhas e a aparência mais iluminada/hidratada com cuidados adequados. Trate como qualidades pretendidas, sem prometer resultados nem inventar duração.
+- O bronze começa em R$150 em qualquer modalidade. Ignore preços antigos abaixo desse piso e não os cite nem ofereça esses pacotes até a equipe atualizar os valores.
+- Quando a cliente demonstrar interesse em escolher ou comparar bronze, faça uma recomendação comercial acolhedora do Turbo Neon (Protocolo Neon), mesmo que ela não peça recomendação: três sessões + esfoliação por R$180. Explique que foi pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; o procedimento é rápido e, com cuidados adequados, a pele pode parecer mais iluminada. Apresente como benefícios possíveis, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Não ofereça se ela já escolheu bronze natural/outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.
 - Se a cliente optar por outro método/pacote ou recusar o Neon, respeite a escolha e não volte a mencioná-lo, salvo se ela perguntar sobre o Neon.
 - Neste teste textual, considere que a tentativa do áudio de bronze já foi registrada: não prometa nem envie outra gravação. Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. Para máquina, use somente as informações cadastradas.
 - Por cuidado, não realizamos bronzeamento durante a gravidez. Recuse apenas o bronzeamento; não diga que banho de lua ou outros serviços são seguros ou proibidos sem informação confirmada. Se a adequação durante a gestação não estiver cadastrada, diga que não pode confirmar e responda à pergunta específica sem oferecer serviços aleatórios.
