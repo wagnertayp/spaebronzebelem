@@ -89,11 +89,17 @@ export const isDapServiceRequest = (value: string) => {
   return /\bd\.?\s*a\.?\s*p\.?\b|\bdrenagem\s+(?:de\s+)?alta\s+performance\b/.test(normalized);
 };
 
+export const isSpaBathServiceRequest = (value: string) =>
+  /\bspa\s+de\s+banhos?\b/.test(normalizeSafetyText(value));
+
 export const isWhatsappWalkInService = (value: string) =>
-  isDapServiceRequest(value);
+  isDapServiceRequest(value) || isSpaBathServiceRequest(value);
 
 export const dapServiceInformationReply =
   "O DAP (Drenagem de Alta Performance) trabalha abdômen, pernas e braços; dura cerca de 2h, com 40 min de manta, 40 min de drenagem corporal e uso de nutracêuticos, por R$ 200. O atendimento é por ordem de chegada; os resultados variam e não são garantidos. 🤎";
+
+export const spaBathServiceInformationReply =
+  "O Spa de Banhos custa R$ 40. Traga uma toalha e um biquíni. Se não tiver toalha, alugamos por R$ 5; se não tiver biquíni, montamos um tapa-sexy por R$ 10. Não precisa agendar: o atendimento é por ordem de chegada, nos dias e horários de funcionamento do Spa. 🤎";
 
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

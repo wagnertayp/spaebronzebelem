@@ -21,3 +21,4 @@
 - [Financial import dates](financial-import-dates.md) — customer lifetime totals and product expiry dates cannot populate a date-based monthly ledger.
 - [Client deduplication totals](client-deduplication-totals.md) — keep duplicate matching conservative; compare summed currency in cents to avoid binary-float drift.
 - [Dashboard reads during AI writes](dashboard-read-during-ai-writes.md) — serve the latest committed snapshot without waiting on the webhook write queue.
+- [Spa de Banhos walk-in](spa-baths-walk-in.md) — bring a towel and bikini; towel rental is R$5, tapa-sexy is R$10, and service is walk-in.

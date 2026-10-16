@@ -246,6 +246,8 @@ import {
   clientOnTheWayReply,
   clientArrivalEtaReply,
   dapServiceInformationReply,
+  isSpaBathServiceRequest,
+  spaBathServiceInformationReply,
   getWhatsappArrivalUpdate,
   isWhatsappTanningVisitIntent,
   isWhatsappAcceptanceOfServiceOffer,
@@ -1139,7 +1141,8 @@ SERVIÇOS E ATENDIMENTO
 - Estética avançada e Ritual facial funcionam com agendamento. Siga o fluxo de agendamento e nunca confirme horário sem validar a disponibilidade real da agenda.
 - Bronzeamento natural funciona por ordem de chegada, das 07h30 às 11h; esse limite é específico do bronze e não se estende pelo horário geral do Spa. Não é agendado. O Spa e Bronze Belém não oferece bronzeamento diretamente sob o sol natural. Não afirme nem sugira que esse serviço seja exposição ao sol.
 - Bronzeamento em máquina funciona por ordem de chegada, sem promessa de horário específico: de segunda a sexta até 20h e aos sábados até 18h. Use o dia local atual para informar o limite correto.
-- DAP funciona por ordem de chegada, conforme as informações confirmadas do serviço.
+- DAP e Spa de Banhos funcionam por ordem de chegada; não exigem agendamento.
+- Para o Spa de Banhos, oriente a cliente a levar uma toalha e um biquíni. O aluguel da toalha custa R$ 5; se ela não tiver biquíni, a equipe monta um tapa-sexy por R$ 10. O atendimento segue os dias e horários de funcionamento do Spa.
 - Bronzeamento a jato ou a vapor: explique somente que a vaporização aplica produto bronzeador à pele, sem exagerar benefícios nem afirmar que não há contraindicações. Verifique o fluxo de atendimento definido pela equipe; não invente agendamento ou atendimento por ordem de chegada.
 - Para qualquer outro serviço, use somente as regras cadastradas. Se o fluxo não estiver definido, não confirme como será o atendimento.
 
@@ -1736,8 +1739,9 @@ REGRAS OBRIGATÓRIAS:
 - Nunca peça o nome na primeira resposta, junto da saudação inicial. Depois que a cliente já recebeu essa resposta e continuar a conversa, se o nome ainda não for conhecido, pergunte-o com naturalidade em uma pergunta curta; não repita o pedido e não deixe de responder à dúvida principal.
 - Ao retornar clientName, use somente o nome que a cliente informou explicitamente na conversa; se ainda não informou, retorne null. Nunca deduza o nome pelo telefone.
 - Não invente preços, promoções, horários, contraindicações ou resultados.
-- DAP, bronzeamento natural e bronzeamento em máquina são atendimentos por ordem de chegada, respeitando os limites específicos abaixo. Não atribua esse fluxo a outros serviços sem confirmação cadastrada.
+- DAP, Spa de Banhos, bronzeamento natural e bronzeamento em máquina são atendimentos por ordem de chegada, respeitando os limites específicos abaixo. Não atribua esse fluxo a outros serviços sem confirmação cadastrada.
 - O DAP (Drenagem de Alta Performance) atende abdômen, pernas e braços; dura cerca de 2h, inclui aproximadamente 40 min de manta, 40 min de drenagem corporal e uso de nutracêuticos, custa R$ 200 e é por ordem de chegada, sem agendamento. Não prometa resultados, emagrecimento ou eliminação de toxinas.
+- Para o Spa de Banhos, recomende levar uma toalha e um biquíni. Se não tiver toalha, o aluguel custa R$ 5; se não tiver biquíni, a equipe monta um tapa-sexy por R$ 10. O atendimento é por ordem de chegada, sem agendamento, nos dias e horários de funcionamento do Spa.
 - Ao perguntarem se o spa está aberto agora, use a data e hora locais e o horário cadastrado; não confunda o horário de funcionamento do spa com disponibilidade para um serviço específico. Não prometa vaga sem consultar a agenda.
 - Não estime duração de trajeto nem diga que “dá tempo” de chegar de Uber sem informação confiável em tempo real; informe o horário de fechamento cadastrado e recomende conferir o trajeto no aplicativo.
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
@@ -4533,6 +4537,24 @@ const processWhatsappWebhookPayload = async (
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
 
+    const spaBathWalkInRequest =
+      isSpaBathServiceRequest(text) ||
+      isSpaBathServiceRequest(savedBookingDraft?.service ?? "");
+    if (spaBathWalkInRequest) {
+      if (savedBookingDraft && isSpaBathServiceRequest(savedBookingDraft.service ?? "")) {
+        await saveWhatsappBookingDraft(phone, null);
+      }
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        spaBathServiceInformationReply,
+        "reply",
+        replyReference,
+      ));
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
+
     const previousAssistantMessage = [...conversationHistory]
       .reverse()
       .find((message) => message.role === "assistant")?.content ?? "";
@@ -5789,6 +5811,7 @@ Regras obrigatórias:
 - Se a cliente disser que vai conferir, pensar ou consultar alguém, reconheça sem pressionar e não repita uma lista de horários.
 - Se a cliente aceitar uma oferta feita na mensagem anterior, cumpra a oferta sem repetir a mesma pergunta; peça esclarecimento apenas quando a intenção ou a opção escolhida não estiver clara.
 - Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação ou informação específica, responda sem atrasar com triagem.
+- Spa de Banhos é por ordem de chegada, sem agendamento, nos dias e horários do Spa. Oriente a cliente a levar uma toalha e um biquíni; aluguel de toalha custa R$ 5 e, se não tiver biquíni, a equipe monta um tapa-sexy por R$ 10.
 - O bronze começa em R$150 em qualquer modalidade. Ignore preços antigos abaixo desse piso e não os cite nem ofereça esses pacotes até a equipe atualizar os valores.
 - Antes de indicar o Turbo Neon (Protocolo Neon), confirme se a cliente prefere bronze natural ou em máquina. Se ainda não informou a modalidade, pergunte primeiro e não mencione o Neon nessa resposta. Se escolher bronze em máquina e ainda estiver avaliando opções, recomende o Neon: três sessões + esfoliação por R$180, pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; procedimento rápido e pele que pode parecer mais iluminada com cuidados adequados. Apresente como possibilidades, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Se escolher natural, não indique Neon. Também não ofereça se já escolheu outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.
 - Se a cliente optar por outro método/pacote ou recusar o Neon, respeite a escolha e não volte a mencioná-lo, salvo se ela perguntar sobre o Neon.

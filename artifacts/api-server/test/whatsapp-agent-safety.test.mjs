@@ -11,6 +11,7 @@ import {
   isWhatsappAcceptanceOfServiceOffer,
   isWhatsappDecisionDeferral,
   isDapServiceRequest,
+  isSpaBathServiceRequest,
   isClientOnTheWay,
   isWhatsappWalkInService,
   isTanningService,
@@ -19,6 +20,7 @@ import {
   removeWhatsappProfessionalNames,
   pregnancyTanningRefusal,
   spaInfantilHandoffReply,
+  spaBathServiceInformationReply,
   whatsappDecisionDeferralReply,
 } from "../src/lib/whatsapp-agent-safety.ts";
 import {
@@ -113,6 +115,17 @@ test("identifies tanning services and rejects the booking safely", () => {
   assert.equal(isTanningService("Massagem relaxante"), false);
   assert.match(pregnancyTanningRefusal, /não realizamos bronzeamento durante a gravidez/i);
   assert.doesNotMatch(pregnancyTanningRefusal, /outros serviços/i);
+});
+
+test("recognizes Spa de Banhos as a walk-in service and gives the correct preparation details", () => {
+  assert.equal(isSpaBathServiceRequest("Quero fazer Spa de Banhos"), true);
+  assert.equal(isWhatsappWalkInService("Spa de Banhos"), true);
+  assert.equal(isWhatsappWalkInService("Banho de Lua"), false);
+  assert.match(spaBathServiceInformationReply, /traga uma toalha e um biquíni/i);
+  assert.match(spaBathServiceInformationReply, /alugamos por R\$ 5/i);
+  assert.match(spaBathServiceInformationReply, /tapa-sexy por R\$ 10/i);
+  assert.match(spaBathServiceInformationReply, /ordem de chegada/i);
+  assert.match(spaBathServiceInformationReply, /não precisa agendar/i);
 });
 
 test("recognizes a natural-bronze follow-up from recent context and honors explicit full-info requests", () => {
