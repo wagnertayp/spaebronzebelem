@@ -219,6 +219,7 @@ import {
   getEvolutionMedia,
   sendEvolutionAudio,
   sendEvolutionDapImage,
+  sendEvolutionBathMoonBanner,
   sendEvolutionSessionPreparationImage,
   type EvolutionReplyReference,
   type WhatsappAudioClip,
@@ -248,6 +249,9 @@ import {
   dapServiceInformationReply,
   isSpaBathServiceRequest,
   spaBathServiceInformationReply,
+  isBathMoonServiceRequest,
+  getWhatsappBathMoonBannerSelection,
+  bathMoonBannerInformationReply,
   getWhatsappArrivalUpdate,
   isWhatsappTanningVisitIntent,
   isWhatsappAcceptanceOfServiceOffer,
@@ -1385,6 +1389,83 @@ const sendWhatsappDapImages = async (phone: string, clientName: string) => {
   }
 };
 
+const bathMoonBannerOutboxItems = [
+  {
+    image: "five-step" as const,
+    caption: "Banho de Lua — 5 passos, R$ 120. Brinde: coquetel de frutas com picolé e máscara facial de argila rosa.",
+  },
+  {
+    image: "clarifying" as const,
+    caption: "Banho de Lua Clareador — 7 passos, R$ 150. Brinde: coquetel de frutas com picolé e máscara facial de ouro ou argila branca.",
+  },
+];
+
+const sendWhatsappBathMoonBanners = async (
+  phone: string,
+  clientName: string,
+  selection: "five-step" | "clarifying" | null,
+) => {
+  const normalizedPhone = normalizeWhatsappPhone(phone);
+  const items = selection
+    ? bathMoonBannerOutboxItems.filter((item) => item.image === selection)
+    : bathMoonBannerOutboxItems;
+  const captions = items.map((item) => item.caption);
+  const existingAttempts = await db
+    .select({
+      id: whatsappMessagesTable.id,
+      text: whatsappMessagesTable.text,
+      status: whatsappMessagesTable.status,
+    })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizedPhone),
+      eq(whatsappMessagesTable.direction, "outbound"),
+      eq(whatsappMessagesTable.kind, "image"),
+      inArray(whatsappMessagesTable.text, captions),
+    ));
+
+  for (const item of items) {
+    const previousAttempt = existingAttempts.find((attempt) => attempt.text === item.caption);
+    if (previousAttempt?.status === "sent" || previousAttempt?.status === "delivered") continue;
+    const pending = previousAttempt
+      ? await updateWhatsappMessage(previousAttempt.id, {
+          status: "pending",
+          providerMessageId: null,
+          error: null,
+        }) ?? await addWhatsappMessage({
+          direction: "outbound",
+          phone: normalizedPhone,
+          clientName,
+          appointmentId: null,
+          text: item.caption,
+          status: "pending",
+          kind: "image",
+          providerMessageId: null,
+          error: null,
+        })
+      : await addWhatsappMessage({
+          direction: "outbound",
+          phone: normalizedPhone,
+          clientName,
+          appointmentId: null,
+          text: item.caption,
+          status: "pending",
+          kind: "image",
+          providerMessageId: null,
+          error: null,
+        });
+    const result = await sendEvolutionBathMoonBanner(phone, item.image, item.caption);
+    if (!result.ok) {
+      logger.warn({ err: result.error, phone, image: item.image }, "WhatsApp Banho de Lua banner send failed");
+    }
+    await updateWhatsappMessage(pending.id, {
+      status: result.ok ? "sent" : "failed",
+      providerMessageId: result.providerMessageId,
+      error: result.error,
+    });
+  }
+};
+
 const sendWhatsappAudioMessage = async (
   phone: string,
   clientName: string,
@@ -1651,7 +1732,12 @@ const askWhatsappAgent = async (
 ): Promise<AgentDecision> => {
   const history = conversationHistory ?? (await getConversationHistory(phone)).slice(0, -1);
   const serviceTable = activeSpaRecords("service", services)
-    .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
+    .map((service) => {
+      const price = normalizeCatalogLabel(service.name) === "banho de lua"
+        ? "Banho de Lua 5 passos: R$ 120; Banho de Lua Clareador 7 passos: R$ 150"
+        : service.price;
+      return `- ${service.name} | ${service.category} | ${service.duration} | ${price}`;
+    })
     .join("\n");
   const professionalTable = activeSpaRecords("professional", professionals)
     .filter((professional) => professional.active)
@@ -1742,6 +1828,7 @@ REGRAS OBRIGATÓRIAS:
 - DAP, Spa de Banhos, bronzeamento natural e bronzeamento em máquina são atendimentos por ordem de chegada, respeitando os limites específicos abaixo. Não atribua esse fluxo a outros serviços sem confirmação cadastrada.
 - O DAP (Drenagem de Alta Performance) atende abdômen, pernas e braços; dura cerca de 2h, inclui aproximadamente 40 min de manta, 40 min de drenagem corporal e uso de nutracêuticos, custa R$ 200 e é por ordem de chegada, sem agendamento. Não prometa resultados, emagrecimento ou eliminação de toxinas.
 - Para o Spa de Banhos, recomende levar uma toalha e um biquíni. Se não tiver toalha, o aluguel custa R$ 5; se não tiver biquíni, a equipe monta um tapa-sexy por R$ 10. O atendimento é por ordem de chegada, sem agendamento, nos dias e horários de funcionamento do Spa.
+- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Ao perguntar sem especificar, apresente as duas e envie os dois banners; se escolher uma, envie apenas o banner correspondente.
 - Ao perguntarem se o spa está aberto agora, use a data e hora locais e o horário cadastrado; não confunda o horário de funcionamento do spa com disponibilidade para um serviço específico. Não prometa vaga sem consultar a agenda.
 - Não estime duração de trajeto nem diga que “dá tempo” de chegar de Uber sem informação confiável em tempo real; informe o horário de fechamento cadastrado e recomende conferir o trajeto no aplicativo.
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
@@ -2433,7 +2520,7 @@ const services = [
     name: "Banho de Lua",
     category: "Bronze",
     duration: "90 min",
-    price: "R$ 190",
+    price: "R$ 120 (5 passos) / R$ 150 (Clareador 7 passos)",
     accent: "sand",
   },
   {
@@ -4555,6 +4642,25 @@ const processWhatsappWebhookPayload = async (
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
 
+    const asksForShineGourmet = /\bshine gourmet\b/.test(normalizedText);
+    if (
+      isBathMoonServiceRequest(text) &&
+      !asksForShineGourmet &&
+      !hasWhatsappBookingIntent(text)
+    ) {
+      const selection = getWhatsappBathMoonBannerSelection(text);
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        bathMoonBannerInformationReply(selection),
+        "reply",
+        replyReference,
+      ));
+      await sendWhatsappBathMoonBanners(phone, knownClientName, selection);
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
+
     const previousAssistantMessage = [...conversationHistory]
       .reverse()
       .find((message) => message.role === "assistant")?.content ?? "";
@@ -5768,7 +5874,12 @@ router.post("/ai-agent/test", async (req, res, next) => {
     await loadWhatsappSettings();
     const { message } = TestAiAgentBody.parse(req.body);
     const serviceTable = activeSpaRecords("service", services)
-      .map((service) => `- ${service.name} | ${service.category} | ${service.duration} | ${service.price}`)
+      .map((service) => {
+        const price = normalizeCatalogLabel(service.name) === "banho de lua"
+          ? "Banho de Lua 5 passos: R$ 120; Banho de Lua Clareador 7 passos: R$ 150"
+          : service.price;
+        return `- ${service.name} | ${service.category} | ${service.duration} | ${price}`;
+      })
       .join("\n");
     const currentLocalDateTime = new Intl.DateTimeFormat("pt-BR", {
       timeZone: whatsappAutomation.timezone,
@@ -5811,6 +5922,7 @@ Regras obrigatórias:
 - Se a cliente disser que vai conferir, pensar ou consultar alguém, reconheça sem pressionar e não repita uma lista de horários.
 - Se a cliente aceitar uma oferta feita na mensagem anterior, cumpra a oferta sem repetir a mesma pergunta; peça esclarecimento apenas quando a intenção ou a opção escolhida não estiver clara.
 - Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação ou informação específica, responda sem atrasar com triagem.
+- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Ao perguntar sem especificar, apresente as duas e envie os dois banners; se escolher uma, envie apenas o banner correspondente.
 - Spa de Banhos é por ordem de chegada, sem agendamento, nos dias e horários do Spa. Oriente a cliente a levar uma toalha e um biquíni; aluguel de toalha custa R$ 5 e, se não tiver biquíni, a equipe monta um tapa-sexy por R$ 10.
 - O bronze começa em R$150 em qualquer modalidade. Ignore preços antigos abaixo desse piso e não os cite nem ofereça esses pacotes até a equipe atualizar os valores.
 - Antes de indicar o Turbo Neon (Protocolo Neon), confirme se a cliente prefere bronze natural ou em máquina. Se ainda não informou a modalidade, pergunte primeiro e não mencione o Neon nessa resposta. Se escolher bronze em máquina e ainda estiver avaliando opções, recomende o Neon: três sessões + esfoliação por R$180, pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; procedimento rápido e pele que pode parecer mais iluminada com cuidados adequados. Apresente como possibilidades, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Se escolher natural, não indique Neon. Também não ofereça se já escolheu outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.

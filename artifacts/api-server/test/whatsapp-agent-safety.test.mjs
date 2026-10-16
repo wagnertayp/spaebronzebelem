@@ -4,6 +4,9 @@ import {
   clientArrivalEtaReply,
   clientOnTheWayReply,
   dapServiceInformationReply,
+  bathMoonBannerInformationReply,
+  getWhatsappBathMoonBannerSelection,
+  isBathMoonServiceRequest,
   getWhatsappArrivalUpdate,
   getWhatsappTanningFlow,
   isExplicitWhatsappBronzeInfoRequest,
@@ -126,6 +129,16 @@ test("recognizes Spa de Banhos as a walk-in service and gives the correct prepar
   assert.match(spaBathServiceInformationReply, /tapa-sexy por R\$ 10/i);
   assert.match(spaBathServiceInformationReply, /ordem de chegada/i);
   assert.match(spaBathServiceInformationReply, /não precisa agendar/i);
+});
+
+test("recognizes Banho de Lua offers and distinguishes the two banner prices", () => {
+  assert.equal(isBathMoonServiceRequest("Quero saber do Banho de Lua"), true);
+  assert.equal(isBathMoonServiceRequest("Quero Spa de Banhos"), false);
+  assert.equal(getWhatsappBathMoonBannerSelection("Quero o clareador de 7 passos"), "clarifying");
+  assert.equal(getWhatsappBathMoonBannerSelection("Quero o de 5 passos"), "five-step");
+  assert.match(bathMoonBannerInformationReply(null), /R\$ 120/);
+  assert.match(bathMoonBannerInformationReply(null), /R\$ 150/);
+  assert.match(bathMoonBannerInformationReply("clarifying"), /6 áreas de atrito/i);
 });
 
 test("recognizes a natural-bronze follow-up from recent context and honors explicit full-info requests", () => {
