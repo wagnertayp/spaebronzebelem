@@ -4196,29 +4196,48 @@ const processWhatsappWebhookPayload = async (
       } satisfies EvolutionReplyReference
     : undefined;
 
-  const { client, appointment } = await runWithSpaOperationalStateWriteLock(() => {
-    restoreSpaRecord("whatsappConversation", phone);
-    const matchedClient = clients.find(
-      (item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone),
-    ) ?? null;
-    const matchedAppointment = appointments
-      .filter((item) =>
-        item.status === "confirmed" &&
-        matchedClient &&
-        normalizeName(item.client) === normalizeName(matchedClient.name),
-      )
-      .filter((item) =>
-        (appointmentDateTimeInAgenda(item.start)?.getTime() ?? Number.MAX_SAFE_INTEGER) > Date.now(),
-      )
-      .sort((a, b) =>
-        (appointmentDateTimeInAgenda(a.start)?.getTime() ?? 0) -
-        (appointmentDateTimeInAgenda(b.start)?.getTime() ?? 0),
-      )[0] ?? null;
-    return {
-      client: matchedClient ? clone(matchedClient) : null,
-      appointment: matchedAppointment ? clone(matchedAppointment) : null,
-    };
-  });
+  await ensureSpaOperationalStateLoaded();
+  let operationalSnapshot = await loadDashboardOperationalSnapshot();
+  if (!operationalSnapshot) {
+    throw new Error("SPA operational state is unavailable for WhatsApp processing.");
+  }
+
+  const conversationWasArchived = operationalSnapshot.archivedSpaRecords.some(
+    (record) =>
+      record.entity === "whatsappConversation" &&
+      normalizeWhatsappPhone(record.id) === normalizedPhone,
+  );
+  if (conversationWasArchived) {
+    await runWithSpaOperationalStateWriteLock(() => {
+      restoreSpaRecord("whatsappConversation", phone);
+    });
+    operationalSnapshot = await loadDashboardOperationalSnapshot();
+    if (!operationalSnapshot) {
+      throw new Error("SPA operational state disappeared while restoring a WhatsApp conversation.");
+    }
+  }
+
+  const activeClients = activeDashboardRecords(
+    operationalSnapshot,
+    "client",
+    operationalSnapshot.clients,
+  );
+  const client = activeClients.find(
+    (item) => normalizeWhatsappPhone(item.phone) === normalizedPhone,
+  ) ?? null;
+  const appointment = operationalSnapshot.appointments
+    .filter((item) =>
+      item.status === "confirmed" &&
+      client &&
+      normalizeName(item.client) === normalizeName(client.name),
+    )
+    .filter((item) =>
+      (appointmentDateTimeInAgenda(item.start)?.getTime() ?? Number.MAX_SAFE_INTEGER) > Date.now(),
+    )
+    .sort((a, b) =>
+      (appointmentDateTimeInAgenda(a.start)?.getTime() ?? 0) -
+      (appointmentDateTimeInAgenda(b.start)?.getTime() ?? 0),
+    )[0] ?? null;
   let inboundMessageId = existingInboundMessage?.id;
   if (!existingInboundMessage) {
     const savedInboundMessage = await addWhatsappMessage({
