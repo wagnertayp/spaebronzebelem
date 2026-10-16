@@ -62,6 +62,7 @@ const documentFiles: Record<WhatsappDocument, { path: string; fileName: string }
 
 export type WhatsappAudioClip = "combos" | "bronze";
 export type WhatsappDapImage = "before" | "after";
+export type WhatsappBathMoonBannerImage = "five-step" | "clarifying";
 
 const audioFiles: Record<WhatsappAudioClip, { path: string }> = {
   combos: {
@@ -85,6 +86,17 @@ const dapImageFiles: Record<WhatsappDapImage, { path: string; fileName: string }
   after: {
     path: "DAP_2_1791070430784.jpeg",
     fileName: "dap-antes-e-depois-2.jpeg",
+  },
+};
+
+const bathMoonBannerFiles: Record<WhatsappBathMoonBannerImage, { path: string; fileName: string }> = {
+  "five-step": {
+    path: "WhatsApp_Image_2026-10-16_at_14.22.43_(1)_1792172522475.jpeg",
+    fileName: "banho-de-lua-5-passos-r120.jpeg",
+  },
+  clarifying: {
+    path: "WhatsApp_Image_2026-10-16_at_14.22.43_1792172522476.jpeg",
+    fileName: "banho-de-lua-clareador-7-passos-r150.jpeg",
   },
 };
 
@@ -675,6 +687,13 @@ export const sendEvolutionDapImage = (
   caption: string,
 ): Promise<EvolutionSendResult> =>
   sendEvolutionImage(phone, dapImageFiles[image], caption);
+
+export const sendEvolutionBathMoonBanner = (
+  phone: string,
+  image: WhatsappBathMoonBannerImage,
+  caption: string,
+): Promise<EvolutionSendResult> =>
+  sendEvolutionImage(phone, bathMoonBannerFiles[image], caption);
 
 export const sendEvolutionAudio = async (
   phone: string,

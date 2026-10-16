@@ -92,6 +92,24 @@ export const isDapServiceRequest = (value: string) => {
 export const isSpaBathServiceRequest = (value: string) =>
   /\bspa\s+de\s+banhos?\b/.test(normalizeSafetyText(value));
 
+export const isBathMoonServiceRequest = (value: string) =>
+  /\bbanho\s+de\s+lua\b/.test(normalizeSafetyText(value));
+
+export type WhatsappBathMoonBanner = "five-step" | "clarifying";
+
+export const getWhatsappBathMoonBannerSelection = (
+  value: string,
+): WhatsappBathMoonBanner | null => {
+  const normalized = normalizeSafetyText(value);
+  if (/\b(?:clareador|clareadora|7 passos|sete passos|argila branca|dolomita|6 areas|seis areas)\b/.test(normalized)) {
+    return "clarifying";
+  }
+  if (/\b(?:5 passos|cinco passos|tradicional|normal)\b/.test(normalized)) {
+    return "five-step";
+  }
+  return null;
+};
+
 export const isWhatsappWalkInService = (value: string) =>
   isDapServiceRequest(value) || isSpaBathServiceRequest(value);
 
@@ -100,6 +118,18 @@ export const dapServiceInformationReply =
 
 export const spaBathServiceInformationReply =
   "O Spa de Banhos custa R$ 40. Traga uma toalha e um biquíni. Se não tiver toalha, alugamos por R$ 5; se não tiver biquíni, montamos um tapa-sexy por R$ 10. Não precisa agendar: o atendimento é por ordem de chegada, nos dias e horários de funcionamento do Spa. 🤎";
+
+export const bathMoonBannerInformationReply = (
+  selection: WhatsappBathMoonBanner | null,
+) => {
+  if (selection === "five-step") {
+    return "Banho de Lua de 5 passos: R$ 120. Inclui parafina, loção clareadora hipoalergênica, esfoliante orgânico e mousse hidratante com óleo glicerinado. Brindes: coquetel de frutas com picolé e máscara facial de argila rosa. 🤎";
+  }
+  if (selection === "clarifying") {
+    return "Banho de Lua Clareador de 7 passos: R$ 150. O banner apresenta clareamento dos pelos e da pele, com base de argila branca e dolomita, e foco em 6 áreas de atrito: axilas, virilha, joelhos, cotovelos, nádegas e pescoço. Brindes: coquetel de frutas com picolé e máscara facial de ouro ou de argila branca. 🤎";
+  }
+  return "Temos duas opções de Banho de Lua: 5 passos por R$ 120, com máscara facial de argila rosa, ou Clareador de 7 passos por R$ 150, com máscara facial de ouro ou argila branca. As duas incluem coquetel de frutas com picolé. Vou te enviar os banners para você ver os detalhes. Qual opção te interessa? 🤎";
+};
 
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
