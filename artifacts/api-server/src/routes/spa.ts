@@ -5036,6 +5036,7 @@ const processWhatsappWebhookPayload = async (
         : "Os bronzes são por ordem de chegada, sem agendamento: natural até 11h30; em máquina, até 20h de segunda a sexta e até 18h aos sábados.";
     const shouldAskBronzeMethod = shouldAskWhatsappBronzeMethod({
       text: normalizedText,
+      recentUserContext: recentTanningUserContext,
       flow: tanningFlow,
       visitIntent: bronzeVisitBundle,
       explicitInfoRequest: explicitBronzeInfoRequest,

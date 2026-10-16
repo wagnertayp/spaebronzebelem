@@ -24,3 +24,9 @@ The user confirmed that bronze services of every modality start at R$150. Do not
 **Why:** The user explicitly corrected the minimum bronze price across all modalities.
 
 **How to apply:** Use R$150 as the floor in all bronze recommendations, including natural, machine, and vapor. Treat any legacy package price below R$150 as stale and hand off for the current price rather than inventing a replacement.
+
+Before recommending Neon, first establish whether the client prefers natural or machine bronze. Recommend Neon only after she chooses machine; if the modality is unclear, ask before mentioning Neon.
+
+**Why:** The user explicitly corrected the order of the bronze sales conversation.
+
+**How to apply:** Do not let a comparison mentioning both modes count as a machine selection. Treat a clear answer such as “máquina” as a selection, then consider the Neon recommendation.

@@ -215,6 +215,24 @@ test("asks the bronze method before Neon and recommends it only for machine bron
   assert.equal(shouldSuggestWhatsappNeon({ ...common, text: "Quero fazer bronzeamento" }), false);
   assert.equal(shouldAskWhatsappBronzeMethod({ ...common, flow: "machine", text: "Máquina" }), false);
   assert.equal(shouldSuggestWhatsappNeon({ ...common, flow: "machine", text: "Máquina" }), true);
+  assert.equal(shouldAskWhatsappBronzeMethod({
+    ...common,
+    flow: "machine",
+    visitIntent: false,
+    text: "Você prefere máquina ou natural?",
+  }), true);
+  assert.equal(shouldSuggestWhatsappNeon({
+    ...common,
+    flow: "machine",
+    visitIntent: false,
+    text: "Você prefere máquina ou natural?",
+  }), false);
+  assert.equal(shouldSuggestWhatsappNeon({
+    ...common,
+    flow: "machine",
+    visitIntent: false,
+    text: "Sim, máquina",
+  }), true);
   assert.equal(shouldSuggestWhatsappNeon({ ...common, flow: "natural", text: "Quero fazer bronze natural" }), false);
   assert.equal(shouldAskWhatsappBronzeMethod({
     ...common,

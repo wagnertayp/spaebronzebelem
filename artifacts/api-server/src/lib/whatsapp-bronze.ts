@@ -38,25 +38,42 @@ const bronzeSalesIntentPattern =
 const bronzeLogisticsPattern =
   /\b(?:horario|que horas|agendar|agenda|ordem de chegada|posso ir|onde fica|endereco|aberto|abre|fecha|funcionando)\b/;
 
+const hasSelectedBronzeMachine = (text: string, recentUserContext = "") => {
+  const normalizedText = normalizeBronzeText(text);
+  const recent = normalizeBronzeText(recentUserContext);
+  const explicitChoice =
+    /\b(?:prefiro|escolhi|escolho|vou de|decidi por|decidi pela)\b.{0,40}\bmaquina\b|\bquero fazer\b.{0,50}\bmaquina\b|\bbronze(?:amento)? em maquina\b/.test(normalizedText);
+  const shortChoice = /^(?:sim[, ]*)?(?:a |em )?maquina[.!?]*$/.test(normalizedText);
+  const recentChoice =
+    /(?:^|\n)\s*(?:sim[, ]*)?(?:a |em )?maquina\s*[.!?]*(?:\n|$)/.test(recent) ||
+    /\b(?:prefiro|escolhi|escolho|vou de|decidi por|decidi pela)\b.{0,40}\bmaquina\b|\bquero fazer\b.{0,50}\bmaquina\b|\bbronze(?:amento)? em maquina\b/.test(recent);
+  return explicitChoice || shortChoice || recentChoice;
+};
+
 export const shouldAskWhatsappBronzeMethod = ({
   text,
+  recentUserContext,
   flow,
   visitIntent,
   explicitInfoRequest,
   pregnancyMentioned,
 }: {
   text: string;
+  recentUserContext: string;
   flow: "natural" | "machine" | "unspecified" | null;
   visitIntent: boolean;
   explicitInfoRequest: boolean;
   pregnancyMentioned: boolean;
 }) => {
   const normalizedText = normalizeBronzeText(text);
+  const machineSelected = hasSelectedBronzeMachine(text, recentUserContext);
+  const asksToCompareMethods =
+    /\b(?:natural|sol)\b.{0,35}\bmaquina\b|\bmaquina\b.{0,35}\b(?:natural|sol)\b|\b(?:comparar|diferenca)\b/.test(normalizedText);
   return !pregnancyMentioned &&
-    flow === "unspecified" &&
+    (flow === "unspecified" || (flow === "machine" && !machineSelected)) &&
     !explicitInfoRequest &&
     !bronzeLogisticsPattern.test(normalizedText) &&
-    (visitIntent || bronzeSalesIntentPattern.test(normalizedText));
+    (visitIntent || bronzeSalesIntentPattern.test(normalizedText) || asksToCompareMethods);
 };
 
 export const shouldSuggestWhatsappNeon = ({
@@ -77,6 +94,7 @@ export const shouldSuggestWhatsappNeon = ({
   const normalizedText = normalizeBronzeText(text);
   const recent = normalizeBronzeText(recentUserContext);
   const conversation = `${recent}\n${normalizedText}`;
+  const machineSelected = hasSelectedBronzeMachine(text, recentUserContext);
   const neonWasDeclined = /\b(?:nao|dispenso)\b.{0,40}\bneon\b/.test(normalizedText);
   const anotherPackageWasChosen =
     /\b(?:escolhi|prefiro|vou ficar com|vou de|decidi pelo|quero fazer)\b.{0,50}\b(?:glam potencia|sparkles potencia|fly gourmet|shine gourmet|flash bronze|maravilhosa basiquinha|marquinha de milhoes|brilho total|bronzeamento carioca|bronze rainha|magic bronze make|magic shine make|insta bronze make)\b/.test(conversation);
@@ -85,7 +103,8 @@ export const shouldSuggestWhatsappNeon = ({
     !neonWasDeclined &&
     !anotherPackageWasChosen &&
     flow === "machine" &&
+    machineSelected &&
     !explicitInfoRequest &&
     !bronzeLogisticsPattern.test(normalizedText) &&
-    (visitIntent || bronzeSalesIntentPattern.test(normalizedText) || normalizedText === "maquina");
+    (visitIntent || machineSelected || bronzeSalesIntentPattern.test(normalizedText));
 };
