@@ -203,16 +203,11 @@ export const connectEvolutionInstance = async () => {
     };
   }
 
-  const instance = config.instance ?? `spa-${randomUUID().slice(0, 8)}`;
+  let instance = config.instance ?? `spa-${randomUUID().slice(0, 8)}`;
+  let created = !config.instance;
   try {
-    let response: Response;
-    if (config.instance) {
-      response = await fetch(
-        `${config.baseUrl}/instance/connect/${encodeURIComponent(instance)}`,
-        { headers: { apikey: config.apiKey }, signal: AbortSignal.timeout(CONNECTION_ACTION_TIMEOUT_MS) },
-      );
-    } else {
-      response = await fetch(`${config.baseUrl}/instance/create`, {
+    const createInstance = (instanceName: string) =>
+      fetch(`${config.baseUrl}/instance/create`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -220,11 +215,28 @@ export const connectEvolutionInstance = async () => {
         },
         signal: AbortSignal.timeout(CONNECTION_ACTION_TIMEOUT_MS),
         body: JSON.stringify({
-          instanceName: instance,
+          instanceName,
           integration: "WHATSAPP-BAILEYS",
           qrcode: true,
         }),
       });
+
+    let response: Response;
+    if (config.instance) {
+      response = await fetch(
+        `${config.baseUrl}/instance/connect/${encodeURIComponent(instance)}`,
+        { headers: { apikey: config.apiKey }, signal: AbortSignal.timeout(CONNECTION_ACTION_TIMEOUT_MS) },
+      );
+      if (response.status === 404) {
+        logger.warn(
+          "[Evolution] A instância selecionada não foi encontrada; tentando criar uma nova",
+        );
+        instance = `spa-${randomUUID().slice(0, 8)}`;
+        created = true;
+        response = await createInstance(instance);
+      }
+    } else {
+      response = await createInstance(instance);
     }
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) {
@@ -267,7 +279,7 @@ export const connectEvolutionInstance = async () => {
       );
     }
     return {
-      created: !config.instance,
+      created,
       instance,
       connected,
       state: status,

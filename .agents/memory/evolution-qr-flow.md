@@ -9,4 +9,6 @@ Validate provider QR responses as image data before presenting them: normalize s
 
 **Why:** The account can contain several unrelated instances, so selecting from a shared list is ambiguous and does not match the intended operator workflow. Provider-controlled QR expiry cannot be lengthened by the app; renewal keeps a fresh code available but can rotate the code during a scan.
 
-**How to apply:** Keep the provider API key server-side, create a generated instance name per connection, show only a valid image returned by `instance/create` or `instance/connect`, and treat `connecting` as a normal pending state rather than an error. Never log QR contents or pairing codes.
+**How to apply:** Keep the provider API key server-side, create a generated instance name per connection, show only a valid image returned by `instance/create` or `instance/connect`, and treat `connecting` as a normal pending state rather than an error. Never log QR contents or pairing codes. A live QR test in development configures the dev webhook host; do not scan it with the production WhatsApp number.
+
+**Why:** A development-side live QR generation configured the newly created pending instance to send messages to the Replit development webhook, not the Heroku production webhook.
