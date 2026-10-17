@@ -789,7 +789,10 @@ export const getEvolutionMedia = async (
   if (!config || !config.instance) throw new Error("Evolution API não configurada");
 
   const contentMessage = unwrapEvolutionMessage(message);
-  const mediaMessage = contentMessage[`${mediaType}Message`] as Record<string, unknown> | undefined;
+  const mediaMessage = (
+    contentMessage[`${mediaType}Message`] ??
+    (mediaType === "audio" ? contentMessage["pttMessage"] : undefined)
+  ) as Record<string, unknown> | undefined;
   const mimetype = typeof mediaMessage?.mimetype === "string"
     ? mediaMessage.mimetype.split(";")[0]
     : mediaType === "audio" ? "audio/ogg" : "image/jpeg";

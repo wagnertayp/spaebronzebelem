@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 export type WhatsappWebhookPayload = Record<string, unknown>;
+const MAX_QUEUED_AUDIO_BASE64_CHARS = 8_000_000;
 
 export const combineWhatsappInboundMessages = (messages: string[]) => {
   const cleanedMessages = messages.map((message) => message.trim()).filter(Boolean);
@@ -26,10 +27,20 @@ export const makeWhatsappWebhookEventKey = (
   return `${instance}:unkeyed:${randomUUID()}`;
 };
 
-export const stripInlineMedia = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(stripInlineMedia);
+export const stripInlineMedia = (
+  value: unknown,
+  insideAudioMessage = false,
+  preserveAudioBase64 = true,
+): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripInlineMedia(item, insideAudioMessage, preserveAudioBase64));
+  }
   if (!value || typeof value !== "object") {
-    if (typeof value === "string" && value.length > 256_000) {
+    if (
+      typeof value === "string" &&
+      value.length > 256_000 &&
+      !(insideAudioMessage && preserveAudioBase64 && value.length <= MAX_QUEUED_AUDIO_BASE64_CHARS)
+    ) {
       return "[large inline content omitted]";
     }
     return value;
@@ -37,8 +48,22 @@ export const stripInlineMedia = (value: unknown): unknown => {
 
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => key.toLocaleLowerCase("en-US") !== "base64")
-      .map(([key, child]) => [key, stripInlineMedia(child)]),
+      .filter(([key, child]) => {
+        if (key.toLocaleLowerCase("en-US") !== "base64") return true;
+        return preserveAudioBase64 &&
+          insideAudioMessage &&
+          typeof child === "string" &&
+          child.length <= MAX_QUEUED_AUDIO_BASE64_CHARS;
+      })
+      .map(([key, child]) => [
+        key,
+        stripInlineMedia(
+          child,
+          insideAudioMessage ||
+            ["audiomessage", "pttmessage"].includes(key.toLocaleLowerCase("en-US")),
+          preserveAudioBase64,
+        ),
+      ]),
   );
 };
 

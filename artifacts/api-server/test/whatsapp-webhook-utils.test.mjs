@@ -57,6 +57,23 @@ test("webhook payload sanitization removes inline media recursively", () => {
   });
 });
 
+test("durable inbox preserves a bounded inline voice note until processing finishes", () => {
+  const audioBase64 = "A".repeat(300_000);
+  const queued = stripInlineMedia({
+    data: {
+      message: {
+        audioMessage: { mimetype: "audio/ogg; codecs=opus", base64: audioBase64 },
+        imageMessage: { mimetype: "image/jpeg", base64: "encoded-image" },
+      },
+    },
+  });
+  assert.equal(queued.data.message.audioMessage.base64, audioBase64);
+  assert.equal("base64" in queued.data.message.imageMessage, false);
+
+  const completed = stripInlineMedia(queued, false, false);
+  assert.equal("base64" in completed.data.message.audioMessage, false);
+});
+
 test("webhook retries back off and remain capped", () => {
   assert.equal(webhookRetryDelaySeconds(1), 2);
   assert.equal(webhookRetryDelaySeconds(4), 16);

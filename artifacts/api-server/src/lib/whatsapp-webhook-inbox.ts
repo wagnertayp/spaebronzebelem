@@ -186,14 +186,15 @@ const updateWhatsappWebhookLease = async (job: WhatsappWebhookJob) => {
 const completeWhatsappWebhook = async (job: WhatsappWebhookJob) => {
   const result = await pool.query(
     `UPDATE whatsapp_webhook_inbox
-     SET status = 'done',
+     SET payload = $3::jsonb,
+         status = 'done',
          locked_at = NULL,
          lease_token = NULL,
          last_error = NULL,
          completed_at = NOW(),
          updated_at = NOW()
      WHERE id = $1 AND status = 'processing' AND lease_token = $2`,
-    [job.id, job.leaseToken],
+    [job.id, job.leaseToken, JSON.stringify(stripInlineMedia(job.payload, false, false))],
   );
   return result.rowCount === 1;
 };

@@ -4268,7 +4268,9 @@ const processWhatsappWebhookPayload = async (
   const rawMessage = (data["message"] as Record<string, unknown> | undefined) ?? {};
   const contentMessage = unwrapWhatsappMessage(rawMessage);
   const extended = contentMessage["extendedTextMessage"] as Record<string, unknown> | undefined;
-  const audioMessage = contentMessage["audioMessage"] as Record<string, unknown> | undefined;
+  const audioMessage = (
+    contentMessage["audioMessage"] ?? contentMessage["pttMessage"]
+  ) as Record<string, unknown> | undefined;
   const imageMessage = contentMessage["imageMessage"] as Record<string, unknown> | undefined;
   const isAudioMessage = Boolean(audioMessage);
   const isImageMessage = Boolean(imageMessage);
@@ -4287,6 +4289,8 @@ const processWhatsappWebhookPayload = async (
           mimetype: media.mimetype,
           bytes: media.buffer.length,
           format: compatible.format,
+          declaredDurationSeconds: audioMessage?.["seconds"] ?? null,
+          isPtt: audioMessage?.["ptt"] === true,
         },
         "WhatsApp audio received for transcription",
       );
@@ -4296,11 +4300,25 @@ const processWhatsappWebhookPayload = async (
         { phone, transcriptLength: text.length },
         "WhatsApp audio transcription completed",
       );
-      if (!text) mediaError = "Não consegui identificar o conteúdo do áudio.";
+      if (!text) {
+        mediaError = "Não consegui identificar o conteúdo do áudio.";
+        logger.warn(
+          { phone, bytes: compatible.buffer.length, format: compatible.format },
+          "WhatsApp audio transcription returned an empty transcript",
+        );
+      }
     } catch (error) {
       mediaError = error instanceof Error ? error.message : "Não foi possível entender o áudio.";
       logger.warn(
-        { err: error, phone },
+        {
+          err: error,
+          phone,
+          providerMessageId,
+          declaredMimetype: audioMessage?.["mimetype"] ?? null,
+          declaredDurationSeconds: audioMessage?.["seconds"] ?? null,
+          hasUrl: typeof audioMessage?.["url"] === "string",
+          hasMediaKey: Boolean(audioMessage?.["mediaKey"]),
+        },
         "WhatsApp audio transcription failed",
       );
       text = "Áudio recebido";
@@ -4392,7 +4410,7 @@ const processWhatsappWebhookPayload = async (
       status: "received",
       kind: "reply",
       providerMessageId,
-      error: null,
+      error: isAudioMessage && mediaError ? "Falha ao recuperar ou transcrever áudio." : null,
     });
     inboundMessageId = savedInboundMessage.id;
   }

@@ -239,7 +239,7 @@ export async function speechToText(
     file,
     model: "gpt-4o-mini-transcribe",
     language: "pt",
-  });
+  }, { timeout: 25_000 });
   return response.text;
 }
 
