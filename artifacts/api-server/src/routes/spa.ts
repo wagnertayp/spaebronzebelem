@@ -252,6 +252,8 @@ import {
   isBathMoonServiceRequest,
   getWhatsappBathMoonBannerSelection,
   bathMoonBannerInformationReply,
+  isGlutealHarmonizationRequest,
+  glutealHarmonizationInformationReply,
   getWhatsappArrivalUpdate,
   isWhatsappTanningVisitIntent,
   isWhatsappAcceptanceOfServiceOffer,
@@ -1147,6 +1149,7 @@ SERVIÇOS E ATENDIMENTO
 - Bronzeamento em máquina funciona por ordem de chegada, sem promessa de horário específico: de segunda a sexta até 20h e aos sábados até 18h. Use o dia local atual para informar o limite correto.
 - DAP e Spa de Banhos funcionam por ordem de chegada; não exigem agendamento.
 - Para o Spa de Banhos, oriente a cliente a levar uma toalha e um biquíni. O aluguel da toalha custa R$ 5; se ela não tiver biquíni, a equipe monta um tapa-sexy por R$ 10. O atendimento segue os dias e horários de funcionamento do Spa.
+- Ao perguntarem sobre harmonização glútea, use a resposta cadastrada incluindo o link do Instagram. Se a cliente pedir para agendar, siga o fluxo normal da agenda para a avaliação com a Dra. Paula; não confirme horário sem consultar disponibilidade.
 - Bronzeamento a jato ou a vapor: explique somente que a vaporização aplica produto bronzeador à pele, sem exagerar benefícios nem afirmar que não há contraindicações. Verifique o fluxo de atendimento definido pela equipe; não invente agendamento ou atendimento por ordem de chegada.
 - Para qualquer outro serviço, use somente as regras cadastradas. Se o fluxo não estiver definido, não confirme como será o atendimento.
 
@@ -4658,6 +4661,21 @@ const processWhatsappWebhookPayload = async (
         replyReference,
       ));
       await sendWhatsappBathMoonBanners(phone, knownClientName, selection);
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
+
+    if (
+      isGlutealHarmonizationRequest(text) &&
+      !hasWhatsappBookingIntent(text)
+    ) {
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        glutealHarmonizationInformationReply,
+        "reply",
+        replyReference,
+      ));
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
 

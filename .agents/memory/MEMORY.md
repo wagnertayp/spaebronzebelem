@@ -23,3 +23,4 @@
 - [Dashboard reads during AI writes](dashboard-read-during-ai-writes.md) — serve the latest committed snapshot without waiting on the webhook write queue.
 - [Spa de Banhos walk-in](spa-baths-walk-in.md) — bring a towel and bikini; towel rental is R$5, tapa-sexy is R$10, and service is walk-in.
 - [Banho de Lua banners](banho-de-lua-banners.md) — current options are 5 steps for R$120 and Clareador 7 steps for R$150; the flow sends matching banners.
+- [Gluteal harmonization response](gluteal-harmonization-response.md) — use the approved assessment message, R$100 assessment terms, Dra. Paula, and the supplied Instagram Reel link.

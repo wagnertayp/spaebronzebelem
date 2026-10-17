@@ -7,6 +7,8 @@ import {
   bathMoonBannerInformationReply,
   getWhatsappBathMoonBannerSelection,
   isBathMoonServiceRequest,
+  isGlutealHarmonizationRequest,
+  glutealHarmonizationInformationReply,
   getWhatsappArrivalUpdate,
   getWhatsappTanningFlow,
   isExplicitWhatsappBronzeInfoRequest,
@@ -139,6 +141,16 @@ test("recognizes Banho de Lua offers and distinguishes the two banner prices", (
   assert.match(bathMoonBannerInformationReply(null), /R\$ 120/);
   assert.match(bathMoonBannerInformationReply(null), /R\$ 150/);
   assert.match(bathMoonBannerInformationReply("clarifying"), /6 áreas de atrito/i);
+});
+
+test("recognizes gluteal harmonization and includes the supplied Instagram reel link", () => {
+  assert.equal(isGlutealHarmonizationRequest("Quero saber sobre harmonização glútea"), true);
+  assert.equal(isGlutealHarmonizationRequest("Quero harmonização do glúteo"), true);
+  assert.match(glutealHarmonizationInformationReply, /avaliação custa R\$100/i);
+  assert.match(
+    glutealHarmonizationInformationReply,
+    /https:\/\/www\.instagram\.com\/reel\/Ddta6VMpQ2S\/\?exln=ajJ4ZGV2c3Q1YjV0/,
+  );
 });
 
 test("recognizes a natural-bronze follow-up from recent context and honors explicit full-info requests", () => {

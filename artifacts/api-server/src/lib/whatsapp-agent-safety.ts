@@ -95,6 +95,21 @@ export const isSpaBathServiceRequest = (value: string) =>
 export const isBathMoonServiceRequest = (value: string) =>
   /\bbanho\s+de\s+lua\b/.test(normalizeSafetyText(value));
 
+export const isGlutealHarmonizationRequest = (value: string) =>
+  /\bharmonizacao\b.{0,30}\bglute(?:a|o|os|as)?\b|\bglute(?:a|o|os|as)\b.{0,30}\bharmonizacao\b/.test(
+    normalizeSafetyText(value),
+  );
+
+export const glutealHarmonizationInformationReply = `Olá, maravilhosa! 💛 A harmonização glútea é um tratamento planejado conforme o que você deseja melhorar: volume, contorno, firmeza ou assimetria.
+
+O ácido hialurônico pode proporcionar mais volume e projeção, enquanto os bioestimuladores estimulam a produção de colágeno, ajudando na firmeza da pele. ✨
+
+Primeiro, fazemos uma avaliação com a Dra. Paula para entender seu objetivo e indicar o tratamento adequado. A avaliação custa R$100, e esse valor é descontado do protocolo se você fechar em até 30 dias.
+
+Vamos agendar a sua avaliação, meu amor? 🥰
+
+https://www.instagram.com/reel/Ddta6VMpQ2S/?exln=ajJ4ZGV2c3Q1YjV0`;
+
 export type WhatsappBathMoonBanner = "five-step" | "clarifying";
 
 export const getWhatsappBathMoonBannerSelection = (
