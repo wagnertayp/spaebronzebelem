@@ -32,7 +32,9 @@ import {
 import {
   bronzeNeonRecommendationReply,
   bronzeAudioUnavailableReply,
+  bronzeTextFallbackReply,
   bronzeMethodDifferenceReply,
+  promisesWhatsappAudio,
   resolveRequestedWhatsappAudioClip,
   shouldAskWhatsappBronzeMethod,
   shouldSuggestWhatsappNeon,
@@ -272,6 +274,17 @@ test("bronze sales recommendation uses the confirmed starting price and Neon off
   assert.match(bronzeNeonRecommendationReply, /marquinhas personalizadas/i);
   assert.match(bronzeNeonRecommendationReply, /pode parecer mais iluminada/i);
   assert.doesNotMatch(bronzeNeonRecommendationReply, /garantido|garante|garantir/i);
+});
+
+test("audio promises trigger a real send or a detailed text fallback", () => {
+  assert.equal(promisesWhatsappAudio("Perfeito! Vou te enviar o áudio com as orientações."), true);
+  assert.equal(promisesWhatsappAudio("O áudio já foi enviado nesta conversa."), false);
+  assert.equal(promisesWhatsappAudio("Vou te enviar o áudio dos combos."), false);
+  assert.match(bronzeAudioUnavailableReply, /R\$ 140/);
+  assert.match(bronzeAudioUnavailableReply, /R\$ 150/);
+  assert.match(bronzeAudioUnavailableReply, /WB Ultra/);
+  assert.match(bronzeTextFallbackReply, /das 07h30 às 11h/);
+  assert.match(bronzeTextFallbackReply, /8 a 20 minutos/);
 });
 
 test("asks the bronze method before Neon and recommends it only for machine bronze", () => {

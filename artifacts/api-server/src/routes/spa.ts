@@ -240,6 +240,8 @@ import { persistWhatsappWebhookBeforeAcknowledgement } from "../lib/whatsapp-web
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
 import {
   bronzeNeonRecommendationReply,
+  bronzeTextFallbackReply,
+  promisesWhatsappAudio,
   shouldAskWhatsappBronzeMethod,
   shouldSuggestWhatsappNeon,
 } from "../lib/whatsapp-bronze";
@@ -1145,6 +1147,7 @@ const SPA_SERVICE_FLOW_POLICY = `IDENTIFICAÇÃO DO SERVIÇO E FLUXO DE ATENDIME
 Antes de explicar como funciona um atendimento, identifique qual serviço a cliente quer realizar. Leia a mensagem e o histórico; se não estiver claro, faça uma pergunta objetiva em vez de presumir.
 
 SERVIÇOS E ATENDIMENTO
+- Use todas as informações confirmadas e pertinentes disponíveis para o serviço e a modalidade escolhida, como preço, horário, fluxo de atendimento, preparo e duração. Não omita detalhes úteis nem invente.
 - Antes de perguntar qual modalidade de bronze a cliente prefere, confira o histórico. Se ela já escolheu natural/solar ou máquina, preserve essa escolha ao responder pedidos de valores; não pergunte novamente, a menos que ela esteja comparando, tenha mudado de ideia ou a preferência continue indefinida.
 - Estética avançada e Ritual facial funcionam com agendamento. Siga o fluxo de agendamento e nunca confirme horário sem validar a disponibilidade real da agenda.
 - Bronzeamento natural funciona por ordem de chegada, das 07h30 às 11h; esse limite é específico do bronze e não se estende pelo horário geral do Spa. Não é agendado. O Spa e Bronze Belém não oferece bronzeamento diretamente sob o sol natural. Não afirme nem sugira que esse serviço seja exposição ao sol.
@@ -5158,11 +5161,13 @@ const processWhatsappWebhookPayload = async (
     }
     const inferredAudioClip = audioClipForWhatsappMessage(normalizedText);
     const bronzeVisitBundle = tanningVisitIntent && !pregnancyMentioned;
-    const modelAudioRequest = decision.audioClip === "bronze" &&
-      !explicitBronzeInfoRequest &&
-      !tanningVisitIntent
-      ? null
-      : decision.audioClip;
+    const modelAudioRequest = promisesWhatsappAudio(decision.reply)
+      ? "bronze"
+      : decision.audioClip === "bronze" &&
+          !explicitBronzeInfoRequest &&
+          !tanningVisitIntent
+        ? null
+        : decision.audioClip;
     const requestedAudioClip = createdAppointment || responseDocument
       ? null
       : (explicitBronzeInfoRequest || bronzeVisitBundle) && tanningFlow
@@ -5234,6 +5239,14 @@ const processWhatsappWebhookPayload = async (
           : suppressStaleBookingContext && (currentDocumentRequest || decision.document)
             ? "Segue o catálogo para você consultar com calma. Quando escolher um procedimento específico, posso ajudar com as informações. 🤎"
             : decision.reply;
+    if (
+      promisesWhatsappAudio(decision.reply) &&
+      audioClip !== "bronze" &&
+      !pregnancyMentioned &&
+      !createdAppointment
+    ) {
+      writtenReply = bronzeTextFallbackReply;
+    }
     const replyAppointmentId = createdAppointment?.id ?? appointment?.id ?? null;
     const shouldReplyBeforeAudio = Boolean(
       audioClip === "bronze" ||
