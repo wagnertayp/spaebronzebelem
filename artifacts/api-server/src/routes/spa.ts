@@ -656,11 +656,16 @@ const saveWhatsappSettings = async () => {
 const normalizeName = (value: string) => value.trim().toLocaleLowerCase("pt-BR");
 const normalizeCatalogLabel = (value: string) =>
   normalizeName(value).normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/\s+/g, " ");
-const requestedWhatsappDocument = (text: string): WhatsappDocument | null => {
+type AgentDocumentRequest = WhatsappDocument | "catalogs";
+
+const requestedWhatsappDocument = (text: string): AgentDocumentRequest | null => {
   const normalized = normalizeCatalogLabel(text);
   if (/\b(?:portfolio|harmonizacao orofacial)\b/.test(normalized)) return "portfolio";
-  if (/\b(?:estetica avancada|procedimentos avancados)\b/.test(normalized)) return "advanced";
-  if (/\b(?:catalogo|cardapio|menu)\b/.test(normalized)) return "menu";
+  const asksForAdvancedAesthetics = /\b(?:estetica avancada|procedimentos avancados)\b/.test(normalized);
+  const asksForGeneralCatalog = /\b(?:catalogo|cardapio|menu)\b/.test(normalized);
+  if (asksForAdvancedAesthetics && asksForGeneralCatalog) return "catalogs";
+  if (asksForAdvancedAesthetics) return "advanced";
+  if (asksForGeneralCatalog) return "catalogs";
   return null;
 };
 const requestSession = (res: Response) => res.locals.session as AuthenticatedSession;
@@ -1148,6 +1153,9 @@ Antes de explicar como funciona um atendimento, identifique qual serviço a clie
 
 SERVIÇOS E ATENDIMENTO
 - Use todas as informações confirmadas e pertinentes disponíveis para o serviço e a modalidade escolhida, como preço, horário, fluxo de atendimento, preparo e duração. Não omita detalhes úteis nem invente.
+- Faça um atendimento consultivo e vendável: entenda o objetivo e as preferências já mencionadas e, quando houver relação clara, apresente no máximo uma opção complementar pertinente, com benefício e valor somente se confirmados no catálogo. Convide sem pressão e não desvie da dúvida atual.
+- Considere todo o contexto da conversa, incluindo escolhas, recusas, dúvidas, orçamento e serviços já oferecidos. Nunca repita uma oferta recusada, não insista e não ofereça serviços aleatórios; se a cliente já decidiu, respeite a escolha e ajude no próximo passo.
+- Use carisma e empatia de forma natural e individualizada: reconheça o que a cliente contou e adapte a resposta ao contexto, sem mensagens genéricas, intimidade forçada ou exagero.
 - Antes de perguntar qual modalidade de bronze a cliente prefere, confira o histórico. Se ela já escolheu natural/solar ou máquina, preserve essa escolha ao responder pedidos de valores; não pergunte novamente, a menos que ela esteja comparando, tenha mudado de ideia ou a preferência continue indefinida.
 - Estética avançada e Ritual facial funcionam com agendamento. Siga o fluxo de agendamento e nunca confirme horário sem validar a disponibilidade real da agenda.
 - Bronzeamento natural funciona por ordem de chegada, das 07h30 às 11h; esse limite é específico do bronze e não se estende pelo horário geral do Spa. Não é agendado. O Spa e Bronze Belém não oferece bronzeamento diretamente sob o sol natural. Não afirme nem sugira que esse serviço seja exposição ao sol.
@@ -1531,7 +1539,7 @@ type AgentDecision = {
   reply: string;
   clientName: string | null;
   handoff: boolean;
-  document: WhatsappDocument | null;
+  document: AgentDocumentRequest | null;
   audioClip: WhatsappAudioClip | null;
   appointment: AgentAppointmentDraft | null;
   appointmentDataInvalid: boolean;
@@ -1553,7 +1561,8 @@ const parseAgentDecision = (content: string): AgentDecision => {
   try {
     const value = JSON.parse(cleaned) as Record<string, unknown>;
     const rawAppointment = value.appointment;
-    const document = value.document === "menu"
+    const document = value.document === "catalogs"
+      || value.document === "menu"
       || value.document === "advanced"
       || value.document === "portfolio"
       ? value.document
@@ -1819,6 +1828,7 @@ REGRAS OBRIGATÓRIAS:
 - Receba bem a cliente e use humor leve quando combinar, sem fazer piadas forçadas ou falar demais.
 - Use exatamente um emoji discreto no final da resposta. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio do texto.
 - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
+- Conduza um atendimento consultivo, acolhedor e vendável: use o contexto completo, reconheça o que a cliente já contou e, quando fizer sentido para o objetivo dela, ofereça no máximo um serviço complementar com informações confirmadas. Apresente como opção, sem pressão; respeite recusas e não repita ofertas rejeitadas nem sugira serviços aleatórios.
 - Antes de responder, identifique internamente a situação, o assunto e a intenção da mensagem; leia a mensagem inteira e o histórico recente antes de decidir o que dizer.
 - Confira se a resposta atende à mensagem atual e usa apenas fatos confirmados. Se o contexto ou a intenção estiverem ambíguos, faça uma pergunta curta para esclarecer; não improvise uma resposta fora de contexto.
 - Quando várias mensagens forem enviadas em sequência antes da sua resposta, leia todas juntas e responda uma única vez. Não responda por linha, não repita a saudação, avisos ou perguntas já feitos.
@@ -1854,7 +1864,7 @@ REGRAS OBRIGATÓRIAS:
 - Nunca diga que um horário está livre a menos que esteja na lista validada pelo sistema. Não crie appointment; o servidor revalida a grade, os conflitos e a duração antes de reservar.
 - Se a duração de um serviço estiver como "A definir", não confirme nem crie agendamento para ele. Explique que a duração ainda precisa ser confirmada.
 - Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta nem mencione o nome da profissional.
-- Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Se pedir o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
+- Se pedir o cardápio geral ou catálogo sem especificar, use document "catalogs" para enviar juntos os dois PDFs: "menu" é o cardápio geral do Spa e Bronze; "advanced" é o catálogo de procedimentos de estética avançada. As legendas dos arquivos devem explicar claramente essa diferença. Se pedir somente estética avançada, use document "advanced"; se pedir somente o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
 - Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar ou enviar áudio e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação, comparação ou resposta específica, responda sem atrasar com triagem.
 - Bronze natural começa em R$140. Bronze em máquina e vapor começam em R$150. Não misture esses valores entre modalidades; confirme com a equipe o preço de qualquer pacote não confirmado.
 - Antes de indicar o Turbo Neon (Protocolo Neon), confirme se a cliente prefere bronze natural ou em máquina. Se ainda não informou a modalidade, pergunte primeiro e não mencione o Neon nessa resposta. Se escolher bronze em máquina e ainda estiver avaliando opções, recomende o Neon: três sessões + esfoliação por R$180, pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; procedimento rápido e pele que pode parecer mais iluminada com cuidados adequados. Apresente como possibilidades, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Se escolher natural, não indique Neon. Também não ofereça se já escolheu outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.
@@ -1868,6 +1878,7 @@ REGRAS OBRIGATÓRIAS:
 - Cada áudio pré-gravado pode ser tentado apenas uma vez na conversa, mesmo se a tentativa anterior falhou. Se a tentativa do clipe correspondente estiver registrada acima, retorne audioClip null e não diga que vai enviar o áudio de novo; responda por texto.
 - Marque handoff true quando a cliente pedir atendimento humano, relatar alergia/reação/preocupação de saúde, fizer reclamação, pedir exceção de regra/horário, solicitar preço/disponibilidade/condição especial não cadastrada, perguntar sobre serviço sem fluxo definido ou quando não houver segurança para responder. Mantenha o encaminhamento do Spa Infantil.
 - ${SPA_SERVICE_FLOW_POLICY}
+- Para enviar os dois catálogos juntos, retorne document "catalogs"; o servidor enviará o cardápio geral e o catálogo de estética avançada em arquivos separados, cada um com uma legenda explicando seu conteúdo.
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
 {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null,"bookingUpdate":null}
 ou, quando houver coleta de agendamento:
@@ -4708,14 +4719,18 @@ const processWhatsappWebhookPayload = async (
       pregnancyMentioned &&
       isWhatsappAcceptanceOfServiceOffer(text, previousAssistantMessage)
     ) {
-      ensureWhatsappDelivery(await sendWhatsappDocumentMessage(
-        phone,
-        knownClientName,
-        "menu",
-        "Segue o cardápio geral. Como você mencionou a gestação, não posso confirmar a adequação dos procedimentos sem orientação cadastrada; posso verificar as informações disponíveis sobre um serviço específico. 🤎",
-        appointment?.id ?? null,
-        replyReference,
-      ));
+      for (const document of ["menu", "advanced"] as const) {
+        ensureWhatsappDelivery(await sendWhatsappDocumentMessage(
+          phone,
+          knownClientName,
+          document,
+          document === "menu"
+            ? "Cardápio geral: reúne as opções e informações dos serviços do Spa e Bronze Belém."
+            : "Catálogo de estética avançada: apresenta os procedimentos estéticos disponíveis. Como você mencionou a gestação, confirme com a equipe se algum serviço é adequado para você. 🤎",
+          appointment?.id ?? null,
+          replyReference,
+        ));
+      }
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
 
@@ -5146,18 +5161,23 @@ const processWhatsappWebhookPayload = async (
       ? null
       : currentDocumentRequest ?? decision.document;
     if (responseDocument) {
-      ensureWhatsappDelivery(await sendWhatsappDocumentMessage(
-        phone,
-        replyClientName,
-        responseDocument,
-        responseDocument === "menu"
-          ? "Segue o nosso cardápio de serviços e bronzeamento."
-          : responseDocument === "portfolio"
-            ? "Segue o portfólio de procedimentos faciais."
-            : "Segue o nosso catálogo de serviços de estética avançada.",
-        createdAppointment?.id ?? appointment?.id ?? null,
-        replyReference,
-      ));
+      const documents: WhatsappDocument[] = responseDocument === "catalogs"
+        ? ["menu", "advanced"]
+        : [responseDocument];
+      for (const document of documents) {
+        ensureWhatsappDelivery(await sendWhatsappDocumentMessage(
+          phone,
+          replyClientName,
+          document,
+          document === "menu"
+            ? "Cardápio geral: reúne os serviços do Spa e Bronze Belém, com opções e informações para você conhecer o que oferecemos."
+            : document === "advanced"
+              ? "Catálogo de estética avançada: apresenta os procedimentos estéticos disponíveis e informações para você conhecer essas opções."
+              : "Portfólio de harmonização orofacial: exemplos de procedimentos faciais.",
+          createdAppointment?.id ?? appointment?.id ?? null,
+          replyReference,
+        ));
+      }
     }
     const inferredAudioClip = audioClipForWhatsappMessage(normalizedText);
     const bronzeVisitBundle = tanningVisitIntent && !pregnancyMentioned;
