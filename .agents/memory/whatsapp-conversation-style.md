@@ -56,3 +56,9 @@ Keep WhatsApp conversation history unified by customer phone when the Spa change
 **Why:** The user chose to preserve a unified history across connected Spa numbers so returning clients keep continuity.
 
 **How to apply:** Continue retrieving app-saved conversation messages by customer phone; do not introduce instance-based history isolation unless the user changes this rule.
+
+Treat the WhatsApp interaction as consultative sales: use the full conversation to understand the client's goals and preferences, offer only relevant confirmed services without pressure, and respect declined offers. A general catalog request may send both the Spa/bronze menu and the advanced-aesthetics catalog, each with a separate caption explaining its contents.
+
+**Why:** The user asked for charismatic, empathetic, context-aware service that also presents relevant services, and confirmed both PDFs can be sent together if each is described.
+
+**How to apply:** Ground suggestions and benefits in confirmed service information, avoid repeated or unrelated upsells, and explain each attachment in its own caption so clients can distinguish the general service menu from advanced aesthetics.
