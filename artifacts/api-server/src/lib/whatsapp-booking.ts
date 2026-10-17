@@ -45,6 +45,11 @@ const normalizeText = (value: string) =>
 export const isWhatsappCatalogRequest = (value: string) =>
   /\b(?:catalogo|cardapio|portfolio)\b/.test(normalizeText(value));
 
+export const isBroadWhatsappServiceDiscovery = (value: string) => {
+  const normalized = normalizeText(value);
+  return /\b(?:quais|que)\s+(?:servicos|procedimentos|tratamentos|opcoes)\b|\b(?:o que|oq)\s+(?:voces?|o spa)\s+(?:oferecem|oferece|fazem|faz|tem|trabalham)\b|\b(?:quero|gostaria de|queria)\s+(?:conhecer|ver)\s+(?:os? )?(?:servicos|procedimentos|tratamentos|opcoes)\b|\b(?:valores|precos)\s+(?:dos?|de)\s+(?:servicos|procedimentos|tratamentos|spa)\b|\bme (?:passa|manda|mostra|fala|diz)\s+(?:os )?(?:servicos|procedimentos|tratamentos|opcoes|valores|precos)\b|\bquero saber\s+(?:os? )?(?:valores|precos|servicos|opcoes)\b/.test(normalized);
+};
+
 export const isWhatsappTopicChange = (value: string) =>
   /\b(?:agora (?:eu )?(?:queria|quero|preciso|gostaria) outra coisa|mudando de assunto|falando de outra coisa)\b/.test(
     normalizeText(value),

@@ -57,8 +57,8 @@ Keep WhatsApp conversation history unified by customer phone when the Spa change
 
 **How to apply:** Continue retrieving app-saved conversation messages by customer phone; do not introduce instance-based history isolation unless the user changes this rule.
 
-Treat the WhatsApp interaction as consultative sales: use the full conversation to understand the client's goals and preferences, offer only relevant confirmed services without pressure, and respect declined offers. A general catalog request may send both the Spa/bronze menu and the advanced-aesthetics catalog, each with a separate caption explaining its contents.
+Treat the WhatsApp interaction as consultative sales: use the full conversation to understand the client's goals and preferences, offer only relevant confirmed services without pressure, and respect declined offers. When the client broadly explores Spa services or general prices, send both the Spa/bronze menu and the advanced-aesthetics catalog proactively, each with a separate caption explaining its contents; do not ask permission first.
 
-**Why:** The user asked for charismatic, empathetic, context-aware service that also presents relevant services, and confirmed both PDFs can be sent together if each is described.
+**Why:** The user asked for charismatic, empathetic, context-aware service that presents relevant services and clarified that catalogs should be sent naturally during discovery, not only when requested.
 
-**How to apply:** Ground suggestions and benefits in confirmed service information, avoid repeated or unrelated upsells, and explain each attachment in its own caption so clients can distinguish the general service menu from advanced aesthetics.
+**How to apply:** Ground suggestions and benefits in confirmed service information, avoid repeated or unrelated upsells, and send the paired catalogs once when broad service discovery begins, explaining each PDF in its own caption. Do not send them in arrival updates, logistics, or a specific booking exchange.

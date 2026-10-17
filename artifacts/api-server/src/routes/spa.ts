@@ -168,6 +168,7 @@ import {
   getWhatsappBookingMessageSignals,
   hasWhatsappBookingIntent,
   isWhatsappBookingPrompt,
+  isBroadWhatsappServiceDiscovery,
   isWhatsappCatalogOffer,
   isWhatsappCatalogRequest,
   isWhatsappTopicChange,
@@ -660,10 +661,6 @@ const WHATSAPP_CATALOG_CAPTIONS = {
   menu: "Cardápio geral: reúne os serviços do Spa e Bronze Belém, com opções e informações para você conhecer o que oferecemos.",
   advanced: "Catálogo de estética avançada: apresenta os procedimentos estéticos disponíveis e informações para você conhecer essas opções.",
 } as const;
-const isBroadServiceDiscovery = (value: string) => {
-  const normalized = normalizeCatalogLabel(value);
-  return /\b(?:quais|que)\s+(?:servicos|procedimentos|tratamentos|opcoes)\b|\b(?:o que|oq)\s+(?:voces?|o spa)\s+(?:oferecem|oferece|fazem|faz|tem|trabalham)\b|\b(?:quero|gostaria de|queria)\s+(?:conhecer|ver)\s+(?:os? )?(?:servicos|procedimentos|tratamentos|opcoes)\b|\b(?:valores|precos)\s+(?:dos?|de)\s+(?:servicos|procedimentos|tratamentos|spa)\b|\bme passa\s+(?:os )?(?:valores|precos)\b/.test(normalized);
-};
 type AgentDocumentRequest = WhatsappDocument | "catalogs";
 
 const requestedWhatsappDocument = (text: string): AgentDocumentRequest | null => {
@@ -1162,6 +1159,7 @@ Antes de explicar como funciona um atendimento, identifique qual serviço a clie
 SERVIÇOS E ATENDIMENTO
 - Use todas as informações confirmadas e pertinentes disponíveis para o serviço e a modalidade escolhida, como preço, horário, fluxo de atendimento, preparo e duração. Não omita detalhes úteis nem invente.
 - Faça um atendimento consultivo e vendável: entenda o objetivo e as preferências já mencionadas e, quando houver relação clara, apresente no máximo uma opção complementar pertinente, com benefício e valor somente se confirmados no catálogo. Convide sem pressão e não desvie da dúvida atual.
+- Quando a cliente demonstrar interesse amplo em conhecer serviços, procedimentos ou valores gerais do Spa, envie proativamente os dois catálogos no mesmo turno, sem perguntar se ela quer recebê-los. Explique na legenda que o cardápio geral reúne os serviços do Spa e Bronze e que o segundo PDF apresenta estética avançada. Não envie em conversa de logística, atualização de chegada ou agendamento específico.
 - Considere todo o contexto da conversa, incluindo escolhas, recusas, dúvidas, orçamento e serviços já oferecidos. Nunca repita uma oferta recusada, não insista e não ofereça serviços aleatórios; se a cliente já decidiu, respeite a escolha e ajude no próximo passo.
 - Use carisma e empatia de forma natural e individualizada: reconheça o que a cliente contou e adapte a resposta ao contexto, sem mensagens genéricas, intimidade forçada ou exagero.
 - Antes de perguntar qual modalidade de bronze a cliente prefere, confira o histórico. Se ela já escolheu natural/solar ou máquina, preserve essa escolha ao responder pedidos de valores; não pergunte novamente, a menos que ela esteja comparando, tenha mudado de ideia ou a preferência continue indefinida.
@@ -1854,6 +1852,7 @@ REGRAS OBRIGATÓRIAS:
 - Use exatamente um emoji discreto no final da resposta. Varie naturalmente entre emojis como 🤎, 😊, 🌿, 💛, 🫶 e ✨; não repita ✨ em quase todas as mensagens e não use emojis no meio do texto.
 - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
 - Conduza um atendimento consultivo, acolhedor e vendável: use o contexto completo, reconheça o que a cliente já contou e, quando fizer sentido para o objetivo dela, ofereça no máximo um serviço complementar com informações confirmadas. Apresente como opção, sem pressão; respeite recusas e não repita ofertas rejeitadas nem sugira serviços aleatórios.
+- Se a cliente estiver conhecendo as opções do Spa ou pedir informações gerais de serviços e valores, envie proativamente o cardápio geral e o catálogo de estética avançada juntos, com uma legenda clara para cada PDF; não peça autorização antes de enviar. Evite esse envio em mensagens de logística ou em um agendamento específico.
 - Antes de responder, identifique internamente a situação, o assunto e a intenção da mensagem; leia a mensagem inteira e o histórico recente antes de decidir o que dizer.
 - Confira se a resposta atende à mensagem atual e usa apenas fatos confirmados. Se o contexto ou a intenção estiverem ambíguos, faça uma pergunta curta para esclarecer; não improvise uma resposta fora de contexto.
 - Quando várias mensagens forem enviadas em sequência antes da sua resposta, leia todas juntas e responda uma única vez. Não responda por linha, não repita a saudação, avisos ou perguntas já feitos.
@@ -1903,7 +1902,7 @@ REGRAS OBRIGATÓRIAS:
 - Cada áudio pré-gravado pode ser tentado apenas uma vez na conversa, mesmo se a tentativa anterior falhou. Se a tentativa do clipe correspondente estiver registrada acima, retorne audioClip null e não diga que vai enviar o áudio de novo; responda por texto.
 - Marque handoff true quando a cliente pedir atendimento humano, relatar alergia/reação/preocupação de saúde, fizer reclamação, pedir exceção de regra/horário, solicitar preço/disponibilidade/condição especial não cadastrada, perguntar sobre serviço sem fluxo definido ou quando não houver segurança para responder. Mantenha o encaminhamento do Spa Infantil.
 - ${SPA_SERVICE_FLOW_POLICY}
-- Para enviar os dois catálogos juntos, retorne document "catalogs"; o servidor enviará o cardápio geral e o catálogo de estética avançada em arquivos separados, cada um com uma legenda explicando seu conteúdo.
+- Ao perceber que a cliente está conhecendo serviços ou opções de forma ampla, retorne document "catalogs" sem perguntar se deseja receber; o servidor enviará o cardápio geral e o catálogo de estética avançada em arquivos separados, cada um com uma legenda explicando seu conteúdo.
 - Retorne SOMENTE um JSON válido, sem Markdown, neste formato:
 {"reply":"texto curto","clientName":null,"handoff":false,"document":null,"audioClip":null,"appointment":null,"bookingUpdate":null}
 ou, quando houver coleta de agendamento:
@@ -4740,7 +4739,7 @@ const processWhatsappWebhookPayload = async (
       ? requestedWhatsappDocument(text)
       : null;
     const explicitBookingIntent = hasWhatsappBookingIntent(text);
-    const proactiveCatalogDiscovery = isBroadServiceDiscovery(text) &&
+    const proactiveCatalogDiscovery = isBroadWhatsappServiceDiscovery(text) &&
       !explicitBookingIntent &&
       !explicitTopicChange &&
       !pregnancyMentioned;
@@ -5186,7 +5185,9 @@ const processWhatsappWebhookPayload = async (
         await saveWhatsappBookingDraft(phone, null);
       }
     }
-    const responseDocument = acceptedCatalogOffer || explicitTopicChange
+    const responseDocument = acceptedCatalogOffer ||
+      explicitTopicChange ||
+      (pregnancyMentioned && !currentDocumentRequest)
       ? null
       : proactiveCatalogDiscovery
         ? "catalogs"

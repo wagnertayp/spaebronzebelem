@@ -7,6 +7,7 @@ import {
   getWhatsappBookingMessageSignals,
   hasWhatsappBookingIntent,
   isWhatsappBookingPrompt,
+  isBroadWhatsappServiceDiscovery,
   isWhatsappCatalogOffer,
   isWhatsappCatalogRequest,
   isWhatsappTopicChange,
@@ -40,6 +41,14 @@ test("catalog browsing and changing subjects are not booking requests", () => {
   assert.equal(isWhatsappCatalogOffer("Posso te enviar o catálogo de estética avançada?"), true);
   assert.equal(isWhatsappBookingPrompt("Qual dia você prefere para agendar?"), true);
   assert.equal(isWhatsappBookingPrompt("Segue o catálogo de estética avançada."), false);
+});
+
+test("sends paired catalogs naturally during broad service discovery", () => {
+  assert.equal(isBroadWhatsappServiceDiscovery("Quais serviços vocês oferecem?"), true);
+  assert.equal(isBroadWhatsappServiceDiscovery("Quero conhecer os procedimentos"), true);
+  assert.equal(isBroadWhatsappServiceDiscovery("Me passa os valores dos serviços"), true);
+  assert.equal(isBroadWhatsappServiceDiscovery("Estou chegando, preciso do endereço"), false);
+  assert.equal(isBroadWhatsappServiceDiscovery("Quero agendar banho de lua"), false);
 });
 
 test("a catalog request, accepted catalog offer, or topic change suppresses stale booking context", () => {
