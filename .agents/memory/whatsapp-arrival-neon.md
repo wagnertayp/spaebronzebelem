@@ -19,11 +19,11 @@ A current intent to visit for natural or machine tanning overrides any stale app
 
 **How to apply:** Classify active tanning intent from the current turn and recent user messages before using saved booking state. Suppress and clear stale booking drafts; never create a bronze appointment. Send the configured full address as a separate message, and never replace it with “Belém - PA.”
 
-The user confirmed that bronze services of every modality start at R$150. Do not quote older catalog values below that minimum until the Spa provides updated package prices.
+The current starting price is R$140 for natural bronze; machine and vapor bronze start at R$150. Do not transfer prices across modalities, and confirm any unlisted package price with the Spa.
 
-**Why:** The user explicitly corrected the minimum bronze price across all modalities.
+**Why:** The user updated the natural bronze starting price to R$140 while the existing machine/vapor starting price remains R$150.
 
-**How to apply:** Use R$150 as the floor in all bronze recommendations, including natural, machine, and vapor. Treat any legacy package price below R$150 as stale and hand off for the current price rather than inventing a replacement.
+**How to apply:** Quote natural bronze from R$140 and machine/vapor from R$150. For a specific package not listed at a confirmed price, ask the Spa rather than inferring a price from the starting amount.
 
 Before recommending Neon, first establish whether the client prefers natural or machine bronze. Recommend Neon only after she chooses machine; if the modality is unclear, ask before mentioning Neon.
 

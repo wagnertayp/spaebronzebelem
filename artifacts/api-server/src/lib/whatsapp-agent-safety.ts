@@ -243,6 +243,29 @@ export const getWhatsappTanningFlow = (
   return null;
 };
 
+export const getRememberedWhatsappTanningFlowForPriceFollowUp = (
+  currentText: string,
+  recentUserContext: string,
+): WhatsappTanningFlow | null => {
+  const current = normalizeSafetyText(currentText);
+  if (
+    !/\b(?:valores?|precos?|quanto custa|quanto fica|me manda|mandar valores|me passa|passar valores)\b/.test(current) ||
+    /\b(?:natural|solar|sol|maquina)\b/.test(current) ||
+    !isTanningService(recentUserContext)
+  ) return null;
+
+  const recentUserMessages = recentUserContext.split(/\n+/).reverse();
+  for (const message of recentUserMessages) {
+    const normalized = normalizeSafetyText(message);
+    const mentionsNatural = /\b(?:bronze(?:amento)?\s+(?:natural|solar|no sol|ao sol)|marquinha natural|bronze solar)\b/.test(normalized);
+    const mentionsMachine = /\b(?:bronze(?:amento)?\s+(?:em|na)\s+maquina|maquina)\b/.test(normalized);
+    if (mentionsNatural && mentionsMachine) return null;
+    if (mentionsNatural) return "natural";
+    if (mentionsMachine) return "machine";
+  }
+  return null;
+};
+
 export const isExplicitWhatsappBronzeInfoRequest = (value: string) =>
   /\b(?:informe tudo|me informe tudo|informar tudo|me informar tudo|me conta tudo|me conte tudo|quero saber tudo|me explica tudo|explique tudo|manda o audio|envia o audio|quero o audio)\b/.test(
     normalizeSafetyText(value),

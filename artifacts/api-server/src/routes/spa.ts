@@ -260,6 +260,7 @@ import {
   isWhatsappDecisionDeferral,
   isDapServiceRequest,
   getWhatsappTanningFlow,
+  getRememberedWhatsappTanningFlowForPriceFollowUp,
   isExplicitWhatsappBronzeInfoRequest,
   isTanningService,
   mentionsPregnancy,
@@ -1144,6 +1145,7 @@ const SPA_SERVICE_FLOW_POLICY = `IDENTIFICAÇÃO DO SERVIÇO E FLUXO DE ATENDIME
 Antes de explicar como funciona um atendimento, identifique qual serviço a cliente quer realizar. Leia a mensagem e o histórico; se não estiver claro, faça uma pergunta objetiva em vez de presumir.
 
 SERVIÇOS E ATENDIMENTO
+- Antes de perguntar qual modalidade de bronze a cliente prefere, confira o histórico. Se ela já escolheu natural/solar ou máquina, preserve essa escolha ao responder pedidos de valores; não pergunte novamente, a menos que ela esteja comparando, tenha mudado de ideia ou a preferência continue indefinida.
 - Estética avançada e Ritual facial funcionam com agendamento. Siga o fluxo de agendamento e nunca confirme horário sem validar a disponibilidade real da agenda.
 - Bronzeamento natural funciona por ordem de chegada, das 07h30 às 11h; esse limite é específico do bronze e não se estende pelo horário geral do Spa. Não é agendado. O Spa e Bronze Belém não oferece bronzeamento diretamente sob o sol natural. Não afirme nem sugira que esse serviço seja exposição ao sol.
 - Bronzeamento em máquina funciona por ordem de chegada, sem promessa de horário específico: de segunda a sexta até 20h e aos sábados até 18h. Use o dia local atual para informar o limite correto.
@@ -1732,6 +1734,7 @@ const askWhatsappAgent = async (
   availableSlots: AppointmentSlotCandidate[] = [],
   bronzeAudioAlreadyAttempted = false,
   combosAudioAlreadyAttempted = false,
+  tanningFlowHint: "natural" | "machine" | "unspecified" | null = null,
 ): Promise<AgentDecision> => {
   const history = conversationHistory ?? (await getConversationHistory(phone)).slice(0, -1);
   const serviceTable = activeSpaRecords("service", services)
@@ -1788,6 +1791,8 @@ DATA E HORA LOCAIS AGORA: ${currentLocalDateTime}
 FUSO: ${whatsappAutomation.timezone}
 RASCUNHO SALVO DO AGENDAMENTO:
 ${bookingDraft ? JSON.stringify(bookingDraft) : "Nenhum"}
+MODALIDADE DE BRONZE JÁ IDENTIFICADA PELO HISTÓRICO DA CLIENTE:
+${tanningFlowHint === "natural" ? "Natural/solar" : tanningFlowHint === "machine" ? "Máquina" : "Ainda não identificada"}
 TENTATIVA DE ENVIO DO ÁUDIO DE BRONZE JÁ REGISTRADA NESTA CONVERSA:
 ${bronzeAudioAlreadyAttempted ? "Sim" : "Não"}
 TENTATIVA DE ENVIO DO ÁUDIO DE COMBOS JÁ REGISTRADA NESTA CONVERSA:
@@ -1848,7 +1853,7 @@ REGRAS OBRIGATÓRIAS:
 - Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta nem mencione o nome da profissional.
 - Se o cliente pedir o cardápio geral, use document "menu". Se pedir estética avançada, use document "advanced". Se pedir o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
 - Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar ou enviar áudio e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação, comparação ou resposta específica, responda sem atrasar com triagem.
-- O bronze começa em R$150 em qualquer modalidade. Ignore preços antigos abaixo desse piso e não os cite nem ofereça esses pacotes até a equipe atualizar os valores.
+- Bronze natural começa em R$140. Bronze em máquina e vapor começam em R$150. Não misture esses valores entre modalidades; confirme com a equipe o preço de qualquer pacote não confirmado.
 - Antes de indicar o Turbo Neon (Protocolo Neon), confirme se a cliente prefere bronze natural ou em máquina. Se ainda não informou a modalidade, pergunte primeiro e não mencione o Neon nessa resposta. Se escolher bronze em máquina e ainda estiver avaliando opções, recomende o Neon: três sessões + esfoliação por R$180, pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; procedimento rápido e pele que pode parecer mais iluminada com cuidados adequados. Apresente como possibilidades, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Se escolher natural, não indique Neon. Também não ofereça se já escolheu outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.
 - A escolha da cliente prevalece: se ela optar por outro método/pacote ou recusar o Neon, pare de oferecer e não volte a mencionar o Neon nem suas qualidades em mensagens futuras, a menos que ela pergunte sobre ele. Não faça a oferta durante atualização de chegada ou depois de um agendamento já confirmado.
 - O áudio de bronze pode ser escolhido uma única vez quando a cliente confirmar que é a primeira vez, aceitar a explicação ou pedir diretamente o áudio. Não o escolha automaticamente ao perguntar se é a primeira vez nem antes de uma cliente experiente aceitar a explicação. Depois da tentativa, o servidor enviará a comparação dos métodos.
@@ -4583,10 +4588,16 @@ const processWhatsappWebhookPayload = async (
       .join("\n");
     const recentTanningUserContext = conversationHistory
       .filter((message) => message.role === "user")
-      .slice(-4)
+      .slice(-12)
       .map((message) => message.content)
       .join("\n");
-    const tanningFlow = getWhatsappTanningFlow(text, recentTanningContext);
+    const rememberedTanningFlow = getRememberedWhatsappTanningFlowForPriceFollowUp(
+      text,
+      recentTanningUserContext,
+    );
+    const tanningFlow =
+      rememberedTanningFlow ?? getWhatsappTanningFlow(text, recentTanningContext);
+    const isRememberedTanningPriceFollowUp = Boolean(rememberedTanningFlow);
     const explicitBronzeInfoRequest = isExplicitWhatsappBronzeInfoRequest(text);
     const tanningVisitIntent = Boolean(
       tanningFlow && isWhatsappTanningVisitIntent(text, recentTanningUserContext),
@@ -4753,6 +4764,7 @@ const processWhatsappWebhookPayload = async (
       savedBookingSlots,
       bronzeAudioAlreadyAttempted,
       combosAudioAlreadyAttempted,
+      tanningFlow,
     );
     const suppressStaleBookingContext = shouldSuppressStaleWhatsappBookingContext({
       explicitBookingIntent,
@@ -5198,7 +5210,9 @@ const processWhatsappWebhookPayload = async (
     });
     const tanningServiceReply = pregnancyMentioned && tanningFlow
       ? pregnancyTanningRefusal
-      : bronzeVisitBundle
+      : isRememberedTanningPriceFollowUp
+        ? null
+        : bronzeVisitBundle
         ? `${tanningScheduleReply} Por cuidado, não realizamos bronzeamento durante a gravidez. Para outras condições de saúde, alergias ou uso de medicamentos, a equipe precisa confirmar antes. Vamos aguardar vocês no Spa.${shouldAskBronzeMethod ? " Você prefere o bronze natural ou em máquina? 🤎" : shouldSuggestNeon ? ` ${bronzeNeonRecommendationReply}` : " 🤎"}`
         : explicitBronzeInfoRequest && tanningFlow
           ? "Vou te enviar um áudio com as informações do bronzeamento. 🤎"
@@ -5942,7 +5956,7 @@ Regras obrigatórias:
 - Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação ou informação específica, responda sem atrasar com triagem.
 - Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Ao perguntar sem especificar, apresente as duas e envie os dois banners; se escolher uma, envie apenas o banner correspondente.
 - Spa de Banhos é por ordem de chegada, sem agendamento, nos dias e horários do Spa. Oriente a cliente a levar uma toalha e um biquíni; aluguel de toalha custa R$ 5 e, se não tiver biquíni, a equipe monta um tapa-sexy por R$ 10.
-- O bronze começa em R$150 em qualquer modalidade. Ignore preços antigos abaixo desse piso e não os cite nem ofereça esses pacotes até a equipe atualizar os valores.
+- Bronze natural começa em R$140. Bronze em máquina e vapor começam em R$150. Não misture esses valores entre modalidades; confirme com a equipe o preço de qualquer pacote não confirmado.
 - Antes de indicar o Turbo Neon (Protocolo Neon), confirme se a cliente prefere bronze natural ou em máquina. Se ainda não informou a modalidade, pergunte primeiro e não mencione o Neon nessa resposta. Se escolher bronze em máquina e ainda estiver avaliando opções, recomende o Neon: três sessões + esfoliação por R$180, pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; procedimento rápido e pele que pode parecer mais iluminada com cuidados adequados. Apresente como possibilidades, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Se escolher natural, não indique Neon. Também não ofereça se já escolheu outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.
 - Se a cliente optar por outro método/pacote ou recusar o Neon, respeite a escolha e não volte a mencioná-lo, salvo se ela perguntar sobre o Neon.
 - Neste teste textual, considere que a tentativa do áudio de bronze já foi registrada: não prometa nem envie outra gravação. Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. Para máquina, use somente as informações cadastradas.

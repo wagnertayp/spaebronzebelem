@@ -45,6 +45,12 @@ For every reply, use the full available conversation and the last agent question
 
 **How to apply:** Keep these continuity, question-review, and service-flow rules in both the production agent prompt and the agent test prompt; never override confirmed catalog facts or validated booking behavior.
 
+Before asking a follow-up, reuse a clear service or modality choice already stated by the client, even if later messages briefly cover logistics. For a broad price request, answer for the chosen bronze method instead of asking the client to choose it again; ask again only if she is comparing, changes her choice, or the history is genuinely ambiguous.
+
+**Why:** The user reported that the agent repeated the natural-versus-machine question after the client had already chosen solar bronze earlier in the conversation.
+
+**How to apply:** Review recent client messages, not just the current message or assistant wording, for an explicit choice. Carry that choice into price follow-ups and preserve the normal clarification flow when no choice exists.
+
 Keep WhatsApp conversation history unified by customer phone when the Spa changes its connected Evolution number. Do not clear or partition the customer's saved conversation solely because the Spa line changed.
 
 **Why:** The user chose to preserve a unified history across connected Spa numbers so returning clients keep continuity.

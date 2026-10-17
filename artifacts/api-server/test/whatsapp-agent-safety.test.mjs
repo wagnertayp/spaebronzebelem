@@ -11,6 +11,7 @@ import {
   glutealHarmonizationInformationReply,
   getWhatsappArrivalUpdate,
   getWhatsappTanningFlow,
+  getRememberedWhatsappTanningFlowForPriceFollowUp,
   isExplicitWhatsappBronzeInfoRequest,
   isWhatsappTanningVisitIntent,
   isWhatsappAcceptanceOfServiceOffer,
@@ -194,6 +195,37 @@ test("recognizes a natural-bronze follow-up from recent context and honors expli
       "Quero fazer um bronzeamento com minha amiga.",
     ),
     true,
+  );
+});
+
+test("reuses a client's selected bronze method when they ask for prices", () => {
+  assert.equal(
+    getRememberedWhatsappTanningFlowForPriceFollowUp(
+      "Você poderia me mandar valores?",
+      "Quero fazer bronze solar.",
+    ),
+    "natural",
+  );
+  assert.equal(
+    getRememberedWhatsappTanningFlowForPriceFollowUp(
+      "Pode me passar os valores?",
+      "Prefiro bronze em máquina.",
+    ),
+    "machine",
+  );
+  assert.equal(
+    getRememberedWhatsappTanningFlowForPriceFollowUp(
+      "Me manda os valores do bronze natural?",
+      "Prefiro bronze em máquina.",
+    ),
+    null,
+  );
+  assert.equal(
+    getRememberedWhatsappTanningFlowForPriceFollowUp(
+      "Você poderia me mandar valores?",
+      "Queria saber a diferença entre bronze natural e máquina.",
+    ),
+    null,
   );
 });
 
