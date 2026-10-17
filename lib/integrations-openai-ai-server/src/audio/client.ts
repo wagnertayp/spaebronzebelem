@@ -1,4 +1,5 @@
 import OpenAI, { toFile } from "openai";
+import ffmpegPath from "ffmpeg-static";
 import { Buffer } from "node:buffer";
 import { spawn } from "child_process";
 import { writeFile, unlink, readFile } from "fs/promises";
@@ -71,6 +72,9 @@ export function detectAudioFormat(buffer: Buffer): AudioFormat {
  * Convert any audio/video format to WAV using ffmpeg.
  */
 export async function convertToWav(audioBuffer: Buffer): Promise<Buffer> {
+  if (!ffmpegPath) {
+    throw new Error("O binário FFmpeg não está disponível para esta plataforma.");
+  }
   const inputPath = join(tmpdir(), `input-${randomUUID()}`);
   const outputPath = join(tmpdir(), `output-${randomUUID()}.wav`);
 
@@ -78,7 +82,7 @@ export async function convertToWav(audioBuffer: Buffer): Promise<Buffer> {
     await writeFile(inputPath, audioBuffer);
 
     await new Promise<void>((resolve, reject) => {
-      const ffmpeg = spawn("ffmpeg", [
+      const ffmpeg = spawn(ffmpegPath, [
         "-i", inputPath,
         "-vn",
         "-f", "wav",
