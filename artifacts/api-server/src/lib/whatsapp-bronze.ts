@@ -21,13 +21,13 @@ export const shouldSendBronzeAudio = (
 ) => selectedForCurrentTurn && !alreadyAttempted && !pregnancyMentioned;
 
 export const bronzeMethodDifferenceReply =
-  "O bronze natural é por ordem de chegada das 07h30 às 11h; o bronze em máquina também é por ordem de chegada, até 20h de segunda a sexta e 18h aos sábados. A equipe pode confirmar contraindicações conforme cada caso. 🤎";
+  "O bronze natural é por ordem de chegada das 07h30 às 11h; o bronze em máquina também é por ordem de chegada, até 20h de segunda a sexta, 18h no sábado e 11h30 no domingo. A equipe pode confirmar contraindicações conforme cada caso. 🤎";
 
 export const bronzeAudioUnavailableReply =
-  "Não consegui enviar o áudio agora. Para não deixar você sem as orientações: o bronze natural começa em R$ 140 e funciona por ordem de chegada das 07h30 às 11h; em máquina começa em R$ 150, é feito na WB Ultra com atendimento individual e leva cerca de 8 a 20 minutos conforme o fototipo, por ordem de chegada até 20h de segunda a sexta e 18h aos sábados. A equipe pode confirmar contraindicações conforme cada caso. 🤎";
+  "Não consegui enviar o áudio agora. Para não deixar você sem as orientações: o bronze natural começa em R$ 140 e funciona por ordem de chegada das 07h30 às 11h; em máquina começa em R$ 150, é feito na WB Ultra com atendimento individual e leva cerca de 8 a 20 minutos conforme o fototipo, por ordem de chegada até 20h de segunda a sexta, 18h no sábado e 11h30 no domingo. A equipe pode confirmar contraindicações conforme cada caso. 🤎";
 
 export const bronzeTextFallbackReply =
-  "Para você já ficar com as orientações por texto: o bronze natural começa em R$ 140 e funciona por ordem de chegada das 07h30 às 11h; em máquina começa em R$ 150, é feito na WB Ultra com atendimento individual e leva cerca de 8 a 20 minutos conforme o fototipo, por ordem de chegada até 20h de segunda a sexta e 18h aos sábados. A equipe pode confirmar contraindicações conforme cada caso. 🤎";
+  "Para você já ficar com as orientações por texto: o bronze natural começa em R$ 140 e funciona por ordem de chegada das 07h30 às 11h; em máquina começa em R$ 150, é feito na WB Ultra com atendimento individual e leva cerca de 8 a 20 minutos conforme o fototipo, por ordem de chegada até 20h de segunda a sexta, 18h no sábado e 11h30 no domingo. A equipe pode confirmar contraindicações conforme cada caso. 🤎";
 
 export const promisesWhatsappAudio = (reply: string) => {
   const normalized = reply
