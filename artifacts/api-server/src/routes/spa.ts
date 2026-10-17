@@ -656,6 +656,14 @@ const saveWhatsappSettings = async () => {
 const normalizeName = (value: string) => value.trim().toLocaleLowerCase("pt-BR");
 const normalizeCatalogLabel = (value: string) =>
   normalizeName(value).normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/\s+/g, " ");
+const WHATSAPP_CATALOG_CAPTIONS = {
+  menu: "Cardápio geral: reúne os serviços do Spa e Bronze Belém, com opções e informações para você conhecer o que oferecemos.",
+  advanced: "Catálogo de estética avançada: apresenta os procedimentos estéticos disponíveis e informações para você conhecer essas opções.",
+} as const;
+const isBroadServiceDiscovery = (value: string) => {
+  const normalized = normalizeCatalogLabel(value);
+  return /\b(?:quais|que)\s+(?:servicos|procedimentos|tratamentos|opcoes)\b|\b(?:o que|oq)\s+(?:voces?|o spa)\s+(?:oferecem|oferece|fazem|faz|tem|trabalham)\b|\b(?:quero|gostaria de|queria)\s+(?:conhecer|ver)\s+(?:os? )?(?:servicos|procedimentos|tratamentos|opcoes)\b|\b(?:valores|precos)\s+(?:dos?|de)\s+(?:servicos|procedimentos|tratamentos|spa)\b|\bme passa\s+(?:os )?(?:valores|precos)\b/.test(normalized);
+};
 type AgentDocumentRequest = WhatsappDocument | "catalogs";
 
 const requestedWhatsappDocument = (text: string): AgentDocumentRequest | null => {
@@ -1277,6 +1285,23 @@ const sendWhatsappDocumentMessage = async (
     providerMessageId: result.providerMessageId,
     error: result.error,
   })) ?? item;
+};
+
+const getSentWhatsappCatalogDocuments = async (phone: string) => {
+  const messages = await db
+    .select({
+      text: whatsappMessagesTable.text,
+      status: whatsappMessagesTable.status,
+    })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+      eq(whatsappMessagesTable.direction, "outbound"),
+      eq(whatsappMessagesTable.kind, "document"),
+      inArray(whatsappMessagesTable.text, Object.values(WHATSAPP_CATALOG_CAPTIONS)),
+      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
+    ));
+  return new Set(messages.map((message) => message.text));
 };
 
 const sendWhatsappSessionPreparationImage = async (
@@ -4715,6 +4740,10 @@ const processWhatsappWebhookPayload = async (
       ? requestedWhatsappDocument(text)
       : null;
     const explicitBookingIntent = hasWhatsappBookingIntent(text);
+    const proactiveCatalogDiscovery = isBroadServiceDiscovery(text) &&
+      !explicitBookingIntent &&
+      !explicitTopicChange &&
+      !pregnancyMentioned;
     if (
       pregnancyMentioned &&
       isWhatsappAcceptanceOfServiceOffer(text, previousAssistantMessage)
@@ -5159,20 +5188,28 @@ const processWhatsappWebhookPayload = async (
     }
     const responseDocument = acceptedCatalogOffer || explicitTopicChange
       ? null
-      : currentDocumentRequest ?? decision.document;
+      : proactiveCatalogDiscovery
+        ? "catalogs"
+        : currentDocumentRequest ?? decision.document;
     if (responseDocument) {
-      const documents: WhatsappDocument[] = responseDocument === "catalogs"
+      let documents: WhatsappDocument[] = responseDocument === "catalogs"
         ? ["menu", "advanced"]
         : [responseDocument];
+      if (proactiveCatalogDiscovery) {
+        const alreadySent = await getSentWhatsappCatalogDocuments(phone);
+        documents = documents.filter((document) =>
+          !alreadySent.has(WHATSAPP_CATALOG_CAPTIONS[document as keyof typeof WHATSAPP_CATALOG_CAPTIONS]),
+        );
+      }
       for (const document of documents) {
         ensureWhatsappDelivery(await sendWhatsappDocumentMessage(
           phone,
           replyClientName,
           document,
           document === "menu"
-            ? "Cardápio geral: reúne os serviços do Spa e Bronze Belém, com opções e informações para você conhecer o que oferecemos."
+            ? WHATSAPP_CATALOG_CAPTIONS.menu
             : document === "advanced"
-              ? "Catálogo de estética avançada: apresenta os procedimentos estéticos disponíveis e informações para você conhecer essas opções."
+              ? WHATSAPP_CATALOG_CAPTIONS.advanced
               : "Portfólio de harmonização orofacial: exemplos de procedimentos faciais.",
           createdAppointment?.id ?? appointment?.id ?? null,
           replyReference,
