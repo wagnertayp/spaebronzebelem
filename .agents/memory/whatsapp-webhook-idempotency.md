@@ -22,3 +22,15 @@ If processing succeeds but persisting the inbox completion fails, do not immedia
 **Why:** A PostgreSQL outage can occur after the handler has produced side effects but before the queue records completion. Immediate replay can duplicate work, while silently acknowledging a failed insert loses the webhook.
 
 **How to apply:** Keep initial enqueue-before-ack semantics, distinguish handler failures from completion-write failures, use lease expiry for uncertain completion outcomes, and test both database failure and replay idempotency.
+
+Production logs showed Evolution 400 responses for outbound messages to raw webhook identifiers beginning with the Portuguese country code 351 and to a 15-digit identifier. The current Brazilian phone normalizer prefixes 55 to every value that does not already begin with 55, which corrupts international numbers and cannot safely interpret WhatsApp LIDs.
+
+**Why:** The logged failures affected both reactions and normal replies, including retries without quoted-message metadata; recipient addressing is therefore a concrete failure candidate, not just a quote-format problem.
+
+**How to apply:** Preserve the provider's raw `remoteJid` when sending to webhook-originated conversations. Normalize Brazilian local numbers only when their country is known; do not infer Brazil for arbitrary international numbers or LIDs. Add tests for Brazilian, +351, and LID-shaped identifiers.
+
+Production logs also showed reminder-cycle failures when releasing a PostgreSQL session advisory lock (`pg_advisory_unlock` returned false). This may indicate loss of session affinity through a transaction-pooling database URL; the log alone does not prove whether reminder sends were skipped or duplicated.
+
+**Why:** The deployed app runs multiple worker dynos, and a session lock that is not reliably bound to one database backend cannot guarantee singleton reminder processing.
+
+**How to apply:** Check the production pooler mode and ensure lock acquisition and release use the same PostgreSQL session. If that is not guaranteed, use a durable database lease or another lock mechanism safe for the configured pooler, then verify reminder behavior across multiple workers.
