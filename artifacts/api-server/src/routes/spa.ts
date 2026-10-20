@@ -159,7 +159,7 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, gt, inArray, lt, lte, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { managedOpenai } from "@workspace/integrations-openai-ai-server/managed";
+import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import {
   bookingFitsScheduleIntervals,
@@ -330,7 +330,7 @@ type WhatsappMessage = ReturnType<typeof ListWhatsappMessagesResponse.parse>[num
 type WhatsappAutomation = ReturnType<typeof GetWhatsappAutomationResponse.parse>;
 type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.parse>[number];
 type WhatsappConversationStatus = WhatsappConversation["status"];
-const WHATSAPP_AGENT_MODEL = "gpt-5.6-luna";
+const OPENAI_TEXT_MODEL = "gpt-5.6-luna";
 const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
 const WHATSAPP_MESSAGE_BATCH_QUIET_MS = 2_500;
 const waitForWhatsappMessages = (durationMs: number) =>
@@ -1792,8 +1792,8 @@ const askWhatsappAgent = async (
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date());
-  const response = await managedOpenai.chat.completions.create({
-    model: WHATSAPP_AGENT_MODEL,
+  const response = await openai.chat.completions.create({
+    model: OPENAI_TEXT_MODEL,
     max_completion_tokens: 1600,
     response_format: { type: "json_object" },
     messages: [
@@ -6007,8 +6007,8 @@ router.post("/ai-agent/test", async (req, res, next) => {
       dateStyle: "short",
       timeStyle: "short",
     }).format(new Date());
-    const response = await managedOpenai.chat.completions.create({
-      model: WHATSAPP_AGENT_MODEL,
+    const response = await openai.chat.completions.create({
+      model: OPENAI_TEXT_MODEL,
       max_completion_tokens: 1200,
       messages: [
         {
