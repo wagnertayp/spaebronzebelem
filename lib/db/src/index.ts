@@ -31,4 +31,5 @@ attachPostgresPoolErrorHandlers(pool, (scope, error) => {
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";
-export { tryAcquirePostgresAdvisoryLock } from "./postgres-advisory-lock";
+export { acquirePostgresLease, tryAcquirePostgresLease } from "./postgres-lease";
+export type { PostgresLease } from "./postgres-lease";

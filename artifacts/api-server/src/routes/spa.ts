@@ -330,6 +330,8 @@ type WhatsappMessage = ReturnType<typeof ListWhatsappMessagesResponse.parse>[num
 type WhatsappAutomation = ReturnType<typeof GetWhatsappAutomationResponse.parse>;
 type WhatsappConversation = ReturnType<typeof ListWhatsappConversationsResponse.parse>[number];
 type WhatsappConversationStatus = WhatsappConversation["status"];
+type DatabaseLease = (() => Promise<void>) & { assertHeld: () => Promise<void> };
+
 const OPENAI_TEXT_MODEL = "gpt-5.6-luna";
 const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
 const WHATSAPP_MESSAGE_BATCH_QUIET_MS = 2_500;
@@ -2278,9 +2280,11 @@ export const runWhatsappReminders = async () => {
       const hours = (date.getTime() - now) / 3_600_000;
       // Catch up after a dyno restart, but never send a reminder for a started appointment.
       if (whatsappAutomation.reminder24h && hours > 0 && hours <= 25) {
+        await releaseReminderLock.assertHeld();
         await sendAppointmentMessage(appointment, "reminder24h");
       }
       if (whatsappAutomation.reminder2h && hours > 0 && hours <= 3) {
+        await releaseReminderLock.assertHeld();
         await sendAppointmentMessage(appointment, "reminder2h");
       }
     }
@@ -3246,11 +3250,13 @@ const ensureSpaOperationalStateLoaded = async () => {
 
   if (spaOperationalStateStore.status === "ready" && clientDeduplicationMigrationPending) {
     const releaseProcessLock = await acquireSpaOperationalStateWriteLock();
-    let releaseDatabaseLock: (() => Promise<void>) | undefined;
+    let releaseDatabaseLock: DatabaseLease | undefined;
     try {
       releaseDatabaseLock = await acquireSpaOperationalStateLock();
+      if (!releaseDatabaseLock) throw new Error("SPA state lease was not acquired.");
       await spaOperationalStateStore.refresh();
       if (spaOperationalStateStore.status === "ready" && clientDeduplicationMigrationPending) {
+        await releaseDatabaseLock.assertHeld();
         await spaOperationalStateStore.persist();
         clientDeduplicationMigrationPending = false;
         if (clientDeduplicationMergedCount > 0) {
@@ -3440,10 +3446,11 @@ const runWithSpaOperationalStateWriteLock = async <T>(
 ): Promise<T> => {
   await ensureSpaOperationalStateLoaded();
   const releaseProcessLock = await acquireSpaOperationalStateWriteLock();
-  let releaseDatabaseLock: (() => Promise<void>) | undefined;
+  let releaseDatabaseLock: DatabaseLease | undefined;
   let before: SpaOperationalSnapshot | null = null;
   try {
     releaseDatabaseLock = await acquireSpaOperationalStateLock();
+    if (!releaseDatabaseLock) throw new Error("SPA state lease was not acquired.");
     await refreshSpaOperationalState();
     if (spaOperationalStateStore.status !== "ready") {
       throw new Error("SPA operational state is not ready for a durable update.");
@@ -3451,6 +3458,7 @@ const runWithSpaOperationalStateWriteLock = async <T>(
 
     before = createSpaOperationalSnapshot();
     const result = await action();
+    await releaseDatabaseLock.assertHeld();
     await spaOperationalStateStore.persist();
     return result;
   } catch (error) {
@@ -3472,7 +3480,7 @@ const runWithSpaOperationalStateReadLock = async <T>(
 ): Promise<T> => {
   await ensureSpaOperationalStateLoaded();
   const releaseProcessLock = await acquireSpaOperationalStateWriteLock();
-  let releaseDatabaseLock: (() => Promise<void>) | undefined;
+  let releaseDatabaseLock: DatabaseLease | undefined;
   try {
     releaseDatabaseLock = await acquireSpaOperationalStateLock();
     await refreshSpaOperationalState();
@@ -3520,7 +3528,7 @@ const isIndependentWhatsappMutation = (req: Request) =>
 
 router.use(async (req, res, next) => {
   let releaseProcessLock: (() => void) | undefined;
-  let releaseDatabaseLock: (() => Promise<void>) | undefined;
+  let releaseDatabaseLock: DatabaseLease | undefined;
   let releasePromise: Promise<void> | undefined;
   const releaseHeldLocks = () => {
     if (!releasePromise) {
@@ -3680,43 +3688,43 @@ router.use(async (req, res, next) => {
         return res;
       }
 
-      void spaOperationalStateStore
-        .persist()
-        .then(async () => {
+      void (async () => {
+        if (!releaseDatabaseLock) throw new Error("SPA state lease was not acquired.");
+        await releaseDatabaseLock.assertHeld();
+        await spaOperationalStateStore.persist();
+        await releaseHeldLocks();
+        try {
+          originalEnd(...args);
+        } catch (error) {
+          logger.error({ err: error }, "Failed to finish SPA response after persisting state");
+          throw error;
+        }
+      })().catch(async (error: unknown) => {
+        restoreSpaOperationalSnapshot(before);
+        logger.error(
+          { err: error, method: req.method, path: req.path },
+          "Failed to persist SPA operational state",
+        );
+        if (res.headersSent) {
+          res.destroy(error instanceof Error ? error : undefined);
           await releaseHeldLocks();
-          try {
-            originalEnd(...args);
-          } catch (error) {
-            logger.error({ err: error }, "Failed to finish SPA response after persisting state");
-            throw error;
-          }
-        })
-        .catch(async (error: unknown) => {
-          restoreSpaOperationalSnapshot(before);
-          logger.error(
-            { err: error, method: req.method, path: req.path },
-            "Failed to persist SPA operational state",
-          );
-          if (res.headersSent) {
-            res.destroy(error instanceof Error ? error : undefined);
-            await releaseHeldLocks();
-            return;
-          }
+          return;
+        }
 
-          res.statusCode = 500;
-          res.removeHeader("Content-Length");
-          res.removeHeader("ETag");
-          res.setHeader("Content-Type", "application/json; charset=utf-8");
-          try {
-            originalEnd(
-              JSON.stringify({
-                error: "Não foi possível salvar os dados. Tente novamente.",
-              }),
-            );
-          } finally {
-            await releaseHeldLocks();
-          }
-        });
+        res.statusCode = 500;
+        res.removeHeader("Content-Length");
+        res.removeHeader("ETag");
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        try {
+          originalEnd(
+            JSON.stringify({
+              error: "Não foi possível salvar os dados. Tente novamente.",
+            }),
+          );
+        } finally {
+          await releaseHeldLocks();
+        }
+      });
 
       return res;
     }) as typeof res.end;

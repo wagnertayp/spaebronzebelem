@@ -2,13 +2,13 @@ type PostgresClientErrorEvents = {
   on: (event: "error", listener: (error: Error) => void) => unknown;
 };
 
-type PostgresPoolErrorEvents = {
-  on: (
+interface PostgresPoolErrorEvents {
+  on(
     event: "connect",
     listener: (client: PostgresClientErrorEvents) => void,
-  ) => unknown;
-  on: (event: "error", listener: (error: Error) => void) => unknown;
-};
+  ): unknown;
+  on(event: "error", listener: (error: Error) => void): unknown;
+}
 
 export const attachPostgresPoolErrorHandlers = (
   pool: PostgresPoolErrorEvents,

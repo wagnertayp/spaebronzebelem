@@ -43,6 +43,13 @@
       "when": 1791040264848,
       "tag": "0005_wise_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792504959045,
+      "tag": "0006_wet_stephen_strange",
+      "breakpoints": true
     }
   ]
 }

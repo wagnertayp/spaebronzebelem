@@ -1,9 +1,15 @@
 import { eq } from "drizzle-orm";
-import { db, pool, spaOperationalStateTable, tryAcquirePostgresAdvisoryLock } from "@workspace/db";
+import {
+  acquirePostgresLease,
+  db,
+  pool,
+  spaOperationalStateTable,
+  tryAcquirePostgresLease,
+} from "@workspace/db";
 import type { SpaOperationalStateRepository } from "./spa-state-store";
 
-const SPA_STATE_ADVISORY_LOCK_KEY = [139777, 1] as const;
-const WHATSAPP_REMINDER_ADVISORY_LOCK_KEY = [139777, 2] as const;
+const SPA_STATE_LOCK_KEY = "spa-operational-state";
+const WHATSAPP_REMINDER_LOCK_KEY = "whatsapp-reminders";
 
 export const spaOperationalStateRepository: SpaOperationalStateRepository = {
   async load() {
@@ -42,31 +48,9 @@ export const spaOperationalStateRepository: SpaOperationalStateRepository = {
   },
 };
 
-export const acquireSpaOperationalStateLock = async () => {
-  const client = await pool.connect();
-  try {
-    await client.query("SELECT pg_advisory_lock($1, $2)", [...SPA_STATE_ADVISORY_LOCK_KEY]);
-  } catch (error) {
-    client.release(error instanceof Error ? error : new Error("Could not acquire SPA state lock."));
-    throw error;
-  }
-
-  let released = false;
-  return async () => {
-    if (released) return;
-    released = true;
-    let releaseError: Error | undefined;
-    try {
-      await client.query("SELECT pg_advisory_unlock($1, $2)", [...SPA_STATE_ADVISORY_LOCK_KEY]);
-    } catch (error) {
-      releaseError = error instanceof Error ? error : new Error("Could not release SPA state lock.");
-      throw error;
-    } finally {
-      client.release(releaseError);
-    }
-  };
-};
+export const acquireSpaOperationalStateLock = async () =>
+  acquirePostgresLease(pool, SPA_STATE_LOCK_KEY);
 
 export const tryAcquireWhatsappReminderLock = async () => {
-  return tryAcquirePostgresAdvisoryLock(pool, WHATSAPP_REMINDER_ADVISORY_LOCK_KEY);
+  return tryAcquirePostgresLease(pool, WHATSAPP_REMINDER_LOCK_KEY);
 };

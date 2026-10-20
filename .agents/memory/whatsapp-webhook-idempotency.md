@@ -29,8 +29,8 @@ Production logs showed Evolution 400 responses for outbound messages to raw webh
 
 **How to apply:** Preserve the provider's raw `remoteJid` when sending to webhook-originated conversations. Normalize Brazilian local numbers only when their country is known; do not infer Brazil for arbitrary international numbers or LIDs. Add tests for Brazilian, +351, and LID-shaped identifiers.
 
-Production logs also showed reminder-cycle failures when releasing a PostgreSQL session advisory lock (`pg_advisory_unlock` returned false). This may indicate loss of session affinity through a transaction-pooling database URL; the log alone does not prove whether reminder sends were skipped or duplicated.
+Production logs showed SPA state lock query timeouts and reminder lock-release failures with PostgreSQL session advisory locks. Use expiring database-row leases for SPA state writes and reminder coordination when Neon pooling may not preserve session affinity; validate lease ownership immediately before durable writes and reminder sends.
 
-**Why:** The deployed app runs multiple worker dynos, and a session lock that is not reliably bound to one database backend cannot guarantee singleton reminder processing.
+**Why:** Production spans many dynos, and a transaction-pooling connection can move a session-level advisory lock between backend sessions, causing timeouts or an apparent lost lock.
 
-**How to apply:** Check the production pooler mode and ensure lock acquisition and release use the same PostgreSQL session. If that is not guaranteed, use a durable database lease or another lock mechanism safe for the configured pooler, then verify reminder behavior across multiple workers.
+**How to apply:** Prefer a short atomic lease row with an owner token and expiry over session advisory locks for these cross-dyno critical sections. Renew long-held leases, check ownership before side effects, and ensure the additive lease-table migration is applied before deploying the new code.
