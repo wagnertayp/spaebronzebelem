@@ -27,7 +27,7 @@ Never include professional names in any WhatsApp message, including offered slot
 
 **How to apply:** Keep all client-facing WhatsApp text free of professional names and retain the name only in internal booking data.
 
-Before replying, identify the situation, exact subject, and intent; read the full current message and relevant recent context. Answer only the actual question using confirmed facts, and ask a concise clarification when meaning is ambiguous.
+Before replying, analyze every saved message in the current WhatsApp atendimento window and all fragments of the current turn; do not treat the latest message as the whole conversation. Preserve earlier facts, choices, and corrections while answering the latest question.
 
 **Why:** the user asked that the WhatsApp agent check each message and avoid random or context-free replies.
 
@@ -39,11 +39,11 @@ If a client gives a clear pause while checking a booking or consulting someone, 
 
 **How to apply:** Use the recent assistant message to interpret short replies such as “Eu quero”; answer the accepted offer directly. For a booking deferral without a new date, time, or cancellation, send a short acknowledgment and leave the saved draft intact.
 
-For every reply, use the full current turn and recent conversation, especially whether the client is answering the agent's previous question. Preserve clear facts and corrections, including negative answers; do not infer the opposite from a keyword mention. Answer the client's latest question and ask only one concise question when essential information remains missing. Distinguish appointment-only advanced aesthetics and facial rituals from walk-in tanning: natural bronze until 11:30, machine bronze until 20:00 weekdays and 18:00 Saturdays. Do not assume the flow for spray/vapor bronze; use official information only and hand off health concerns or unknowns.
+For every reply, analyze all saved messages in the current WhatsApp atendimento window, not just a recent slice or the latest message. Reconcile the full history with all fragments in the current turn, preserve clear facts and corrections (including negative answers), and answer the latest question. Do not infer the opposite from a keyword mention. Ask only one concise question when essential information remains missing. Distinguish appointment-only advanced aesthetics and facial rituals from walk-in tanning: natural bronze until 11:30, machine bronze until 20:00 weekdays and 18:00 Saturdays. Do not assume the flow for spray/vapor bronze; use official information only and hand off health concerns or unknowns.
 
-**Why:** The user has repeatedly reported failures where the agent ignores details already given in the conversation and responds to an isolated keyword instead of the intended meaning.
+**Why:** The user explicitly requires the agent to analyze the entire atendimento window and has repeatedly reported failures when it treats each message as isolated.
 
-**How to apply:** Keep these continuity, question-review, and service-flow rules in both the production agent prompt and the agent test prompt; never override confirmed catalog facts or validated booking behavior.
+**How to apply:** Load all saved messages for the current WhatsApp conversation, pass the full history and current message batch to the production model, and remove arbitrary recent-message limits. Keep the same rule in agent instructions; never recover unsaved provider history or override confirmed catalog facts and validated booking behavior.
 
 Before asking a follow-up, reuse a clear service or modality choice already stated by the client, even if later messages briefly cover logistics. For a broad price request, answer for the chosen bronze method instead of asking the client to choose it again; ask again only if she is comparing, changes her choice, or the history is genuinely ambiguous.
 

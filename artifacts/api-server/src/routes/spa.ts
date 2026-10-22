@@ -1157,7 +1157,8 @@ const followUpMessageForAgentQuestion =
   "Vim só dar um alô antes que a nossa conversa peça férias. Se ainda quiser, me conta como posso te ajudar 😄";
 
 const WHATSAPP_CONVERSATION_CONTINUITY_POLICY = `CONTINUIDADE DA CONVERSA E PERGUNTAS
-- Antes de responder, considere o histórico completo disponível: o que a cliente já informou, o serviço desejado, a última pergunta do agente e se a mensagem atual responde, confirma, corrige ou inicia outro assunto. Não interprete a última mensagem isoladamente.
+- Antes de responder, considere todas as mensagens salvas nesta conversa de atendimento, da mais antiga à mais recente, junto com todas as mensagens do turno atual. Não limite a análise às últimas mensagens nem interprete a fala mais recente isoladamente.
+- Identifique o que a cliente já informou, o serviço desejado, a última pergunta do agente e se cada mensagem atual responde, confirma, corrige ou inicia outro assunto. Responda à pergunta mais recente sem descartar fatos, escolhas ou correções anteriores ainda pertinentes.
 - Preserve nome, procedimento, data, horário, preferência e demais dados já fornecidos. Nunca pergunte novamente uma informação presente no histórico ou no rascunho salvo.
 - Dê continuidade à intenção atual: responda sobre o serviço informado, preço cadastrado ou horário conforme as regras confirmadas; interprete respostas curtas no contexto da pergunta anterior; acompanhe mudanças de assunto sem perder o contexto.
 - Não repita explicações já dadas sem necessidade e não faça perguntas apenas para manter a conversa ativa. Pergunte somente quando a resposta for necessária para o próximo passo; se faltar dado essencial, faça uma única pergunta específica e natural.
@@ -1732,15 +1733,16 @@ const parseAgentDecision = (content: string): AgentDecision => {
 };
 
 const getConversationHistory = async (phone: string, beforeMessageId?: number) => {
+  const conversation = await getWhatsappConversation(phone);
+  if (!conversation) return [];
   const messages = await db
     .select({ direction: whatsappMessagesTable.direction, text: whatsappMessagesTable.text })
     .from(whatsappMessagesTable)
     .where(and(
-      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+      eq(whatsappMessagesTable.conversationId, conversation.id),
       beforeMessageId ? lt(whatsappMessagesTable.id, beforeMessageId) : undefined,
     ))
-    .orderBy(desc(whatsappMessagesTable.id))
-    .limit(20);
+    .orderBy(desc(whatsappMessagesTable.id));
   return messages.reverse().map((message) => ({
       role: message.direction === "inbound" ? "user" as const : "assistant" as const,
       content: message.text,
@@ -1905,7 +1907,7 @@ REGRAS OBRIGATÓRIAS:
 - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
 - Conduza um atendimento consultivo, acolhedor e vendável: use o contexto completo, reconheça o que a cliente já contou e, quando fizer sentido para o objetivo dela, ofereça no máximo um serviço complementar com informações confirmadas. Apresente como opção, sem pressão; respeite recusas e não repita ofertas rejeitadas nem sugira serviços aleatórios.
 - Se a cliente estiver conhecendo as opções do Spa ou pedir informações gerais de serviços e valores, envie proativamente o cardápio geral e o catálogo de estética avançada juntos, com uma legenda clara para cada PDF; não peça autorização antes de enviar. Evite esse envio em mensagens de logística ou em um agendamento específico.
-- Antes de responder, identifique internamente a situação, o assunto e a intenção da mensagem; leia a mensagem inteira e o histórico recente antes de decidir o que dizer.
+    - Antes de responder, identifique internamente a situação, o assunto e a intenção; leia todas as mensagens salvas nesta conversa de atendimento, não apenas as últimas ou a mensagem atual. Preserve os fatos e escolhas já informados e responda à pergunta mais recente sem ignorar o restante do contexto.
 - Confira se a resposta atende à mensagem atual e usa apenas fatos confirmados. Se o contexto ou a intenção estiverem ambíguos, faça uma pergunta curta para esclarecer; não improvise uma resposta fora de contexto.
 - Quando várias mensagens forem enviadas em sequência antes da sua resposta, leia todas juntas e responda uma única vez. Não responda por linha, não repita a saudação, avisos ou perguntas já feitos.
 - Se a cliente aceitar uma oferta feita na mensagem anterior, cumpra a oferta sem repetir a mesma pergunta. Só peça esclarecimento se ela tiver de escolher entre opções específicas ou se a intenção continuar ambígua.
@@ -4721,28 +4723,26 @@ const processWhatsappWebhookPayload = async (
     const savedBookingDraft = conversation?.bookingDraft ?? null;
     const today = localAgendaDate();
     const currentSignals = getWhatsappBookingMessageSignals(text, today);
-    const recentTanningContext = conversationHistory
-      .slice(-6)
+    const tanningConversationContext = conversationHistory
       .map((message) => message.content)
       .join("\n");
-    const recentTanningUserContext = conversationHistory
+    const tanningUserConversationContext = conversationHistory
       .filter((message) => message.role === "user")
-      .slice(-12)
       .map((message) => message.content)
       .join("\n");
     const rememberedTanningFlow = getRememberedWhatsappTanningFlowForPriceFollowUp(
       text,
-      recentTanningUserContext,
+      tanningUserConversationContext,
     );
     const tanningFlow =
-      rememberedTanningFlow ?? getWhatsappTanningFlow(text, recentTanningContext);
+      rememberedTanningFlow ?? getWhatsappTanningFlow(text, tanningConversationContext);
     const isRememberedTanningPriceFollowUp = Boolean(rememberedTanningFlow);
     const isTanningPriceQuestion =
       /\b(?:preco|valor|quanto custa|quanto fica)\b/.test(normalizedText);
     const explicitBronzeInfoRequest = isExplicitWhatsappBronzeInfoRequest(text);
     const currentTanningVisitIntent = Boolean(
       tanningFlow && (
-        isWhatsappTanningVisitIntent(text, recentTanningUserContext) ||
+        isWhatsappTanningVisitIntent(text, tanningUserConversationContext) ||
         isWhatsappTanningVisitServiceAnswer(text, previousAssistantMessage)
       ),
     );
@@ -4975,7 +4975,7 @@ const processWhatsappWebhookPayload = async (
     const hasRecentBookingContext =
       !suppressStaleBookingContext &&
       isWhatsappBookingPrompt(previousAssistantMessage) &&
-      conversationHistory.slice(-8).some((message) =>
+      conversationHistory.some((message) =>
         message.role === "user" && hasWhatsappBookingIntent(message.content),
       );
     const bookingContextText = suppressStaleBookingContext
@@ -4983,10 +4983,10 @@ const processWhatsappWebhookPayload = async (
       : savedBookingDraft
       ? text
       : currentSignals.affirmative || hasRecentBookingContext || directBookingIntent
-        ? [...conversationHistory.slice(-8).map((message) => message.content), text].join("\n")
+        ? [...conversationHistory.map((message) => message.content), text].join("\n")
         : text;
     const bookingServiceContextText = savedBookingDraft && !savedBookingDraft.service
-      ? [...conversationHistory.slice(-8).map((message) => message.content), text].join("\n")
+      ? [...conversationHistory.map((message) => message.content), text].join("\n")
       : bookingContextText;
     const parsedBookingContextSignals = getWhatsappBookingMessageSignals(bookingContextText, today);
     const bookingContextSignals = {
@@ -5370,7 +5370,7 @@ const processWhatsappWebhookPayload = async (
         : "Os bronzes são por ordem de chegada, sem agendamento: natural das 07h30 às 11h; em máquina, até 20h de segunda a sexta, até 18h no sábado e até 11h30 no domingo.";
     const shouldAskBronzeMethod = shouldAskWhatsappBronzeMethod({
       text: normalizedText,
-      recentUserContext: recentTanningUserContext,
+      recentUserContext: tanningUserConversationContext,
       flow: tanningFlow,
       visitIntent: bronzeVisitBundle,
       explicitInfoRequest: explicitBronzeInfoRequest,
@@ -5378,7 +5378,7 @@ const processWhatsappWebhookPayload = async (
     });
     const shouldSuggestNeon = shouldSuggestWhatsappNeon({
       text: normalizedText,
-      recentUserContext: recentTanningUserContext,
+      recentUserContext: tanningUserConversationContext,
       flow: tanningFlow,
       visitIntent: bronzeVisitBundle,
       explicitInfoRequest: explicitBronzeInfoRequest,
