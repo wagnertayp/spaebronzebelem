@@ -271,6 +271,7 @@ import {
   getWhatsappTanningFlow,
   getRememberedWhatsappTanningFlowForPriceFollowUp,
   getWhatsappPregnancyScreenAnswer,
+  getWhatsappPregnancyAnswerFromHistory,
   isWhatsappPregnancyScreenQuestion,
   isExplicitWhatsappPregnancyDenial,
   isExplicitWhatsappBronzeInfoRequest,
@@ -1911,6 +1912,7 @@ REGRAS OBRIGATÓRIAS:
 - Se a cliente disser que vai pensar, conferir ou consultar alguém, reconheça sem pressionar, preserve o rascunho de agendamento e não repita a lista de horários.
 - Quando disser que está indo, responda como recepcionista: diga que a equipe está aguardando, que pode avisar a recepção ao chegar e deseje uma boa vinda; não reinicie o agendamento.
 - Por cuidado, o spa não realiza bronzeamento durante a gravidez. Recuse apenas o bronzeamento; não diga que banho de lua ou outros serviços são seguros ou proibidos na gestação sem informação confirmada. Responda à pergunta específica e, se não houver orientação cadastrada sobre a gestação, diga isso sem oferecer uma lista aleatória de serviços para gestantes.
+- Interprete respostas com o contexto da pergunta anterior. “Não estou grávida”, “não tô grávida” e equivalentes são uma negativa clara: preserve essa resposta no fluxo atual, não trate a simples menção à gravidez como confirmação e não repita a recusa. Depois, responda à pergunta mais recente (por exemplo, sobre amanhã ou horários).
 - Se perguntarem se você é IA, robô ou pessoa, responda com transparência que é a assistente virtual com IA do Spa e Bronze Belém; nunca afirme ou sugira que é humana.
 - Se o pedido não tiver relação com o Spa e Bronze Belém, não responda ao conteúdo aleatório nem execute pedidos externos; explique brevemente que seu atendimento é sobre serviços, valores, horários e agendamentos do Spa e redirecione com uma pergunta curta.
 - Se a mensagem vier com uma imagem, observe-a antes de responder e use apenas o que estiver visível nela. Se vier de áudio, considere a transcrição como a mensagem da cliente.
@@ -4556,18 +4558,22 @@ const processWhatsappWebhookPayload = async (
   const pregnancyScreenWasAsked =
     isWhatsappPregnancyScreenQuestion(previousAssistantMessage) &&
     /\bbronze(?:amento|adas?)?\b/i.test(previousAssistantMessage);
+  const recentPregnancyAnswer = getWhatsappPregnancyAnswerFromHistory(conversationHistory);
+  const currentPregnancyAnswer =
+    pregnancyScreenWasAsked || mentionsPregnancy(text)
+      ? getWhatsappPregnancyScreenAnswer(text)
+      : null;
   const pregnancyScreenAnswer = pregnancyScreenWasAsked
-    ? getWhatsappPregnancyScreenAnswer(text)
-    : null;
-  const explicitPregnancyDenial = isExplicitWhatsappPregnancyDenial(text);
-  const pregnancyMentioned =
-    conversationHistory.some((message) =>
-      message.role === "user" && mentionsPregnancy(message.content),
-    ) ||
-    inboundBatch.some((message) => mentionsPregnancy(message.text));
+    ? currentPregnancyAnswer
+    : currentPregnancyAnswer && currentPregnancyAnswer !== "unclear"
+      ? currentPregnancyAnswer
+      : recentPregnancyAnswer;
+  const explicitPregnancyDenial =
+    isExplicitWhatsappPregnancyDenial(text) ||
+    (!pregnancyScreenWasAsked && recentPregnancyAnswer === "not_pregnant");
   const pregnancyRisk = pregnancyScreenAnswer === "not_pregnant" || explicitPregnancyDenial
     ? false
-    : pregnancyMentioned || pregnancyScreenAnswer === "pregnant";
+    : pregnancyScreenAnswer === "pregnant";
   const currentImageParts = Array.isArray(currentInput)
     ? currentInput.filter((part) => part.type === "image_url")
     : [];
@@ -4846,9 +4852,9 @@ const processWhatsappWebhookPayload = async (
     const proactiveCatalogDiscovery = isBroadWhatsappServiceDiscovery(text) &&
       !explicitBookingIntent &&
       !explicitTopicChange &&
-      !pregnancyMentioned;
+      !pregnancyRisk;
     if (
-      pregnancyMentioned &&
+      pregnancyRisk &&
       isWhatsappAcceptanceOfServiceOffer(text, previousAssistantMessage)
     ) {
       for (const document of ["menu", "advanced"] as const) {
@@ -5089,7 +5095,7 @@ const processWhatsappWebhookPayload = async (
       } else {
         let bookingDraft: WhatsappBookingDraft = mergedBookingDraft;
         const service = bookingDraft.service ? findBookingService(bookingDraft.service) : null;
-        if (service && pregnancyMentioned && isTanningService(service.name, service.category)) {
+        if (service && pregnancyRisk && isTanningService(service.name, service.category)) {
           await replyWithBookingProgress(null, pregnancyTanningRefusal);
           return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
         }
@@ -5295,7 +5301,7 @@ const processWhatsappWebhookPayload = async (
     }
     const responseDocument = acceptedCatalogOffer ||
       explicitTopicChange ||
-      (pregnancyMentioned && !currentDocumentRequest)
+      (pregnancyRisk && !currentDocumentRequest)
       ? null
       : proactiveCatalogDiscovery
         ? "catalogs"
@@ -5378,6 +5384,9 @@ const processWhatsappWebhookPayload = async (
       explicitInfoRequest: explicitBronzeInfoRequest,
       pregnancyMentioned: pregnancyRisk,
     });
+    const asksAboutTomorrowAvailability =
+      /\bamanha\b/.test(normalizedText) &&
+      /\b(?:tem|funciona|aberto|atende|posso|vou)\b/.test(normalizedText);
     const tanningServiceReply = pregnancyRisk && (tanningFlow || pregnancyScreenWasAsked)
       ? pregnancyTanningRefusal
       : isRememberedTanningPriceFollowUp || (isTanningPriceQuestion && !tanningVisitIntent)
@@ -5385,7 +5394,9 @@ const processWhatsappWebhookPayload = async (
         : shouldAskTanningPregnancy
         ? `${tanningScheduleReply} Só para cuidar bem de você antes do bronzeamento: existe possibilidade de estar grávida? Por cuidado, não realizamos bronzeamento durante a gravidez. 🤎`
         : bronzeVisitBundle
-        ? "Perfeito! Traga uma toalhinha e um biquíni. A equipe vai aguardar você no Spa. 🤎"
+        ? asksAboutTomorrowAvailability
+          ? `Tem sim! ${tanningScheduleReply} 🤎`
+          : "Perfeito! Traga uma toalhinha e um biquíni. A equipe vai aguardar você no Spa. 🤎"
         : explicitBronzeInfoRequest && tanningFlow
           ? null
           : shouldAskBronzeMethod
@@ -6163,6 +6174,7 @@ Regras obrigatórias:
 - Se a cliente optar por outro método/pacote ou recusar o Neon, respeite a escolha e não volte a mencioná-lo, salvo se ela perguntar sobre o Neon.
 - Neste teste textual, considere que a tentativa do áudio de bronze já foi registrada: não prometa nem envie outra gravação. Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. Para máquina, use somente as informações cadastradas.
 - Por cuidado, não realizamos bronzeamento durante a gravidez. Recuse apenas o bronzeamento; não diga que banho de lua ou outros serviços são seguros ou proibidos sem informação confirmada. Se a adequação durante a gestação não estiver cadastrada, diga que não pode confirmar e responda à pergunta específica sem oferecer serviços aleatórios.
+- Interprete respostas com o contexto da pergunta anterior. “Não estou grávida”, “não tô grávida” e equivalentes são uma negativa clara: preserve essa resposta no fluxo atual, não trate a simples menção à gravidez como confirmação e não repita a recusa. Depois, responda à pergunta mais recente (por exemplo, sobre amanhã ou horários).
 - DAP, bronzeamento natural e bronzeamento em máquina são atendimentos por ordem de chegada, respeitando seus limites específicos. Não atribua esse fluxo a outros serviços sem confirmação cadastrada.
 - Ao perguntarem se o spa está aberto agora, não confunda horário de funcionamento com disponibilidade para um serviço específico nem prometa vaga sem consultar a agenda. Não estime tempo de trajeto de Uber nem prometa que dá tempo sem dados em tempo real.
 - Nunca invente preço, promoção, disponibilidade ou política.

@@ -23,16 +23,76 @@ export const getWhatsappPregnancyScreenAnswer = (
   value: string,
 ): WhatsappPregnancyScreenAnswer => {
   const normalized = normalizeSafetyText(value);
-  if (/\bnao\b.{0,30}\b(?:estou|sou|tenho|existe|ha)\b.{0,24}\b(?:gravida|gestante|gravidez|possibilidade)\b/.test(normalized)) {
-    return "not_pregnant";
+  const segments = normalized
+    .split(/[\n.!?,;]+/)
+    .map((segment) => segment.replace(/^\s*\d+\.\s*/, "").trim())
+    .filter(Boolean);
+  let explicitStatus: WhatsappPregnancyScreenAnswer | null = null;
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index]!;
+    if (
+      /\bnao\b.{0,24}\b(?:sei|acho|tenho certeza|tenho duvida)\b/.test(segment) ||
+      /^(?:nao sei|nao tenho certeza|nao tenho duvida)$/.test(segment)
+    ) {
+      explicitStatus = "pregnant";
+      break;
+    }
+    if (
+      /\bnao\b.{0,30}\b(?:estou|to|sou|tenho|existe|ha|posso)\b.{0,24}\b(?:gravida|gestante|gravidez|possibilidade)\b/.test(segment) ||
+      /^(?:nao|nao estou|nao to|nao sou)$/.test(segment) && mentionsPregnancy(value)
+    ) {
+      explicitStatus = "not_pregnant";
+      break;
+    }
+    if (
+      /\b(?:estou|to|sou|talvez|possivelmente|posso estar|acho que sim)\b.{0,24}\b(?:gravida|gestante|gravidez|possibilidade)\b/.test(segment)
+    ) {
+      explicitStatus = "pregnant";
+      break;
+    }
   }
-  if (/^\s*(?:nao|nao[,!. ]+nao|nao estou|nao sou)[.!?,\s]*$/.test(normalized)) {
-    return "not_pregnant";
-  }
-  if (/\b(?:sim|estou|sou|talvez|possivelmente|posso estar|acho que sim)\b/.test(normalized)) {
+  if (explicitStatus) return explicitStatus;
+
+  const shortAnswer = segments
+    .map((segment) => segment.replace(/^\s*\d+\.\s*/, "").trim())
+    .find((segment) => /^(?:sim|nao|talvez|possivelmente|acho que sim|nao nao)$/.test(segment));
+  if (shortAnswer === "sim" || shortAnswer === "talvez" || shortAnswer === "possivelmente" || shortAnswer === "acho que sim") {
     return "pregnant";
   }
+  if (shortAnswer === "nao" || shortAnswer === "nao nao") return "not_pregnant";
   return "unclear";
+};
+
+export const getWhatsappPregnancyAnswerFromHistory = (
+  history: Array<{ role: "user" | "assistant"; content: string }>,
+): WhatsappPregnancyScreenAnswer | null => {
+  let latestScreenQuestionIndex = -1;
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index];
+    if (message?.role === "assistant" && isWhatsappPregnancyScreenQuestion(message.content)) {
+      latestScreenQuestionIndex = index;
+      break;
+    }
+  }
+
+  if (latestScreenQuestionIndex >= 0) {
+    const answerMessages: string[] = [];
+    for (const message of history.slice(latestScreenQuestionIndex + 1)) {
+      if (message.role === "assistant") break;
+      if (message.role === "user") answerMessages.push(message.content);
+    }
+    const answerAfterQuestion = answerMessages.join("\n");
+    const answer = getWhatsappPregnancyScreenAnswer(answerAfterQuestion);
+    if (answer !== "unclear") return answer;
+  }
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index];
+    if (message?.role !== "user" || !mentionsPregnancy(message.content)) continue;
+    const answer = getWhatsappPregnancyScreenAnswer(message.content);
+    if (answer !== "unclear") return answer;
+  }
+  return null;
 };
 
 export const isExplicitWhatsappPregnancyDenial = (value: string) =>

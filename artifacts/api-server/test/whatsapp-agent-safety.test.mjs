@@ -26,6 +26,7 @@ import {
   mentionsPregnancy,
   isWhatsappPregnancyScreenQuestion,
   getWhatsappPregnancyScreenAnswer,
+  getWhatsappPregnancyAnswerFromHistory,
   isExplicitWhatsappPregnancyDenial,
   mentionsSpaInfantil,
   removeWhatsappProfessionalNames,
@@ -60,10 +61,30 @@ test("screens pregnancy only after a gentle question and classifies yes/no answe
   assert.equal(isWhatsappPregnancyScreenQuestion(question), true);
   assert.equal(getWhatsappPregnancyScreenAnswer("Não"), "not_pregnant");
   assert.equal(getWhatsappPregnancyScreenAnswer("Não estou grávida"), "not_pregnant");
+  assert.equal(
+    getWhatsappPregnancyScreenAnswer("Não tô grávida hahaha\nTá bom vou fazer\nAmanhã tem?"),
+    "not_pregnant",
+  );
+  assert.equal(
+    getWhatsappPregnancyScreenAnswer("Não tô grávida. Sim, amanhã tem?"),
+    "not_pregnant",
+  );
+  assert.equal(getWhatsappPregnancyScreenAnswer("Não sei se tô grávida"), "pregnant");
+  assert.equal(getWhatsappPregnancyScreenAnswer("Não, estou grávida"), "pregnant");
+  assert.equal(isExplicitWhatsappPregnancyDenial("Não tô grávida hahaha"), true);
   assert.equal(getWhatsappPregnancyScreenAnswer("Sim"), "pregnant");
   assert.equal(getWhatsappPregnancyScreenAnswer("Talvez"), "pregnant");
   assert.equal(getWhatsappPregnancyScreenAnswer("Vou ver"), "unclear");
   assert.equal(isExplicitWhatsappPregnancyDenial("Não estou grávida"), true);
+  assert.equal(
+    getWhatsappPregnancyAnswerFromHistory([
+      { role: "assistant", content: question },
+      { role: "user", content: "Não tô grávida hahaha" },
+      { role: "assistant", content: "Perfeito, vou te passar os detalhes." },
+      { role: "user", content: "Sim, amanhã tem?" },
+    ]),
+    "not_pregnant",
+  );
 });
 
 test("treats a short bronze answer as a walk-in visit when asked which service they are coming for", () => {
