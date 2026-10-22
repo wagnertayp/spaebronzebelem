@@ -240,8 +240,6 @@ import {
 } from "../lib/whatsapp-webhook-inbox";
 import { persistWhatsappWebhookBeforeAcknowledgement } from "../lib/whatsapp-webhook-acknowledgement";
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
-import { getWhatsappSimpleFactReply } from "../lib/whatsapp-simple-facts";
-import { getWhatsappAttendanceWindow } from "../lib/whatsapp-attendance-window";
 import {
   bronzeNeonRecommendationReply,
   bronzeTextFallbackReply,
@@ -1687,24 +1685,17 @@ const parseAgentDecision = (content: string): AgentDecision => {
   }
 };
 
-const getConversationHistory = async (
-  phone: string,
-  beforeMessageId?: number,
-  referenceAt?: Date,
-) => {
+const getConversationHistory = async (phone: string, beforeMessageId?: number) => {
   const messages = await db
-    .select({
-      direction: whatsappMessagesTable.direction,
-      text: whatsappMessagesTable.text,
-      createdAt: whatsappMessagesTable.createdAt,
-    })
+    .select({ direction: whatsappMessagesTable.direction, text: whatsappMessagesTable.text })
     .from(whatsappMessagesTable)
     .where(and(
       eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
       beforeMessageId ? lt(whatsappMessagesTable.id, beforeMessageId) : undefined,
     ))
-    .orderBy(desc(whatsappMessagesTable.id));
-  return getWhatsappAttendanceWindow(messages.reverse(), referenceAt ?? new Date()).map((message) => ({
+    .orderBy(desc(whatsappMessagesTable.id))
+    .limit(20);
+  return messages.reverse().map((message) => ({
       role: message.direction === "inbound" ? "user" as const : "assistant" as const,
       content: message.text,
     }));
@@ -1723,12 +1714,11 @@ const getWhatsappUnansweredInboundBatch = async (phone: string) => {
     .orderBy(desc(whatsappMessagesTable.id))
     .limit(1);
 
-  const unansweredMessages = await db
+  return db
     .select({
       id: whatsappMessagesTable.id,
       text: whatsappMessagesTable.text,
       providerMessageId: whatsappMessagesTable.providerMessageId,
-      createdAt: whatsappMessagesTable.createdAt,
     })
     .from(whatsappMessagesTable)
     .where(and(
@@ -1739,7 +1729,6 @@ const getWhatsappUnansweredInboundBatch = async (phone: string) => {
         : undefined,
     ))
     .orderBy(asc(whatsappMessagesTable.id));
-  return getWhatsappAttendanceWindow(unansweredMessages);
 };
 
 const getWhatsappImageContentFromWebhook = async (
@@ -3539,7 +3528,7 @@ const isIndependentWhatsappMutation = (req: Request) =>
 
 router.use(async (req, res, next) => {
   let releaseProcessLock: (() => void) | undefined;
-  let releaseDatabaseLock: DatabaseLease | undefined;
+  let releaseDatabaseLock: (() => Promise<void>) | undefined;
   let releasePromise: Promise<void> | undefined;
   const releaseHeldLocks = () => {
     if (!releasePromise) {
@@ -3699,9 +3688,6 @@ router.use(async (req, res, next) => {
         return res;
       }
 
-      if (!releaseDatabaseLock) {
-        throw new Error("SPA operational-state database lock was not acquired");
-      }
       releaseDatabaseLock.assertHeld();
       void spaOperationalStateStore
         .persist()
@@ -4496,12 +4482,17 @@ const processWhatsappWebhookPayload = async (
     });
   }
   text = combineWhatsappInboundMessages(inboundBatch.map((message) => message.text));
-  const conversationHistory = await getConversationHistory(
-    phone,
-    inboundBatch[0]!.id,
-    inboundBatch[0]!.createdAt,
-  );
-  const isFirstClientMessage = !conversationHistory.some((message) => message.role === "user");
+  const conversationHistory = await getConversationHistory(phone, inboundBatch[0]!.id);
+  const [previousClientMessage] = await db
+    .select({ id: whatsappMessagesTable.id })
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+      eq(whatsappMessagesTable.direction, "inbound"),
+      lt(whatsappMessagesTable.id, inboundBatch[0]!.id),
+    ))
+    .limit(1);
+  const isFirstClientMessage = !previousClientMessage;
   const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const isBronzeQuestion = /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText);
   const pregnancyMentioned =
@@ -4775,48 +4766,6 @@ const processWhatsappWebhookPayload = async (
       ? requestedWhatsappDocument(text)
       : null;
     const explicitBookingIntent = hasWhatsappBookingIntent(text);
-    const mentionedBookableService = findBookingService(text);
-    const serviceForSimplePrice = /\b(?:preco|valor|quanto custa|custa)\b/.test(normalizedText)
-      ? mentionedBookableService
-      : null;
-    const simpleFactReply =
-      !pregnancyMentioned &&
-      !appointment &&
-      !savedBookingDraft &&
-      !tanningFlow &&
-      !explicitBookingIntent &&
-      !currentCatalogRequest &&
-      !acceptedCatalogOffer &&
-      !explicitTopicChange &&
-      !currentDocumentRequest &&
-      !isAudioMessage &&
-      !isImageMessage &&
-      imageParts.length === 0
-        ? getWhatsappSimpleFactReply({
-            text,
-            businessHours: aiAgentConfig.businessHours,
-            address: aiAgentConfig.address,
-            mentionedService: mentionedBookableService
-              ? { name: mentionedBookableService.name, price: mentionedBookableService.price }
-              : null,
-          })
-        : null;
-    if (simpleFactReply) {
-      ensureWhatsappDelivery(await sendWhatsappReply(
-        phone,
-        knownClientName,
-        null,
-        simpleFactReply.reply,
-        "reply",
-        replyReference,
-      ));
-      logger.info({
-        event: "whatsapp_simple_fact_reply",
-        intent: simpleFactReply.intent,
-        inboxId: inboxJob.id,
-      }, "Answered a confirmed simple fact without an AI model call");
-      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
-    }
     const proactiveCatalogDiscovery = isBroadWhatsappServiceDiscovery(text) &&
       !explicitBookingIntent &&
       !explicitTopicChange &&
