@@ -3,7 +3,7 @@
 - [WhatsApp PTT audio](whatsapp-ptt-audio.md) — preserve PTT delivery; the bronze clip is one attempt only, then compare solar exposure with WB Ultra.
 - [Arrival and bronze guidance](whatsapp-arrival-neon.md) — acknowledge arrivals, classify service flow, give confirmed tanning care, and recommend Neon only while the client is choosing.
 - [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
-- [WhatsApp AI cost control](whatsapp-ai-cost-control.md) — measure per-call token usage and optimize without dropping the full atendimento context.
+- [WhatsApp AI cost control](whatsapp-ai-cost-control.md) — track tokens and retain the full active atendimento, starting a new window after 24h without messages.
 - [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own greetings and answer consecutive saved messages together in one turn.
 - [DAP walk-in service](dap-walk-in-service.md) — explain DAP's confirmed details, treat it as walk-in only, and send both reference photos without promising results.
 - [WhatsApp agent availability](whatsapp-agent-availability.md) — user requirement: the WhatsApp AI agent must not stop, for any reason.

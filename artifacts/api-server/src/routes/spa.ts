@@ -285,6 +285,7 @@ import {
   whatsappDecisionDeferralReply,
   spaInfantilHandoffReply,
 } from "../lib/whatsapp-agent-safety";
+import { getWhatsappAttendanceWindow } from "../lib/whatsapp-attendance-window";
 
 const router: IRouter = Router();
 
@@ -1783,18 +1784,26 @@ const parseAgentDecision = (content: string): AgentDecision => {
   }
 };
 
-const getConversationHistory = async (phone: string, beforeMessageId?: number) => {
+const getConversationHistory = async (
+  phone: string,
+  beforeMessageId?: number,
+  referenceAt?: Date,
+) => {
   const conversation = await getWhatsappConversation(phone);
   if (!conversation) return [];
   const messages = await db
-    .select({ direction: whatsappMessagesTable.direction, text: whatsappMessagesTable.text })
+    .select({
+      direction: whatsappMessagesTable.direction,
+      text: whatsappMessagesTable.text,
+      createdAt: whatsappMessagesTable.createdAt,
+    })
     .from(whatsappMessagesTable)
     .where(and(
       eq(whatsappMessagesTable.conversationId, conversation.id),
       beforeMessageId ? lt(whatsappMessagesTable.id, beforeMessageId) : undefined,
     ))
     .orderBy(desc(whatsappMessagesTable.id));
-  return messages.reverse().map((message) => ({
+  return getWhatsappAttendanceWindow(messages.reverse(), referenceAt ?? new Date()).map((message) => ({
       role: message.direction === "inbound" ? "user" as const : "assistant" as const,
       content: message.text,
     }));
@@ -1813,11 +1822,12 @@ const getWhatsappUnansweredInboundBatch = async (phone: string) => {
     .orderBy(desc(whatsappMessagesTable.id))
     .limit(1);
 
-  return db
+  const unansweredMessages = await db
     .select({
       id: whatsappMessagesTable.id,
       text: whatsappMessagesTable.text,
       providerMessageId: whatsappMessagesTable.providerMessageId,
+      createdAt: whatsappMessagesTable.createdAt,
     })
     .from(whatsappMessagesTable)
     .where(and(
@@ -1828,6 +1838,8 @@ const getWhatsappUnansweredInboundBatch = async (phone: string) => {
         : undefined,
     ))
     .orderBy(asc(whatsappMessagesTable.id));
+  const referenceAt = unansweredMessages.at(-1)?.createdAt;
+  return getWhatsappAttendanceWindow(unansweredMessages, referenceAt);
 };
 
 const getWhatsappImageContentFromWebhook = async (
@@ -4597,17 +4609,12 @@ const processWhatsappWebhookPayload = async (
     });
   }
   text = combineWhatsappInboundMessages(inboundBatch.map((message) => message.text));
-  const conversationHistory = await getConversationHistory(phone, inboundBatch[0]!.id);
-  const [previousClientMessage] = await db
-    .select({ id: whatsappMessagesTable.id })
-    .from(whatsappMessagesTable)
-    .where(and(
-      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
-      eq(whatsappMessagesTable.direction, "inbound"),
-      lt(whatsappMessagesTable.id, inboundBatch[0]!.id),
-    ))
-    .limit(1);
-  const isFirstClientMessage = !previousClientMessage;
+  const conversationHistory = await getConversationHistory(
+    phone,
+    inboundBatch[0]!.id,
+    inboundBatch[0]!.createdAt,
+  );
+  const isFirstClientMessage = !conversationHistory.some((message) => message.role === "user");
   const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const isBronzeQuestion = /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText);
   const previousAssistantMessage = [...conversationHistory]

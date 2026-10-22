@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { enqueueConfirmedTanningWalkIn } from "../src/lib/whatsapp-walk-in-queue.ts";
+import { getWhatsappAttendanceWindow } from "../src/lib/whatsapp-attendance-window.ts";
 import {
   clientArrivalEtaReply,
   clientOnTheWayReply,
@@ -229,6 +230,23 @@ test("queues a confirmed bronze walk-in once per Belem day and allows a later-da
   });
   assert.equal(queue.length, 2);
   assert.notEqual(nextDay.id, first.id);
+});
+
+test("starts a new attendance window only after a gap longer than 24 hours", () => {
+  const messages = [
+    { text: "mensagem de atendimento antigo", createdAt: "2026-10-19T17:00:00.000Z" },
+    { text: "começo do atendimento atual", createdAt: "2026-10-20T19:00:00.000Z" },
+    { text: "continuação", createdAt: "2026-10-21T09:00:00.000Z" },
+  ];
+  const window = getWhatsappAttendanceWindow(
+    messages,
+    "2026-10-22T08:00:00.000Z",
+  );
+
+  assert.deepEqual(
+    window.map((message) => message.text),
+    ["começo do atendimento atual", "continuação"],
+  );
 });
 
 test("recognizes gluteal harmonization and includes the supplied Instagram reel link", () => {
