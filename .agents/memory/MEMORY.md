@@ -3,6 +3,7 @@
 - [WhatsApp PTT audio](whatsapp-ptt-audio.md) — preserve PTT delivery; the bronze clip is one attempt only, then compare solar exposure with WB Ultra.
 - [Arrival and bronze guidance](whatsapp-arrival-neon.md) — acknowledge arrivals, classify service flow, give confirmed tanning care, and recommend Neon only while the client is choosing.
 - [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
+- [WhatsApp AI cost control](whatsapp-ai-cost-control.md) — measure per-call token usage and optimize without dropping the full atendimento context.
 - [WhatsApp conversation style](whatsapp-conversation-style.md) — let the model own greetings and answer consecutive saved messages together in one turn.
 - [DAP walk-in service](dap-walk-in-service.md) — explain DAP's confirmed details, treat it as walk-in only, and send both reference photos without promising results.
 - [WhatsApp agent availability](whatsapp-agent-availability.md) — user requirement: the WhatsApp AI agent must not stop, for any reason.
@@ -14,6 +15,7 @@
 - [Booking service durations](booking-service-durations.md) — use the user-confirmed 30-minute duration for meia perna; never infer durations for other services.
 - [WhatsApp booking intent boundaries](whatsapp-booking-intent-boundaries.md) — browsing a catalog or changing topics is not consent to book; only continue a current, specific booking flow.
 - [WhatsApp booking assignment](whatsapp-booking-assignment.md) — reserve client-selected WhatsApp slots provisionally, then let staff assign the attendee in the agenda queue.
+- [WhatsApp bronze walk-in queue](whatsapp-bronze-walk-in-queue.md) — confirmed bronze visits enter the dedicated queue after the required pregnancy screening is cleared.
 - [OpenAPI date codegen](openapi-date-codegen.md) — date-formatted strings can become `Date` in generated Zod types but stay strings in the React client.
 - [Drizzle migration generation](drizzle-migration-generation.md) — keep a package-relative `out` in config; this version rejects extra generate flags with `--config`.
 - [Legacy dev migration state](legacy-dev-migration-state.md) — this workspace's existing tables are not tracked in the Drizzle ledger; don't replay migrations blindly.

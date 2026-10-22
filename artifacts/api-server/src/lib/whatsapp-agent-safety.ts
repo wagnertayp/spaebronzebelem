@@ -386,6 +386,27 @@ export const isWhatsappTanningVisitIntent = (
     (previousExplicitTanningIntent && (currentIsVisitFollowUp || currentIsShortServiceAnswer));
 };
 
+export const isWhatsappTanningVisitConfirmation = (
+  currentText: string,
+  previousAssistantMessage: string,
+  conversationContext: string,
+) => {
+  const current = normalizeSafetyText(currentText);
+  const previous = normalizeSafetyText(previousAssistantMessage);
+  const contextHasTanning = isTanningService(previousAssistantMessage) ||
+    isTanningService(conversationContext);
+  const assistantAskedAboutVisit =
+    previous.includes("?") &&
+    /\b(?:vir|vem|ir|comparecer|fila|te colocar|vai fazer bronze|vai vir|vai ir|pretende vir|quer vir|quer fazer bronze)\b/.test(
+      previous,
+    );
+  const currentConfirmsVisit =
+    /^(?:sim|vou sim|vamos sim|com certeza|confirmo(?: que vou)?|confirmando que vou|confirmado|confirmada|irei|estarei|vou|vamos|pode me colocar|pode colocar)\b/.test(
+      current,
+    );
+  return contextHasTanning && assistantAskedAboutVisit && currentConfirmsVisit;
+};
+
 export const isWhatsappTanningVisitServiceAnswer = (
   currentText: string,
   previousAssistantMessage: string,

@@ -264,6 +264,7 @@ import {
   glutealHarmonizationInformationReply,
   getWhatsappArrivalUpdate,
   isWhatsappTanningVisitIntent,
+  isWhatsappTanningVisitConfirmation,
   isWhatsappTanningVisitServiceAnswer,
   isWhatsappAcceptanceOfServiceOffer,
   isWhatsappDecisionDeferral,
@@ -350,7 +351,16 @@ type AgentModelCallSource = "whatsapp-agent" | "ai-agent-test";
 const logAgentModelCallSuccess = (
   source: AgentModelCallSource,
   startedAt: number,
-  response: { id: string; model: string },
+  response: {
+    id: string;
+    model: string;
+    usage?: {
+      prompt_tokens: number;
+      completion_tokens: number;
+      total_tokens: number;
+      prompt_tokens_details?: { cached_tokens?: number } | null;
+    } | null;
+  },
 ) => {
   logger.info({
     event: "agent_model_call_succeeded",
@@ -359,6 +369,10 @@ const logAgentModelCallSuccess = (
     returnedModel: response.model,
     responseId: response.id,
     durationMs: Date.now() - startedAt,
+    inputTokens: response.usage?.prompt_tokens,
+    outputTokens: response.usage?.completion_tokens,
+    totalTokens: response.usage?.total_tokens,
+    cachedInputTokens: response.usage?.prompt_tokens_details?.cached_tokens,
   }, "AI agent model call succeeded");
 };
 
@@ -4785,6 +4799,7 @@ const processWhatsappWebhookPayload = async (
     const currentTanningVisitIntent = Boolean(
       tanningFlow && (
         isWhatsappTanningVisitIntent(text, tanningUserConversationContext) ||
+        isWhatsappTanningVisitConfirmation(text, previousAssistantMessage, tanningConversationContext) ||
         isWhatsappTanningVisitServiceAnswer(text, previousAssistantMessage)
       ),
     );
@@ -4980,21 +4995,23 @@ const processWhatsappWebhookPayload = async (
       );
     }
     if (bronzeVisitBundle) {
-      const updated = await runWithSpaOperationalStateWriteLock(() => {
+      const queueEntry = await runWithSpaOperationalStateWriteLock(() => {
         const clientRecord = clients.find(
           (item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone),
         );
         if (clientRecord) clientRecord.service = "Bronzeamento";
-        enqueueConfirmedTanningWalkIn(walkInQueue, {
+        return enqueueConfirmedTanningWalkIn(walkInQueue, {
           clientName: decision.clientName ?? knownClientName ?? "",
           phone,
           timeZone: whatsappAutomation.timezone,
         });
-        return true;
       });
-      if (!updated) {
-        log.warn({ inboxId: inboxJob.id }, "Bronze walk-in could not be added to the service queue");
-      }
+      logger.info({
+        event: "whatsapp_tanning_walkin_enqueued",
+        inboxId: inboxJob.id,
+        queueEntryId: queueEntry.id,
+        status: queueEntry.status,
+      }, "Confirmed bronze walk-in is in the attendance queue");
     }
     await saveWhatsappClientName(
       phone,
