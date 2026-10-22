@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/use-auth';
 const NotFound = lazy(() => import('@/pages/not-found'));
 const Dashboard = lazy(() => import('@/pages/dashboard').then((module) => ({ default: module.Dashboard })));
 const Agenda = lazy(() => import('@/pages/agenda').then((module) => ({ default: module.Agenda })));
+const AtendimentoFila = lazy(() => import('@/pages/atendimento-fila').then((module) => ({ default: module.AtendimentoFila })));
 const Clientes = lazy(() => import('@/pages/clientes').then((module) => ({ default: module.Clientes })));
 const Usuarios = lazy(() => import('@/pages/usuarios').then((module) => ({ default: module.Usuarios })));
 const WhatsApp = lazy(() => import('@/pages/whatsapp').then((module) => ({ default: module.WhatsApp })));
@@ -48,6 +49,7 @@ function Router() {
   const canAccessStaffPath = Boolean(
     user &&
       ((location === '/agenda' && user.canAccessAgenda) ||
+        (location === '/fila-atendimento' && user.canAccessAgenda) ||
         (location === '/usuarios' && user.canAccessCommissions) ||
         (location === '/sem-acesso' && !user.canAccessAgenda && !user.canAccessCommissions)),
   );
@@ -66,6 +68,7 @@ function Router() {
             {isStaff ? null : <Dashboard />}
           </Route>
           <Route path="/agenda" component={Agenda} />
+          <Route path="/fila-atendimento" component={AtendimentoFila} />
           <Route path="/clientes" component={Clientes} />
           <Route path="/usuarios" component={Usuarios} />
           <Route path="/whatsapp" component={WhatsApp} />

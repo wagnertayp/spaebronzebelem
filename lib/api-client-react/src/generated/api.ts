@@ -88,6 +88,8 @@ import type {
   StaffAccessCredential,
   StaffAccessPassword,
   StaffPasswordChangeInput,
+  WalkInQueueEntry,
+  WalkInQueueStatusInput,
   WhatsappAutomation,
   WhatsappConnectResponse,
   WhatsappConnection,
@@ -2989,6 +2991,155 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getDeleteClientMutationOptions(options));
+    }
+
+export const getListWalkInQueueUrl = () => {
+
+
+
+
+  return `/api/walk-in-queue`
+}
+
+/**
+ * @summary Lista clientes na fila de atendimento walk-in
+ */
+export const listWalkInQueue = async ( options?: Parameters<typeof customFetch>[1]): Promise<WalkInQueueEntry[]> => {
+
+  return customFetch<WalkInQueueEntry[]>(getListWalkInQueueUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWalkInQueueQueryKey = () => {
+    return [
+    `/api/walk-in-queue`
+    ] as const;
+    }
+
+
+export const getListWalkInQueueQueryOptions = <TData = Awaited<ReturnType<typeof listWalkInQueue>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWalkInQueue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWalkInQueueQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWalkInQueue>>> = ({ signal }) => listWalkInQueue({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWalkInQueue>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWalkInQueueQueryResult = NonNullable<Awaited<ReturnType<typeof listWalkInQueue>>>
+export type ListWalkInQueueQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Lista clientes na fila de atendimento walk-in
+ */
+
+export function useListWalkInQueue<TData = Awaited<ReturnType<typeof listWalkInQueue>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWalkInQueue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWalkInQueueQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateWalkInQueueEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/walk-in-queue/${id}`
+}
+
+/**
+ * @summary Atualiza o status de um atendimento walk-in
+ */
+export const updateWalkInQueueEntry = async (id: number,
+    walkInQueueStatusInput: WalkInQueueStatusInput, options?: Parameters<typeof customFetch>[1]): Promise<WalkInQueueEntry> => {
+
+  return customFetch<WalkInQueueEntry>(getUpdateWalkInQueueEntryUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(walkInQueueStatusInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateWalkInQueueEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWalkInQueueEntry>>, TError,{id: number;data: BodyType<WalkInQueueStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWalkInQueueEntry>>, TError,{id: number;data: BodyType<WalkInQueueStatusInput>}, TContext> => {
+
+const mutationKey = ['updateWalkInQueueEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWalkInQueueEntry>>, {id: number;data: BodyType<WalkInQueueStatusInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateWalkInQueueEntry(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWalkInQueueEntryMutationResult = NonNullable<Awaited<ReturnType<typeof updateWalkInQueueEntry>>>
+    export type UpdateWalkInQueueEntryMutationBody = BodyType<WalkInQueueStatusInput>
+    export type UpdateWalkInQueueEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Atualiza o status de um atendimento walk-in
+ */
+export const useUpdateWalkInQueueEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWalkInQueueEntry>>, TError,{id: number;data: BodyType<WalkInQueueStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateWalkInQueueEntry>>,
+        TError,
+        {id: number;data: BodyType<WalkInQueueStatusInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateWalkInQueueEntryMutationOptions(options));
     }
 
 export const getListLeadsUrl = () => {

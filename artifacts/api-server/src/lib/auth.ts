@@ -234,6 +234,10 @@ export function isStaffSpaRequestAllowed(
   }
   if (verb === "GET" && path === "/services") return session.canAccessAgenda;
   if (verb === "GET" && path === "/appointments") return session.canAccessAgenda;
+  if (
+    (verb === "GET" && path === "/walk-in-queue") ||
+    (verb === "PATCH" && /^\/walk-in-queue\/\d+$/.test(path))
+  ) return session.canAccessAgenda;
   if (verb === "POST" && path === "/appointments") return session.canAccessAgenda;
   if (
     (verb === "PATCH" || verb === "DELETE") &&

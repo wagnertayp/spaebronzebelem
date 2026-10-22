@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { enqueueConfirmedTanningWalkIn } from "../src/lib/whatsapp-walk-in-queue.ts";
 import {
   clientArrivalEtaReply,
   clientOnTheWayReply,
@@ -180,6 +181,32 @@ test("recognizes Banho de Lua offers and distinguishes the two banner prices", (
   assert.doesNotMatch(bathMoonBannerInformationReply(null), /vou te enviar os banners/i);
   assert.match(bathMoonBannerInformationReply(null), /clareamento dos pelos/i);
   assert.match(bathMoonBannerInformationReply("clarifying"), /6 áreas de atrito/i);
+});
+
+test("queues a confirmed bronze walk-in once per Belem day and allows a later-day visit", () => {
+  const queue = [];
+  const first = enqueueConfirmedTanningWalkIn(queue, {
+    clientName: "Ana Silva",
+    phone: "+55 (91) 99999-0000",
+    createdAt: new Date("2026-10-22T12:30:00.000Z"),
+  });
+  const duplicate = enqueueConfirmedTanningWalkIn(queue, {
+    clientName: "Ana Silva",
+    phone: "5591999990000",
+    createdAt: new Date("2026-10-22T15:30:00.000Z"),
+  });
+  assert.equal(queue.length, 1);
+  assert.equal(duplicate.id, first.id);
+  assert.equal(first.status, "waiting");
+  assert.equal(first.service, "Bronzeamento");
+
+  const nextDay = enqueueConfirmedTanningWalkIn(queue, {
+    clientName: "Ana Silva",
+    phone: "5591999990000",
+    createdAt: new Date("2026-10-23T12:30:00.000Z"),
+  });
+  assert.equal(queue.length, 2);
+  assert.notEqual(nextDay.id, first.id);
 });
 
 test("recognizes gluteal harmonization and includes the supplied Instagram reel link", () => {

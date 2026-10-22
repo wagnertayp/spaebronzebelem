@@ -1167,6 +1167,29 @@ export interface InventoryItemInput {
   nextExpiration: string;
 }
 
+export type WalkInQueueStatus = typeof WalkInQueueStatus[keyof typeof WalkInQueueStatus];
+
+
+export const WalkInQueueStatus = {
+  waiting: 'waiting',
+  in_service: 'in_service',
+  completed: 'completed',
+  canceled: 'canceled',
+} as const;
+
+export interface WalkInQueueEntry {
+  id: number;
+  clientName: string;
+  phone: string;
+  service: string;
+  status: WalkInQueueStatus;
+  createdAt: string;
+}
+
+export interface WalkInQueueStatusInput {
+  status: WalkInQueueStatus;
+}
+
 export type ListWhatsappMessagesParams = {
 /**
  * @minimum 1

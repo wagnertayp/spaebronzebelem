@@ -237,6 +237,10 @@ import {
   type WhatsappWebhookJobContext,
   type WhatsappWebhookPayload,
 } from "../lib/whatsapp-webhook-inbox";
+import {
+  enqueueConfirmedTanningWalkIn,
+  type WhatsappWalkInQueueEntry,
+} from "../lib/whatsapp-walk-in-queue";
 import { persistWhatsappWebhookBeforeAcknowledgement } from "../lib/whatsapp-webhook-acknowledgement";
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
 import {
@@ -328,6 +332,8 @@ type Appointment = {
   workOrderId?: number | null;
   workOrderNumber?: string;
 };
+
+type WalkInQueueEntry = WhatsappWalkInQueueEntry;
 
 type WorkOrder = ReturnType<typeof ListWorkOrdersResponse.parse>[number];
 
@@ -610,6 +616,7 @@ const initialClientMerge = mergeKnownSnapshotClientDuplicates(
   trustedBackupClientDuplicateGroups,
 );
 const clients = initialClientMerge.clients;
+const walkInQueue: WalkInQueueEntry[] = [];
 
 let whatsappAutomation: WhatsappAutomation = {
   enabled: false,
@@ -2996,6 +3003,7 @@ type SpaOperationalSnapshot = {
   commissionAudit: CommissionAudit[];
   financialMovements: FinancialMovement[];
   clients: typeof clients;
+  walkInQueue: WalkInQueueEntry[];
   leads: Lead[];
   quotes: Quote[];
   workOrders: WorkOrder[];
@@ -3018,6 +3026,7 @@ const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
   commissionAudit: clone(commissionAudit),
   financialMovements: clone(financialMovements),
   clients: clone(clients),
+  walkInQueue: clone(walkInQueue),
   leads: clone(leads),
   quotes: clone(quotes),
   workOrders: clone(workOrders),
@@ -3031,6 +3040,7 @@ type DashboardOperationalSnapshot = Pick<
   | "appointments"
   | "professionals"
   | "clients"
+  | "walkInQueue"
   | "leads"
   | "quotes"
   | "services"
@@ -3060,6 +3070,7 @@ const loadDashboardOperationalSnapshot = async (): Promise<DashboardOperationalS
   if (
     candidate.version !== 1 ||
     dashboardCollections.some((key) => !Array.isArray(candidate[key])) ||
+    (candidate.walkInQueue !== undefined && !Array.isArray(candidate.walkInQueue)) ||
     !Array.isArray(archiveEntries) ||
     archiveEntries.some((entry) =>
       !entry ||
@@ -3077,6 +3088,7 @@ const loadDashboardOperationalSnapshot = async (): Promise<DashboardOperationalS
     appointments: candidate.appointments as SpaOperationalSnapshot["appointments"],
     professionals: candidate.professionals as SpaOperationalSnapshot["professionals"],
     clients: candidate.clients as SpaOperationalSnapshot["clients"],
+    walkInQueue: (candidate.walkInQueue ?? []) as SpaOperationalSnapshot["walkInQueue"],
     leads: candidate.leads as SpaOperationalSnapshot["leads"],
     quotes: candidate.quotes as SpaOperationalSnapshot["quotes"],
     services: candidate.services as SpaOperationalSnapshot["services"],
@@ -3100,7 +3112,7 @@ const activeDashboardRecords = <T extends { id: number }>(
 const dashboardSnapshotForResponse = (res: Response): DashboardOperationalSnapshot => {
   const snapshot = (res.locals as Record<string, unknown>)["spaOperationalReadSnapshot"];
   if (snapshot && typeof snapshot === "object") return snapshot as DashboardOperationalSnapshot;
-  return { appointments, professionals, clients, leads, quotes, services, archivedSpaRecords };
+  return { appointments, professionals, clients, walkInQueue, leads, quotes, services, archivedSpaRecords };
 };
 
 const restoreSpaOperationalSnapshot = (value: unknown) => {
@@ -3127,6 +3139,7 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
     (candidate.clientDeduplicationApplied !== undefined &&
       typeof candidate.clientDeduplicationApplied !== "boolean") ||
     collectionKeys.some((key) => !Array.isArray(candidate[key])) ||
+    (candidate.walkInQueue !== undefined && !Array.isArray(candidate.walkInQueue)) ||
     (candidate.workOrders !== undefined && !Array.isArray(candidate.workOrders)) ||
     (candidate.archivedSpaRecords !== undefined && !Array.isArray(candidate.archivedSpaRecords))
   ) {
@@ -3136,6 +3149,7 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   const snapshot = {
     ...candidate,
     workOrders: candidate.workOrders ?? [],
+    walkInQueue: candidate.walkInQueue ?? [],
     clientDeduplicationApplied: candidate.clientDeduplicationApplied === true,
   } as unknown as SpaOperationalSnapshot;
   const archiveEntries = [...(candidate.archivedSpaRecords ?? [])] as ArchivedSpaRecord[];
@@ -3188,6 +3202,7 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   replace(commissionAudit, snapshot.commissionAudit);
   replace(financialMovements, snapshot.financialMovements);
    replace(clients, clientCleanup.clients);
+  replace(walkInQueue, snapshot.walkInQueue);
   replace(leads, snapshot.leads);
   replace(quotes, snapshot.quotes);
   replace(workOrders, snapshot.workOrders);
@@ -3546,6 +3561,7 @@ const mutatesOperationalState = (req: Request) =>
 const dashboardSnapshotPaths = new Set([
   "/appointments",
   "/clients",
+  "/walk-in-queue",
   "/leads",
   "/quotes",
   "/services",
@@ -4920,12 +4936,16 @@ const processWhatsappWebhookPayload = async (
         const clientRecord = clients.find(
           (item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone),
         );
-        if (!clientRecord) return false;
-        clientRecord.service = "Bronzeamento";
+        if (clientRecord) clientRecord.service = "Bronzeamento";
+        enqueueConfirmedTanningWalkIn(walkInQueue, {
+          clientName: decision.clientName ?? knownClientName ?? "",
+          phone,
+          timeZone: whatsappAutomation.timezone,
+        });
         return true;
       });
       if (!updated) {
-        log.warn({ inboxId: inboxJob.id }, "Bronze visit intent had no matching client profile");
+        log.warn({ inboxId: inboxJob.id }, "Bronze walk-in could not be added to the service queue");
       }
     }
     await saveWhatsappClientName(
@@ -5679,6 +5699,28 @@ router.delete("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
   res.status(204).end();
+});
+
+router.get("/walk-in-queue", (_req, res) => {
+  const snapshot = dashboardSnapshotForResponse(res);
+  res.json([...snapshot.walkInQueue].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+});
+
+router.patch("/walk-in-queue/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const statuses = ["waiting", "in_service", "completed", "canceled"] as const;
+  const status = (req.body as { status?: unknown } | undefined)?.status;
+  if (!Number.isSafeInteger(id) || id < 1 || !statuses.includes(status as typeof statuses[number])) {
+    res.status(400).json({ error: "ID ou status inválido." });
+    return;
+  }
+  const entry = walkInQueue.find((item) => item.id === id);
+  if (!entry) {
+    res.status(404).json({ error: "Atendimento não encontrado na fila." });
+    return;
+  }
+  entry.status = status as WalkInQueueEntry["status"];
+  res.json(entry);
 });
 
 router.get("/leads", (_req, res) => {

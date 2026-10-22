@@ -873,6 +873,41 @@ export const DeleteClientResponse = zod.void()
 
 
 /**
+ * @summary Lista clientes na fila de atendimento walk-in
+ */
+export const ListWalkInQueueResponseItem = zod.object({
+  "id": zod.number().int(),
+  "clientName": zod.string(),
+  "phone": zod.string(),
+  "service": zod.string(),
+  "status": zod.enum(['waiting', 'in_service', 'completed', 'canceled']),
+  "createdAt": zod.coerce.date()
+})
+export const ListWalkInQueueResponse = zod.array(ListWalkInQueueResponseItem)
+
+
+/**
+ * @summary Atualiza o status de um atendimento walk-in
+ */
+export const UpdateWalkInQueueEntryParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateWalkInQueueEntryBody = zod.object({
+  "status": zod.enum(['waiting', 'in_service', 'completed', 'canceled'])
+})
+
+export const UpdateWalkInQueueEntryResponse = zod.object({
+  "id": zod.number().int(),
+  "clientName": zod.string(),
+  "phone": zod.string(),
+  "service": zod.string(),
+  "status": zod.enum(['waiting', 'in_service', 'completed', 'canceled']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Lista leads e conversas comerciais
  */
 export const ListLeadsResponseItem = zod.object({

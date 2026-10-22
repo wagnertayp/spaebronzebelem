@@ -3,6 +3,7 @@ import {
   Archive,
   Box,
   Calendar,
+  ClipboardList,
   LayoutDashboard,
   BrainCircuit,
   PieChart,
@@ -14,6 +15,7 @@ import {
 export const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/agenda', label: 'Agenda', icon: Calendar },
+  { href: '/fila-atendimento', label: 'Fila de atendimento', icon: ClipboardList },
   { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/whatsapp', label: 'Agente IA', icon: BrainCircuit },
   { href: '/servicos', label: 'Orçamentos', icon: Receipt },

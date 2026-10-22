@@ -625,6 +625,39 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         "204": { description: Deleted client }
+  /walk-in-queue:
+    get:
+      operationId: listWalkInQueue
+      tags: [clients]
+      summary: Lista clientes na fila de atendimento walk-in
+      responses:
+        "200":
+          description: Walk-in attendance queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WalkInQueueEntry"
+  /walk-in-queue/{id}:
+    patch:
+      operationId: updateWalkInQueueEntry
+      tags: [clients]
+      summary: Atualiza o status de um atendimento walk-in
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WalkInQueueStatusInput" }
+      responses:
+        "200":
+          description: Updated walk-in queue entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalkInQueueEntry" }
+        "404": { description: Queue entry not found }
   /leads:
     get:
       operationId: listLeads
@@ -2020,3 +2053,21 @@ components:
         stock: { type: integer }
         nextExpiration: { type: string }
       required: [name, brand, category, price, minimumStock, stock, nextExpiration]
+    WalkInQueueStatus:
+      type: string
+      enum: [waiting, in_service, completed, canceled]
+    WalkInQueueEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        clientName: { type: string }
+        phone: { type: string }
+        service: { type: string }
+        status: { $ref: "#/components/schemas/WalkInQueueStatus" }
+        createdAt: { type: string, format: date-time }
+      required: [id, clientName, phone, service, status, createdAt]
+    WalkInQueueStatusInput:
+      type: object
+      properties:
+        status: { $ref: "#/components/schemas/WalkInQueueStatus" }
+      required: [status]

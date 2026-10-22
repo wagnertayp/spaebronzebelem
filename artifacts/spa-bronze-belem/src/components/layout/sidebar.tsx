@@ -13,6 +13,7 @@ export function Sidebar({ className }: { className?: string }) {
     ? navItems
         .filter((item) =>
           (item.href === '/agenda' && user.canAccessAgenda) ||
+          (item.href === '/fila-atendimento' && user.canAccessAgenda) ||
           (item.href === '/usuarios' && user.canAccessCommissions),
         )
         .map((item) => item.href === '/usuarios' ? { ...item, label: 'Comissões' } : item)
