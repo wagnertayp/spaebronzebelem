@@ -180,6 +180,7 @@ import {
 } from "../lib/whatsapp-booking.js";
 import {
   bronzeAudioUnavailableReply,
+  bronzeMethodDifferenceReply,
   resolveRequestedWhatsappAudioClip,
   shouldSendBronzeAudio,
   shouldSendWhatsappAudioClip,
@@ -237,15 +238,12 @@ import {
   type WhatsappWebhookJobContext,
   type WhatsappWebhookPayload,
 } from "../lib/whatsapp-webhook-inbox";
-import {
-  enqueueConfirmedTanningWalkIn,
-  type WhatsappWalkInQueueEntry,
-} from "../lib/whatsapp-walk-in-queue";
 import { persistWhatsappWebhookBeforeAcknowledgement } from "../lib/whatsapp-webhook-acknowledgement";
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
+import { getWhatsappSimpleFactReply } from "../lib/whatsapp-simple-facts";
+import { getWhatsappAttendanceWindow } from "../lib/whatsapp-attendance-window";
 import {
   bronzeNeonRecommendationReply,
-  bronzeAudioSentReply,
   bronzeTextFallbackReply,
   promisesWhatsappAudio,
   shouldAskWhatsappBronzeMethod,
@@ -264,15 +262,12 @@ import {
   glutealHarmonizationInformationReply,
   getWhatsappArrivalUpdate,
   isWhatsappTanningVisitIntent,
-  isWhatsappTanningVisitConfirmation,
-  isWhatsappTanningVisitServiceAnswer,
   isWhatsappAcceptanceOfServiceOffer,
   isWhatsappDecisionDeferral,
   isDapServiceRequest,
   getWhatsappTanningFlow,
   getRememberedWhatsappTanningFlowForPriceFollowUp,
   getWhatsappPregnancyScreenAnswer,
-  getWhatsappPregnancyAnswerFromHistory,
   isWhatsappPregnancyScreenQuestion,
   isExplicitWhatsappPregnancyDenial,
   isExplicitWhatsappBronzeInfoRequest,
@@ -285,7 +280,6 @@ import {
   whatsappDecisionDeferralReply,
   spaInfantilHandoffReply,
 } from "../lib/whatsapp-agent-safety";
-import { getWhatsappAttendanceWindow } from "../lib/whatsapp-attendance-window";
 
 const router: IRouter = Router();
 
@@ -336,8 +330,6 @@ type Appointment = {
   workOrderNumber?: string;
 };
 
-type WalkInQueueEntry = WhatsappWalkInQueueEntry;
-
 type WorkOrder = ReturnType<typeof ListWorkOrdersResponse.parse>[number];
 
 type WhatsappMessage = ReturnType<typeof ListWhatsappMessagesResponse.parse>[number];
@@ -347,56 +339,6 @@ type WhatsappConversationStatus = WhatsappConversation["status"];
 type DatabaseLease = (() => Promise<void>) & { assertHeld: () => void };
 
 const OPENAI_TEXT_MODEL = "gpt-5.6-luna";
-type AgentModelCallSource = "whatsapp-agent" | "ai-agent-test";
-
-const logAgentModelCallSuccess = (
-  source: AgentModelCallSource,
-  startedAt: number,
-  response: {
-    id: string;
-    model: string;
-    usage?: {
-      prompt_tokens: number;
-      completion_tokens: number;
-      total_tokens: number;
-      prompt_tokens_details?: { cached_tokens?: number } | null;
-    } | null;
-  },
-) => {
-  logger.info({
-    event: "agent_model_call_succeeded",
-    source,
-    requestedModel: OPENAI_TEXT_MODEL,
-    returnedModel: response.model,
-    responseId: response.id,
-    durationMs: Date.now() - startedAt,
-    inputTokens: response.usage?.prompt_tokens,
-    outputTokens: response.usage?.completion_tokens,
-    totalTokens: response.usage?.total_tokens,
-    cachedInputTokens: response.usage?.prompt_tokens_details?.cached_tokens,
-  }, "AI agent model call succeeded");
-};
-
-const logAgentModelCallFailure = (
-  source: AgentModelCallSource,
-  startedAt: number,
-  error: unknown,
-) => {
-  const details = error && typeof error === "object"
-    ? error as { status?: unknown; code?: unknown; request_id?: unknown }
-    : {};
-  logger.error({
-    event: "agent_model_call_failed",
-    source,
-    requestedModel: OPENAI_TEXT_MODEL,
-    durationMs: Date.now() - startedAt,
-    errorType: error instanceof Error ? error.name : typeof error,
-    httpStatus: typeof details.status === "number" ? details.status : undefined,
-    errorCode: typeof details.code === "string" ? details.code : undefined,
-    providerRequestId: typeof details.request_id === "string" ? details.request_id : undefined,
-  }, "AI agent model call failed");
-};
-
 const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
 const WHATSAPP_MESSAGE_BATCH_QUIET_MS = 2_500;
 const waitForWhatsappMessages = (durationMs: number) =>
@@ -669,7 +611,6 @@ const initialClientMerge = mergeKnownSnapshotClientDuplicates(
   trustedBackupClientDuplicateGroups,
 );
 const clients = initialClientMerge.clients;
-const walkInQueue: WalkInQueueEntry[] = [];
 
 let whatsappAutomation: WhatsappAutomation = {
   enabled: false,
@@ -1209,15 +1150,14 @@ const followUpMessageForAgentQuestion =
   "Vim só dar um alô antes que a nossa conversa peça férias. Se ainda quiser, me conta como posso te ajudar 😄";
 
 const WHATSAPP_CONVERSATION_CONTINUITY_POLICY = `CONTINUIDADE DA CONVERSA E PERGUNTAS
-- Antes de responder, considere todas as mensagens salvas nesta conversa de atendimento, da mais antiga à mais recente, junto com todas as mensagens do turno atual. Não limite a análise às últimas mensagens nem interprete a fala mais recente isoladamente.
-- Identifique o que a cliente já informou, o serviço desejado, a última pergunta do agente e se cada mensagem atual responde, confirma, corrige ou inicia outro assunto. Responda à pergunta mais recente sem descartar fatos, escolhas ou correções anteriores ainda pertinentes.
+- Antes de responder, considere o histórico completo disponível: o que a cliente já informou, o serviço desejado, a última pergunta do agente e se a mensagem atual responde, confirma, corrige ou inicia outro assunto. Não interprete a última mensagem isoladamente.
 - Preserve nome, procedimento, data, horário, preferência e demais dados já fornecidos. Nunca pergunte novamente uma informação presente no histórico ou no rascunho salvo.
 - Dê continuidade à intenção atual: responda sobre o serviço informado, preço cadastrado ou horário conforme as regras confirmadas; interprete respostas curtas no contexto da pergunta anterior; acompanhe mudanças de assunto sem perder o contexto.
 - Não repita explicações já dadas sem necessidade e não faça perguntas apenas para manter a conversa ativa. Pergunte somente quando a resposta for necessária para o próximo passo; se faltar dado essencial, faça uma única pergunta específica e natural.
 - Antes de perguntar, verifique se a informação já aparece no histórico, se é possível responder com os dados disponíveis e se a pergunta realmente avança o atendimento. Se não souber, não invente: encaminhe à equipe quando necessário.
 - Estética avançada e ritual facial exigem agendamento; reconheça o serviço informado e consulte a agenda ou solicite apenas o dado essencial que estiver faltando.
 - Bronzeamento natural é por ordem de chegada, das 07h30 às 11h, sem agendamento; esse limite não se estende se o horário geral do Spa for maior. Não é exposição direta ao sol. Bronzeamento em máquina também é por ordem de chegada, sem agendamento: até 20h de segunda a sexta, até 18h no sábado e até 11h30 no domingo. Nunca informe 20h para sábado ou domingo.
-  - Quando a cliente confirmar que pretende ir fazer bronzeamento, pergunte com discrição se está grávida ou existe essa possibilidade. Informe que, por cuidado, o Spa não realiza bronzeamento durante a gravidez. Só após a cliente negar a gravidez, envie a orientação para trazer toalhinha e biquíni, o banner do Neon e o endereço completo, dizendo que a equipe estará aguardando. Não envie o pacote de visita antes dessa confirmação.
+- Quando a cliente disser que pretende ir fazer bronzeamento natural ou em máquina, não pergunte qual serviço quer agendar. Informe a ordem de chegada e o limite do método escolhido, envie o áudio de bronzeamento e a imagem de preparo, explique que não realizamos bronzeamento durante a gravidez e encaminhe outras dúvidas de saúde à equipe. Confirme que a equipe estará aguardando e envie o endereço completo em mensagem separada.
 - Para bronzeamento a jato ou a vapor, use apenas informações oficiais cadastradas sobre procedimento, preparo, cuidados e duração. Não presuma se exige agendamento ou se funciona por ordem de chegada; encaminhe dúvidas de saúde ou informação não confirmada à equipe.
 - Antes de enviar, confira se a resposta corresponde à última mensagem no contexto, considera o histórico, evita repetir perguntas já respondidas e não confunde agendamento com ordem de chegada.`;
 
@@ -1414,43 +1354,6 @@ const sendWhatsappSessionPreparationImage = async (
       { err: result.error, phone, appointmentId: appointment?.id ?? null },
       "WhatsApp session preparation image send failed",
     );
-  }
-  return (await updateWhatsappMessage(pending.id, {
-    status: result.ok ? "sent" : "failed",
-    providerMessageId: result.providerMessageId,
-    error: result.error,
-  })) ?? pending;
-};
-
-const sendWhatsappBronzeBanner = async (phone: string, clientName: string) => {
-  const caption = "Banner do bronzeamento Neon; os resultados podem variar. 🤎";
-  const [existing] = await db
-    .select()
-    .from(whatsappMessagesTable)
-    .where(and(
-      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
-      eq(whatsappMessagesTable.kind, "image"),
-      eq(whatsappMessagesTable.text, caption),
-      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
-    ))
-    .orderBy(desc(whatsappMessagesTable.createdAt))
-    .limit(1);
-  if (existing) return toWhatsappMessage(existing);
-
-  const pending = await addWhatsappMessage({
-    direction: "outbound",
-    phone: normalizeWhatsappPhone(phone),
-    clientName,
-    appointmentId: null,
-    text: caption,
-    status: "pending",
-    kind: "image",
-    providerMessageId: null,
-    error: null,
-  });
-  const result = await sendEvolutionBronzeBanner(phone, "neon", caption);
-  if (!result.ok) {
-    logger.warn({ err: result.error, phone }, "WhatsApp bronze banner send failed");
   }
   return (await updateWhatsappMessage(pending.id, {
     status: result.ok ? "sent" : "failed",
@@ -1789,8 +1692,6 @@ const getConversationHistory = async (
   beforeMessageId?: number,
   referenceAt?: Date,
 ) => {
-  const conversation = await getWhatsappConversation(phone);
-  if (!conversation) return [];
   const messages = await db
     .select({
       direction: whatsappMessagesTable.direction,
@@ -1799,7 +1700,7 @@ const getConversationHistory = async (
     })
     .from(whatsappMessagesTable)
     .where(and(
-      eq(whatsappMessagesTable.conversationId, conversation.id),
+      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
       beforeMessageId ? lt(whatsappMessagesTable.id, beforeMessageId) : undefined,
     ))
     .orderBy(desc(whatsappMessagesTable.id));
@@ -1838,8 +1739,7 @@ const getWhatsappUnansweredInboundBatch = async (phone: string) => {
         : undefined,
     ))
     .orderBy(asc(whatsappMessagesTable.id));
-  const referenceAt = unansweredMessages.at(-1)?.createdAt;
-  return getWhatsappAttendanceWindow(unansweredMessages, referenceAt);
+  return getWhatsappAttendanceWindow(unansweredMessages);
 };
 
 const getWhatsappImageContentFromWebhook = async (
@@ -1909,7 +1809,6 @@ const askWhatsappAgent = async (
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date());
-  const modelCallStartedAt = Date.now();
   const response = await openai.chat.completions.create({
     model: OPENAI_TEXT_MODEL,
     max_completion_tokens: 1600,
@@ -1971,14 +1870,13 @@ REGRAS OBRIGATÓRIAS:
 - Varie confirmações e vocativos: não repita “Claro, meu bem” em quase todas as respostas. Alterne expressões como “Sim”, “Com certeza”, “Pode deixar”, “Perfeito” e “Vou te ajudar”, usando “meu bem” apenas quando soar natural.
 - Conduza um atendimento consultivo, acolhedor e vendável: use o contexto completo, reconheça o que a cliente já contou e, quando fizer sentido para o objetivo dela, ofereça no máximo um serviço complementar com informações confirmadas. Apresente como opção, sem pressão; respeite recusas e não repita ofertas rejeitadas nem sugira serviços aleatórios.
 - Se a cliente estiver conhecendo as opções do Spa ou pedir informações gerais de serviços e valores, envie proativamente o cardápio geral e o catálogo de estética avançada juntos, com uma legenda clara para cada PDF; não peça autorização antes de enviar. Evite esse envio em mensagens de logística ou em um agendamento específico.
-    - Antes de responder, identifique internamente a situação, o assunto e a intenção; leia todas as mensagens salvas nesta conversa de atendimento, não apenas as últimas ou a mensagem atual. Preserve os fatos e escolhas já informados e responda à pergunta mais recente sem ignorar o restante do contexto.
+- Antes de responder, identifique internamente a situação, o assunto e a intenção da mensagem; leia a mensagem inteira e o histórico recente antes de decidir o que dizer.
 - Confira se a resposta atende à mensagem atual e usa apenas fatos confirmados. Se o contexto ou a intenção estiverem ambíguos, faça uma pergunta curta para esclarecer; não improvise uma resposta fora de contexto.
 - Quando várias mensagens forem enviadas em sequência antes da sua resposta, leia todas juntas e responda uma única vez. Não responda por linha, não repita a saudação, avisos ou perguntas já feitos.
 - Se a cliente aceitar uma oferta feita na mensagem anterior, cumpra a oferta sem repetir a mesma pergunta. Só peça esclarecimento se ela tiver de escolher entre opções específicas ou se a intenção continuar ambígua.
 - Se a cliente disser que vai pensar, conferir ou consultar alguém, reconheça sem pressionar, preserve o rascunho de agendamento e não repita a lista de horários.
 - Quando disser que está indo, responda como recepcionista: diga que a equipe está aguardando, que pode avisar a recepção ao chegar e deseje uma boa vinda; não reinicie o agendamento.
 - Por cuidado, o spa não realiza bronzeamento durante a gravidez. Recuse apenas o bronzeamento; não diga que banho de lua ou outros serviços são seguros ou proibidos na gestação sem informação confirmada. Responda à pergunta específica e, se não houver orientação cadastrada sobre a gestação, diga isso sem oferecer uma lista aleatória de serviços para gestantes.
-- Interprete respostas com o contexto da pergunta anterior. “Não estou grávida”, “não tô grávida” e equivalentes são uma negativa clara: preserve essa resposta no fluxo atual, não trate a simples menção à gravidez como confirmação e não repita a recusa. Depois, responda à pergunta mais recente (por exemplo, sobre amanhã ou horários).
 - Se perguntarem se você é IA, robô ou pessoa, responda com transparência que é a assistente virtual com IA do Spa e Bronze Belém; nunca afirme ou sugira que é humana.
 - Se o pedido não tiver relação com o Spa e Bronze Belém, não responda ao conteúdo aleatório nem execute pedidos externos; explique brevemente que seu atendimento é sobre serviços, valores, horários e agendamentos do Spa e redirecione com uma pergunta curta.
 - Se a mensagem vier com uma imagem, observe-a antes de responder e use apenas o que estiver visível nela. Se vier de áudio, considere a transcrição como a mensagem da cliente.
@@ -1992,7 +1890,7 @@ REGRAS OBRIGATÓRIAS:
 - DAP, Spa de Banhos, bronzeamento natural e bronzeamento em máquina são atendimentos por ordem de chegada, respeitando os limites específicos abaixo. Não atribua esse fluxo a outros serviços sem confirmação cadastrada.
 - O DAP (Drenagem de Alta Performance) atende abdômen, pernas e braços; dura cerca de 2h, inclui aproximadamente 40 min de manta, 40 min de drenagem corporal e uso de nutracêuticos, custa R$ 200 e é por ordem de chegada, sem agendamento. Não prometa resultados, emagrecimento ou eliminação de toxinas.
 - Para o Spa de Banhos, recomende levar uma toalha e um biquíni. Se não tiver toalha, o aluguel custa R$ 5; se não tiver biquíni, a equipe monta um tapa-sexy por R$ 10. O atendimento é por ordem de chegada, sem agendamento, nos dias e horários de funcionamento do Spa.
-- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Descreva as opções com os preços e envie diretamente os banners relevantes, sem anunciar que vai enviá-los; se escolher uma, envie apenas o banner correspondente.
+- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Ao perguntar sem especificar, apresente as duas e envie os dois banners; se escolher uma, envie apenas o banner correspondente.
 - Ao perguntarem se o spa está aberto agora, use a data e hora locais e o horário cadastrado; não confunda o horário de funcionamento do spa com disponibilidade para um serviço específico. Não prometa vaga sem consultar a agenda.
 - Não estime duração de trajeto nem diga que “dá tempo” de chegar de Uber sem informação confiável em tempo real; informe o horário de fechamento cadastrado e recomende conferir o trajeto no aplicativo.
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
@@ -2008,11 +1906,11 @@ REGRAS OBRIGATÓRIAS:
 - Se a duração de um serviço estiver como "A definir", não confirme nem crie agendamento para ele. Explique que a duração ainda precisa ser confirmada.
 - Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta nem mencione o nome da profissional.
 - Se pedir o cardápio geral ou catálogo sem especificar, use document "catalogs" para enviar juntos os dois PDFs: "menu" é o cardápio geral do Spa e Bronze; "advanced" é o catálogo de procedimentos de estética avançada. As legendas dos arquivos devem explicar claramente essa diferença. Se pedir somente estética avançada, use document "advanced"; se pedir somente o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
-- Quando a cliente perguntar sobre bronzeamento, responda primeiro à dúvida principal com informações confirmadas e envie o áudio de bronze uma única vez na conversa; depois da tentativa bem-sucedida, diga que enviou um áudio sobre o bronzeamento Neon. Se o envio falhar, não diga que foi enviado e dê a orientação por texto. Não faça triagem de primeira experiência antes de responder.
+- Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar ou enviar áudio e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação, comparação ou resposta específica, responda sem atrasar com triagem.
 - Bronze natural começa em R$140. Bronze em máquina e vapor começam em R$150. Não misture esses valores entre modalidades; confirme com a equipe o preço de qualquer pacote não confirmado.
 - Antes de indicar o Turbo Neon (Protocolo Neon), confirme se a cliente prefere bronze natural ou em máquina. Se ainda não informou a modalidade, pergunte primeiro e não mencione o Neon nessa resposta. Se escolher bronze em máquina e ainda estiver avaliando opções, recomende o Neon: três sessões + esfoliação por R$180, pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; procedimento rápido e pele que pode parecer mais iluminada com cuidados adequados. Apresente como possibilidades, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Se escolher natural, não indique Neon. Também não ofereça se já escolheu outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.
 - A escolha da cliente prevalece: se ela optar por outro método/pacote ou recusar o Neon, pare de oferecer e não volte a mencionar o Neon nem suas qualidades em mensagens futuras, a menos que ela pergunte sobre ele. Não faça a oferta durante atualização de chegada ou depois de um agendamento já confirmado.
-- Envie o áudio de bronze quando a cliente perguntar sobre bronze, mesmo sem pedido explícito de áudio; o servidor registra tentativas e não repetirá a mesma gravação na conversa.
+- O áudio de bronze pode ser escolhido uma única vez quando a cliente confirmar que é a primeira vez, aceitar a explicação ou pedir diretamente o áudio. Não o escolha automaticamente ao perguntar se é a primeira vez nem antes de uma cliente experiente aceitar a explicação. Depois da tentativa, o servidor enviará a comparação dos métodos.
 - Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é mais seguro ou melhor nem prometa resultados.
 - Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
   - audioClip "combos": gravação que explica os combos do Spa e Bronze.
@@ -2034,11 +1932,7 @@ Se a cliente informou o nome, retorne-o como string em clientName; caso contrár
   }, {
     maxRetries: 0,
     timeout: 12_000,
-  }).catch((error: unknown) => {
-    logAgentModelCallFailure("whatsapp-agent", modelCallStartedAt, error);
-    throw error;
   });
-  logAgentModelCallSuccess("whatsapp-agent", modelCallStartedAt, response);
   return parseAgentDecision(response.choices[0]?.message?.content ?? "");
 };
 
@@ -3075,7 +2969,6 @@ type SpaOperationalSnapshot = {
   commissionAudit: CommissionAudit[];
   financialMovements: FinancialMovement[];
   clients: typeof clients;
-  walkInQueue: WalkInQueueEntry[];
   leads: Lead[];
   quotes: Quote[];
   workOrders: WorkOrder[];
@@ -3098,7 +2991,6 @@ const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
   commissionAudit: clone(commissionAudit),
   financialMovements: clone(financialMovements),
   clients: clone(clients),
-  walkInQueue: clone(walkInQueue),
   leads: clone(leads),
   quotes: clone(quotes),
   workOrders: clone(workOrders),
@@ -3112,7 +3004,6 @@ type DashboardOperationalSnapshot = Pick<
   | "appointments"
   | "professionals"
   | "clients"
-  | "walkInQueue"
   | "leads"
   | "quotes"
   | "services"
@@ -3142,7 +3033,6 @@ const loadDashboardOperationalSnapshot = async (): Promise<DashboardOperationalS
   if (
     candidate.version !== 1 ||
     dashboardCollections.some((key) => !Array.isArray(candidate[key])) ||
-    (candidate.walkInQueue !== undefined && !Array.isArray(candidate.walkInQueue)) ||
     !Array.isArray(archiveEntries) ||
     archiveEntries.some((entry) =>
       !entry ||
@@ -3160,7 +3050,6 @@ const loadDashboardOperationalSnapshot = async (): Promise<DashboardOperationalS
     appointments: candidate.appointments as SpaOperationalSnapshot["appointments"],
     professionals: candidate.professionals as SpaOperationalSnapshot["professionals"],
     clients: candidate.clients as SpaOperationalSnapshot["clients"],
-    walkInQueue: (candidate.walkInQueue ?? []) as SpaOperationalSnapshot["walkInQueue"],
     leads: candidate.leads as SpaOperationalSnapshot["leads"],
     quotes: candidate.quotes as SpaOperationalSnapshot["quotes"],
     services: candidate.services as SpaOperationalSnapshot["services"],
@@ -3184,7 +3073,7 @@ const activeDashboardRecords = <T extends { id: number }>(
 const dashboardSnapshotForResponse = (res: Response): DashboardOperationalSnapshot => {
   const snapshot = (res.locals as Record<string, unknown>)["spaOperationalReadSnapshot"];
   if (snapshot && typeof snapshot === "object") return snapshot as DashboardOperationalSnapshot;
-  return { appointments, professionals, clients, walkInQueue, leads, quotes, services, archivedSpaRecords };
+  return { appointments, professionals, clients, leads, quotes, services, archivedSpaRecords };
 };
 
 const restoreSpaOperationalSnapshot = (value: unknown) => {
@@ -3211,7 +3100,6 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
     (candidate.clientDeduplicationApplied !== undefined &&
       typeof candidate.clientDeduplicationApplied !== "boolean") ||
     collectionKeys.some((key) => !Array.isArray(candidate[key])) ||
-    (candidate.walkInQueue !== undefined && !Array.isArray(candidate.walkInQueue)) ||
     (candidate.workOrders !== undefined && !Array.isArray(candidate.workOrders)) ||
     (candidate.archivedSpaRecords !== undefined && !Array.isArray(candidate.archivedSpaRecords))
   ) {
@@ -3221,7 +3109,6 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   const snapshot = {
     ...candidate,
     workOrders: candidate.workOrders ?? [],
-    walkInQueue: candidate.walkInQueue ?? [],
     clientDeduplicationApplied: candidate.clientDeduplicationApplied === true,
   } as unknown as SpaOperationalSnapshot;
   const archiveEntries = [...(candidate.archivedSpaRecords ?? [])] as ArchivedSpaRecord[];
@@ -3274,7 +3161,6 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   replace(commissionAudit, snapshot.commissionAudit);
   replace(financialMovements, snapshot.financialMovements);
    replace(clients, clientCleanup.clients);
-  replace(walkInQueue, snapshot.walkInQueue);
   replace(leads, snapshot.leads);
   replace(quotes, snapshot.quotes);
   replace(workOrders, snapshot.workOrders);
@@ -3633,7 +3519,6 @@ const mutatesOperationalState = (req: Request) =>
 const dashboardSnapshotPaths = new Set([
   "/appointments",
   "/clients",
-  "/walk-in-queue",
   "/leads",
   "/quotes",
   "/services",
@@ -3654,13 +3539,13 @@ const isIndependentWhatsappMutation = (req: Request) =>
 
 router.use(async (req, res, next) => {
   let releaseProcessLock: (() => void) | undefined;
-  let databaseLease: DatabaseLease | undefined;
+  let releaseDatabaseLock: DatabaseLease | undefined;
   let releasePromise: Promise<void> | undefined;
   const releaseHeldLocks = () => {
     if (!releasePromise) {
       releasePromise = (async () => {
         try {
-          await databaseLease?.();
+          await releaseDatabaseLock?.();
         } catch (error) {
           logger.error({ err: error }, "Failed to release SPA operational-state database lock");
         } finally {
@@ -3782,8 +3667,7 @@ router.use(async (req, res, next) => {
     }
 
     releaseProcessLock = await acquireSpaOperationalStateWriteLock();
-    const acquiredDatabaseLease = await acquireSpaOperationalStateLock();
-    databaseLease = acquiredDatabaseLease;
+    releaseDatabaseLock = await acquireSpaOperationalStateLock();
     await refreshSpaOperationalState();
     if (spaOperationalStateStore.status !== "ready") {
       await releaseHeldLocks();
@@ -3815,7 +3699,10 @@ router.use(async (req, res, next) => {
         return res;
       }
 
-      acquiredDatabaseLease.assertHeld();
+      if (!releaseDatabaseLock) {
+        throw new Error("SPA operational-state database lock was not acquired");
+      }
+      releaseDatabaseLock.assertHeld();
       void spaOperationalStateStore
         .persist()
         .then(async () => {
@@ -4617,28 +4504,11 @@ const processWhatsappWebhookPayload = async (
   const isFirstClientMessage = !conversationHistory.some((message) => message.role === "user");
   const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const isBronzeQuestion = /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText);
-  const previousAssistantMessage = [...conversationHistory]
-    .reverse()
-    .find((message) => message.role === "assistant")?.content ?? "";
-  const pregnancyScreenWasAsked =
-    isWhatsappPregnancyScreenQuestion(previousAssistantMessage) &&
-    /\bbronze(?:amento|adas?)?\b/i.test(previousAssistantMessage);
-  const recentPregnancyAnswer = getWhatsappPregnancyAnswerFromHistory(conversationHistory);
-  const currentPregnancyAnswer =
-    pregnancyScreenWasAsked || mentionsPregnancy(text)
-      ? getWhatsappPregnancyScreenAnswer(text)
-      : null;
-  const pregnancyScreenAnswer = pregnancyScreenWasAsked
-    ? currentPregnancyAnswer
-    : currentPregnancyAnswer && currentPregnancyAnswer !== "unclear"
-      ? currentPregnancyAnswer
-      : recentPregnancyAnswer;
-  const explicitPregnancyDenial =
-    isExplicitWhatsappPregnancyDenial(text) ||
-    (!pregnancyScreenWasAsked && recentPregnancyAnswer === "not_pregnant");
-  const pregnancyRisk = pregnancyScreenAnswer === "not_pregnant" || explicitPregnancyDenial
-    ? false
-    : pregnancyScreenAnswer === "pregnant";
+  const pregnancyMentioned =
+    conversationHistory.some((message) =>
+      message.role === "user" && mentionsPregnancy(message.content),
+    ) ||
+    inboundBatch.some((message) => mentionsPregnancy(message.text));
   const currentImageParts = Array.isArray(currentInput)
     ? currentInput.filter((part) => part.type === "image_url")
     : [];
@@ -4786,37 +4656,26 @@ const processWhatsappWebhookPayload = async (
     const savedBookingDraft = conversation?.bookingDraft ?? null;
     const today = localAgendaDate();
     const currentSignals = getWhatsappBookingMessageSignals(text, today);
-    const tanningConversationContext = conversationHistory
+    const recentTanningContext = conversationHistory
+      .slice(-6)
       .map((message) => message.content)
       .join("\n");
-    const tanningUserConversationContext = conversationHistory
+    const recentTanningUserContext = conversationHistory
       .filter((message) => message.role === "user")
+      .slice(-12)
       .map((message) => message.content)
       .join("\n");
     const rememberedTanningFlow = getRememberedWhatsappTanningFlowForPriceFollowUp(
       text,
-      tanningUserConversationContext,
+      recentTanningUserContext,
     );
     const tanningFlow =
-      rememberedTanningFlow ?? getWhatsappTanningFlow(text, tanningConversationContext);
+      rememberedTanningFlow ?? getWhatsappTanningFlow(text, recentTanningContext);
     const isRememberedTanningPriceFollowUp = Boolean(rememberedTanningFlow);
-    const isTanningPriceQuestion =
-      /\b(?:preco|valor|quanto custa|quanto fica)\b/.test(normalizedText);
     const explicitBronzeInfoRequest = isExplicitWhatsappBronzeInfoRequest(text);
-    const currentTanningVisitIntent = Boolean(
-      tanningFlow && (
-        isWhatsappTanningVisitIntent(text, tanningUserConversationContext) ||
-        isWhatsappTanningVisitConfirmation(text, previousAssistantMessage, tanningConversationContext) ||
-        isWhatsappTanningVisitServiceAnswer(text, previousAssistantMessage)
-      ),
+    const tanningVisitIntent = Boolean(
+      tanningFlow && isWhatsappTanningVisitIntent(text, recentTanningUserContext),
     );
-    const tanningVisitIntent = currentTanningVisitIntent || pregnancyScreenWasAsked;
-    const hasConfirmedNoPregnancy =
-      pregnancyScreenAnswer === "not_pregnant" || explicitPregnancyDenial;
-    const bronzeVisitBundle =
-      tanningVisitIntent && hasConfirmedNoPregnancy && !pregnancyRisk;
-    const shouldAskTanningPregnancy =
-      tanningVisitIntent && !hasConfirmedNoPregnancy && !pregnancyRisk;
     const latestRequestedService = [...conversationHistory].reverse().find((message) =>
       message.role === "user" &&
       (isDapServiceRequest(message.content) || Boolean(findBookingService(message.content))),
@@ -4905,6 +4764,9 @@ const processWhatsappWebhookPayload = async (
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
 
+    const previousAssistantMessage = [...conversationHistory]
+      .reverse()
+      .find((message) => message.role === "assistant")?.content ?? "";
     const currentCatalogRequest = isWhatsappCatalogRequest(text);
     const acceptedCatalogOffer =
       currentSignals.affirmative && isWhatsappCatalogOffer(previousAssistantMessage);
@@ -4913,12 +4775,54 @@ const processWhatsappWebhookPayload = async (
       ? requestedWhatsappDocument(text)
       : null;
     const explicitBookingIntent = hasWhatsappBookingIntent(text);
+    const mentionedBookableService = findBookingService(text);
+    const serviceForSimplePrice = /\b(?:preco|valor|quanto custa|custa)\b/.test(normalizedText)
+      ? mentionedBookableService
+      : null;
+    const simpleFactReply =
+      !pregnancyMentioned &&
+      !appointment &&
+      !savedBookingDraft &&
+      !tanningFlow &&
+      !explicitBookingIntent &&
+      !currentCatalogRequest &&
+      !acceptedCatalogOffer &&
+      !explicitTopicChange &&
+      !currentDocumentRequest &&
+      !isAudioMessage &&
+      !isImageMessage &&
+      imageParts.length === 0
+        ? getWhatsappSimpleFactReply({
+            text,
+            businessHours: aiAgentConfig.businessHours,
+            address: aiAgentConfig.address,
+            mentionedService: mentionedBookableService
+              ? { name: mentionedBookableService.name, price: mentionedBookableService.price }
+              : null,
+          })
+        : null;
+    if (simpleFactReply) {
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        knownClientName,
+        null,
+        simpleFactReply.reply,
+        "reply",
+        replyReference,
+      ));
+      logger.info({
+        event: "whatsapp_simple_fact_reply",
+        intent: simpleFactReply.intent,
+        inboxId: inboxJob.id,
+      }, "Answered a confirmed simple fact without an AI model call");
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
     const proactiveCatalogDiscovery = isBroadWhatsappServiceDiscovery(text) &&
       !explicitBookingIntent &&
       !explicitTopicChange &&
-      !pregnancyRisk;
+      !pregnancyMentioned;
     if (
-      pregnancyRisk &&
+      pregnancyMentioned &&
       isWhatsappAcceptanceOfServiceOffer(text, previousAssistantMessage)
     ) {
       for (const document of ["menu", "advanced"] as const) {
@@ -5001,24 +4905,18 @@ const processWhatsappWebhookPayload = async (
         "WhatsApp booking draft cleared after the client changed to a non-booking topic",
       );
     }
-    if (bronzeVisitBundle) {
-      const queueEntry = await runWithSpaOperationalStateWriteLock(() => {
+    if (tanningVisitIntent && !pregnancyMentioned) {
+      const updated = await runWithSpaOperationalStateWriteLock(() => {
         const clientRecord = clients.find(
           (item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone),
         );
-        if (clientRecord) clientRecord.service = "Bronzeamento";
-        return enqueueConfirmedTanningWalkIn(walkInQueue, {
-          clientName: decision.clientName ?? knownClientName ?? "",
-          phone,
-          timeZone: whatsappAutomation.timezone,
-        });
+        if (!clientRecord) return false;
+        clientRecord.service = "Bronzeamento";
+        return true;
       });
-      logger.info({
-        event: "whatsapp_tanning_walkin_enqueued",
-        inboxId: inboxJob.id,
-        queueEntryId: queueEntry.id,
-        status: queueEntry.status,
-      }, "Confirmed bronze walk-in is in the attendance queue");
+      if (!updated) {
+        log.warn({ inboxId: inboxJob.id }, "Bronze visit intent had no matching client profile");
+      }
     }
     await saveWhatsappClientName(
       phone,
@@ -5041,7 +4939,7 @@ const processWhatsappWebhookPayload = async (
     const hasRecentBookingContext =
       !suppressStaleBookingContext &&
       isWhatsappBookingPrompt(previousAssistantMessage) &&
-      conversationHistory.some((message) =>
+      conversationHistory.slice(-8).some((message) =>
         message.role === "user" && hasWhatsappBookingIntent(message.content),
       );
     const bookingContextText = suppressStaleBookingContext
@@ -5049,10 +4947,10 @@ const processWhatsappWebhookPayload = async (
       : savedBookingDraft
       ? text
       : currentSignals.affirmative || hasRecentBookingContext || directBookingIntent
-        ? [...conversationHistory.map((message) => message.content), text].join("\n")
+        ? [...conversationHistory.slice(-8).map((message) => message.content), text].join("\n")
         : text;
     const bookingServiceContextText = savedBookingDraft && !savedBookingDraft.service
-      ? [...conversationHistory.map((message) => message.content), text].join("\n")
+      ? [...conversationHistory.slice(-8).map((message) => message.content), text].join("\n")
       : bookingContextText;
     const parsedBookingContextSignals = getWhatsappBookingMessageSignals(bookingContextText, today);
     const bookingContextSignals = {
@@ -5161,7 +5059,7 @@ const processWhatsappWebhookPayload = async (
       } else {
         let bookingDraft: WhatsappBookingDraft = mergedBookingDraft;
         const service = bookingDraft.service ? findBookingService(bookingDraft.service) : null;
-        if (service && pregnancyRisk && isTanningService(service.name, service.category)) {
+        if (service && pregnancyMentioned && isTanningService(service.name, service.category)) {
           await replyWithBookingProgress(null, pregnancyTanningRefusal);
           return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
         }
@@ -5367,7 +5265,7 @@ const processWhatsappWebhookPayload = async (
     }
     const responseDocument = acceptedCatalogOffer ||
       explicitTopicChange ||
-      (pregnancyRisk && !currentDocumentRequest)
+      (pregnancyMentioned && !currentDocumentRequest)
       ? null
       : proactiveCatalogDiscovery
         ? "catalogs"
@@ -5398,6 +5296,7 @@ const processWhatsappWebhookPayload = async (
       }
     }
     const inferredAudioClip = audioClipForWhatsappMessage(normalizedText);
+    const bronzeVisitBundle = tanningVisitIntent && !pregnancyMentioned;
     const modelAudioRequest = promisesWhatsappAudio(decision.reply)
       ? "bronze"
       : decision.audioClip === "bronze" &&
@@ -5407,7 +5306,7 @@ const processWhatsappWebhookPayload = async (
         : decision.audioClip;
     const requestedAudioClip = createdAppointment || responseDocument
       ? null
-      : isBronzeQuestion && !pregnancyRisk
+      : (explicitBronzeInfoRequest || bronzeVisitBundle) && tanningFlow
         ? "bronze"
         : resolveRequestedWhatsappAudioClip(modelAudioRequest, inferredAudioClip);
     const requestedAudioAlreadyAttempted = requestedAudioClip === "bronze"
@@ -5422,9 +5321,9 @@ const processWhatsappWebhookPayload = async (
     const canSendBronzeAudio = shouldSendBronzeAudio(
       requestedAudioClip === "bronze",
       bronzeAudioAlreadyAttempted,
-      pregnancyRisk,
+      pregnancyMentioned,
     );
-    const audioClip = (isBronzeQuestion && pregnancyRisk) ||
+    const audioClip = (isBronzeQuestion && pregnancyMentioned) ||
       !canSendAudioClipThisTurn ||
       (requestedAudioClip === "bronze" && !canSendBronzeAudio)
       ? null
@@ -5436,35 +5335,28 @@ const processWhatsappWebhookPayload = async (
         : "Os bronzes são por ordem de chegada, sem agendamento: natural das 07h30 às 11h; em máquina, até 20h de segunda a sexta, até 18h no sábado e até 11h30 no domingo.";
     const shouldAskBronzeMethod = shouldAskWhatsappBronzeMethod({
       text: normalizedText,
-      recentUserContext: tanningUserConversationContext,
+      recentUserContext: recentTanningUserContext,
       flow: tanningFlow,
       visitIntent: bronzeVisitBundle,
       explicitInfoRequest: explicitBronzeInfoRequest,
-      pregnancyMentioned: pregnancyRisk,
+      pregnancyMentioned,
     });
     const shouldSuggestNeon = shouldSuggestWhatsappNeon({
       text: normalizedText,
-      recentUserContext: tanningUserConversationContext,
+      recentUserContext: recentTanningUserContext,
       flow: tanningFlow,
       visitIntent: bronzeVisitBundle,
       explicitInfoRequest: explicitBronzeInfoRequest,
-      pregnancyMentioned: pregnancyRisk,
+      pregnancyMentioned,
     });
-    const asksAboutTomorrowAvailability =
-      /\bamanha\b/.test(normalizedText) &&
-      /\b(?:tem|funciona|aberto|atende|posso|vou)\b/.test(normalizedText);
-    const tanningServiceReply = pregnancyRisk && (tanningFlow || pregnancyScreenWasAsked)
+    const tanningServiceReply = pregnancyMentioned && tanningFlow
       ? pregnancyTanningRefusal
-      : isRememberedTanningPriceFollowUp || (isTanningPriceQuestion && !tanningVisitIntent)
+      : isRememberedTanningPriceFollowUp
         ? null
-        : shouldAskTanningPregnancy
-        ? `${tanningScheduleReply} Só para cuidar bem de você antes do bronzeamento: existe possibilidade de estar grávida? Por cuidado, não realizamos bronzeamento durante a gravidez. 🤎`
         : bronzeVisitBundle
-        ? asksAboutTomorrowAvailability
-          ? `Tem sim! ${tanningScheduleReply} 🤎`
-          : "Perfeito! Traga uma toalhinha e um biquíni. A equipe vai aguardar você no Spa. 🤎"
+        ? `${tanningScheduleReply} Por cuidado, não realizamos bronzeamento durante a gravidez. Para outras condições de saúde, alergias ou uso de medicamentos, a equipe precisa confirmar antes. Vamos aguardar vocês no Spa.${shouldAskBronzeMethod ? " Você prefere o bronze natural ou em máquina? 🤎" : shouldSuggestNeon ? ` ${bronzeNeonRecommendationReply}` : " 🤎"}`
         : explicitBronzeInfoRequest && tanningFlow
-          ? null
+          ? "Vou te enviar um áudio com as informações do bronzeamento. 🤎"
           : shouldAskBronzeMethod
             ? "Antes de te indicar uma opção, você prefere o bronze natural ou em máquina? 🤎"
             : shouldSuggestNeon
@@ -5486,7 +5378,7 @@ const processWhatsappWebhookPayload = async (
     if (
       promisesWhatsappAudio(decision.reply) &&
       audioClip !== "bronze" &&
-      !pregnancyRisk &&
+      !pregnancyMentioned &&
       !createdAppointment
     ) {
       writtenReply = bronzeTextFallbackReply;
@@ -5525,7 +5417,7 @@ const processWhatsappWebhookPayload = async (
         ensureWhatsappDelivery(await sendWhatsappReplyOnce(
           phone,
           replyClientName,
-          bronzeAudioDelivered ? bronzeAudioSentReply : bronzeAudioUnavailableReply,
+          bronzeAudioDelivered ? bronzeMethodDifferenceReply : bronzeAudioUnavailableReply,
           replyReference,
         ));
       }
@@ -5561,12 +5453,12 @@ const processWhatsappWebhookPayload = async (
       }
     }
     if (bronzeVisitBundle) {
-      const bronzeBanner = await sendWhatsappBronzeBanner(phone, replyClientName);
-      if (bronzeBanner?.status === "failed") {
+      const preparationImage = await sendWhatsappSessionPreparationImage(null, phone, replyClientName);
+      if (preparationImage?.status === "failed") {
         ensureWhatsappDelivery(await sendWhatsappReplyOnce(
           phone,
           replyClientName,
-          "Não consegui enviar o banner agora, mas lembre-se de trazer uma toalhinha e um biquíni. 🤎",
+          "Para a sessão, leve 1 toalha e 1 protetor solar facial. Venha com roupa escura e leve, e com a pele limpa, sem cremes ou hidratantes.",
           replyReference,
         ));
       }
@@ -5577,7 +5469,7 @@ const processWhatsappWebhookPayload = async (
         ensureWhatsappDelivery(await sendWhatsappReplyOnce(
           phone,
           replyClientName,
-          `A equipe vai aguardar você no endereço: ${address}`,
+          `Endereço do Spa: ${address}`,
           replyReference,
         ));
       } else {
@@ -5776,28 +5668,6 @@ router.delete("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
   res.status(204).end();
-});
-
-router.get("/walk-in-queue", (_req, res) => {
-  const snapshot = dashboardSnapshotForResponse(res);
-  res.json([...snapshot.walkInQueue].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
-});
-
-router.patch("/walk-in-queue/:id", (req, res) => {
-  const id = Number(req.params.id);
-  const statuses = ["waiting", "in_service", "completed", "canceled"] as const;
-  const status = (req.body as { status?: unknown } | undefined)?.status;
-  if (!Number.isSafeInteger(id) || id < 1 || !statuses.includes(status as typeof statuses[number])) {
-    res.status(400).json({ error: "ID ou status inválido." });
-    return;
-  }
-  const entry = walkInQueue.find((item) => item.id === id);
-  if (!entry) {
-    res.status(404).json({ error: "Atendimento não encontrado na fila." });
-    return;
-  }
-  entry.status = status as WalkInQueueEntry["status"];
-  res.json(entry);
 });
 
 router.get("/leads", (_req, res) => {
@@ -6197,7 +6067,6 @@ router.post("/ai-agent/test", async (req, res, next) => {
       dateStyle: "short",
       timeStyle: "short",
     }).format(new Date());
-    const modelCallStartedAt = Date.now();
     const response = await openai.chat.completions.create({
       model: OPENAI_TEXT_MODEL,
       max_completion_tokens: 1200,
@@ -6233,15 +6102,14 @@ Regras obrigatórias:
 - Se a cliente disser que está a caminho, chegando ou que chegou, responda como recepcionista: confirme que a equipe está aguardando e diga que ela pode avisar a recepção ao chegar. Não pergunte qual serviço quer agendar nem reabra a coleta.
 - Se a cliente disser que vai conferir, pensar ou consultar alguém, reconheça sem pressionar e não repita uma lista de horários.
 - Se a cliente aceitar uma oferta feita na mensagem anterior, cumpra a oferta sem repetir a mesma pergunta; peça esclarecimento apenas quando a intenção ou a opção escolhida não estiver clara.
-- Quando a cliente perguntar sobre bronzeamento, responda primeiro à dúvida principal e envie o áudio de bronze uma única vez na conversa. Após envio confirmado, diga que enviou um áudio sobre o bronzeamento Neon; se falhar, não afirme que foi enviado e responda por texto.
-- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Descreva as opções com os preços e envie diretamente os banners relevantes, sem anunciar que vai enviá-los; se escolher uma, envie apenas o banner correspondente.
+- Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação ou informação específica, responda sem atrasar com triagem.
+- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Ao perguntar sem especificar, apresente as duas e envie os dois banners; se escolher uma, envie apenas o banner correspondente.
 - Spa de Banhos é por ordem de chegada, sem agendamento, nos dias e horários do Spa. Oriente a cliente a levar uma toalha e um biquíni; aluguel de toalha custa R$ 5 e, se não tiver biquíni, a equipe monta um tapa-sexy por R$ 10.
 - Bronze natural começa em R$140. Bronze em máquina e vapor começam em R$150. Não misture esses valores entre modalidades; confirme com a equipe o preço de qualquer pacote não confirmado.
 - Antes de indicar o Turbo Neon (Protocolo Neon), confirme se a cliente prefere bronze natural ou em máquina. Se ainda não informou a modalidade, pergunte primeiro e não mencione o Neon nessa resposta. Se escolher bronze em máquina e ainda estiver avaliando opções, recomende o Neon: três sessões + esfoliação por R$180, pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; procedimento rápido e pele que pode parecer mais iluminada com cuidados adequados. Apresente como possibilidades, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Se escolher natural, não indique Neon. Também não ofereça se já escolheu outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.
 - Se a cliente optar por outro método/pacote ou recusar o Neon, respeite a escolha e não volte a mencioná-lo, salvo se ela perguntar sobre o Neon.
 - Neste teste textual, considere que a tentativa do áudio de bronze já foi registrada: não prometa nem envie outra gravação. Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. Para máquina, use somente as informações cadastradas.
 - Por cuidado, não realizamos bronzeamento durante a gravidez. Recuse apenas o bronzeamento; não diga que banho de lua ou outros serviços são seguros ou proibidos sem informação confirmada. Se a adequação durante a gestação não estiver cadastrada, diga que não pode confirmar e responda à pergunta específica sem oferecer serviços aleatórios.
-- Interprete respostas com o contexto da pergunta anterior. “Não estou grávida”, “não tô grávida” e equivalentes são uma negativa clara: preserve essa resposta no fluxo atual, não trate a simples menção à gravidez como confirmação e não repita a recusa. Depois, responda à pergunta mais recente (por exemplo, sobre amanhã ou horários).
 - DAP, bronzeamento natural e bronzeamento em máquina são atendimentos por ordem de chegada, respeitando seus limites específicos. Não atribua esse fluxo a outros serviços sem confirmação cadastrada.
 - Ao perguntarem se o spa está aberto agora, não confunda horário de funcionamento com disponibilidade para um serviço específico nem prometa vaga sem consultar a agenda. Não estime tempo de trajeto de Uber nem prometa que dá tempo sem dados em tempo real.
 - Nunca invente preço, promoção, disponibilidade ou política.
@@ -6261,11 +6129,7 @@ ${SPA_SERVICE_FLOW_POLICY}
         },
         { role: "user", content: message },
       ],
-    }).catch((error: unknown) => {
-      logAgentModelCallFailure("ai-agent-test", modelCallStartedAt, error);
-      throw error;
     });
-    logAgentModelCallSuccess("ai-agent-test", modelCallStartedAt, response);
     const reply = response.choices[0]?.message?.content?.replace(/\*\*/g, "").trim()
       || "Não consegui responder agora. Vou encaminhar para uma atendente.";
     res.json(TestAiAgentResponse.parse({ reply }));

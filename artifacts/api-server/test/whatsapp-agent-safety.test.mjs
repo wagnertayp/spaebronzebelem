@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { enqueueConfirmedTanningWalkIn } from "../src/lib/whatsapp-walk-in-queue.ts";
 import { getWhatsappAttendanceWindow } from "../src/lib/whatsapp-attendance-window.ts";
+import { getWhatsappSimpleFactReply } from "../src/lib/whatsapp-simple-facts.ts";
 import {
   clientArrivalEtaReply,
   clientOnTheWayReply,
@@ -246,6 +247,73 @@ test("starts a new attendance window only after a gap longer than 24 hours", () 
   assert.deepEqual(
     window.map((message) => message.text),
     ["começo do atendimento atual", "continuação"],
+  );
+});
+
+test("answers only unambiguous confirmed hours, address, and service-price questions", () => {
+  const base = {
+    businessHours: "segunda a sexta, 07h30 às 20h",
+    address: "Rua Exemplo, 123, Belém - PA",
+    mentionedService: null,
+  };
+
+  assert.deepEqual(
+    getWhatsappSimpleFactReply({ ...base, text: "Qual o horário de funcionamento?" }),
+    {
+      intent: "hours",
+      reply: "Nosso horário de funcionamento é:\nsegunda a sexta, 07h30 às 20h 🤎",
+    },
+  );
+  assert.deepEqual(
+    getWhatsappSimpleFactReply({ ...base, text: "Qual é o endereço do Spa?" }),
+    { intent: "address", reply: "O endereço do Spa é Rua Exemplo, 123, Belém - PA. 🤎" },
+  );
+  assert.deepEqual(
+    getWhatsappSimpleFactReply({
+      ...base,
+      text: "Quanto custa a Massagem Relaxante?",
+      mentionedService: { name: "Massagem Relaxante", price: "R$ 180" },
+    }),
+    { intent: "price", reply: "O valor cadastrado para Massagem Relaxante é R$ 180. 🤎" },
+  );
+  assert.equal(
+    getWhatsappSimpleFactReply({
+      ...base,
+      text: "Quanto custa a massagem e qual é o endereço?",
+      mentionedService: { name: "Massagem Relaxante", price: "R$ 180" },
+    }),
+    null,
+  );
+  assert.equal(
+    getWhatsappSimpleFactReply({
+      ...base,
+      text: "Quanto custa?",
+      mentionedService: null,
+    }),
+    null,
+  );
+  assert.equal(
+    getWhatsappSimpleFactReply({
+      ...base,
+      text: "Quanto custa a Massagem Relaxante? Tenho uma alergia.",
+      mentionedService: { name: "Massagem Relaxante", price: "R$ 180" },
+    }),
+    null,
+  );
+  assert.equal(
+    getWhatsappSimpleFactReply({
+      ...base,
+      text: "Que horas está aberto agora?",
+    }),
+    null,
+  );
+  assert.equal(
+    getWhatsappSimpleFactReply({
+      ...base,
+      address: "Belém - PA",
+      text: "Onde fica?",
+    }),
+    null,
   );
 });
 
