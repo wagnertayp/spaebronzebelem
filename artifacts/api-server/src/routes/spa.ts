@@ -345,6 +345,43 @@ type WhatsappConversationStatus = WhatsappConversation["status"];
 type DatabaseLease = (() => Promise<void>) & { assertHeld: () => void };
 
 const OPENAI_TEXT_MODEL = "gpt-5.6-luna";
+type AgentModelCallSource = "whatsapp-agent" | "ai-agent-test";
+
+const logAgentModelCallSuccess = (
+  source: AgentModelCallSource,
+  startedAt: number,
+  response: { id: string; model: string },
+) => {
+  logger.info({
+    event: "agent_model_call_succeeded",
+    source,
+    requestedModel: OPENAI_TEXT_MODEL,
+    returnedModel: response.model,
+    responseId: response.id,
+    durationMs: Date.now() - startedAt,
+  }, "AI agent model call succeeded");
+};
+
+const logAgentModelCallFailure = (
+  source: AgentModelCallSource,
+  startedAt: number,
+  error: unknown,
+) => {
+  const details = error && typeof error === "object"
+    ? error as { status?: unknown; code?: unknown; request_id?: unknown }
+    : {};
+  logger.error({
+    event: "agent_model_call_failed",
+    source,
+    requestedModel: OPENAI_TEXT_MODEL,
+    durationMs: Date.now() - startedAt,
+    errorType: error instanceof Error ? error.name : typeof error,
+    httpStatus: typeof details.status === "number" ? details.status : undefined,
+    errorCode: typeof details.code === "string" ? details.code : undefined,
+    providerRequestId: typeof details.request_id === "string" ? details.request_id : undefined,
+  }, "AI agent model call failed");
+};
+
 const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
 const WHATSAPP_MESSAGE_BATCH_QUIET_MS = 2_500;
 const waitForWhatsappMessages = (durationMs: number) =>
@@ -1846,6 +1883,7 @@ const askWhatsappAgent = async (
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date());
+  const modelCallStartedAt = Date.now();
   const response = await openai.chat.completions.create({
     model: OPENAI_TEXT_MODEL,
     max_completion_tokens: 1600,
@@ -1970,7 +2008,11 @@ Se a cliente informou o nome, retorne-o como string em clientName; caso contrár
   }, {
     maxRetries: 0,
     timeout: 12_000,
+  }).catch((error: unknown) => {
+    logAgentModelCallFailure("whatsapp-agent", modelCallStartedAt, error);
+    throw error;
   });
+  logAgentModelCallSuccess("whatsapp-agent", modelCallStartedAt, response);
   return parseAgentDecision(response.choices[0]?.message?.content ?? "");
 };
 
@@ -6131,6 +6173,7 @@ router.post("/ai-agent/test", async (req, res, next) => {
       dateStyle: "short",
       timeStyle: "short",
     }).format(new Date());
+    const modelCallStartedAt = Date.now();
     const response = await openai.chat.completions.create({
       model: OPENAI_TEXT_MODEL,
       max_completion_tokens: 1200,
@@ -6194,7 +6237,11 @@ ${SPA_SERVICE_FLOW_POLICY}
         },
         { role: "user", content: message },
       ],
+    }).catch((error: unknown) => {
+      logAgentModelCallFailure("ai-agent-test", modelCallStartedAt, error);
+      throw error;
     });
+    logAgentModelCallSuccess("ai-agent-test", modelCallStartedAt, response);
     const reply = response.choices[0]?.message?.content?.replace(/\*\*/g, "").trim()
       || "Não consegui responder agora. Vou encaminhar para uma atendente.";
     res.json(TestAiAgentResponse.parse({ reply }));
