@@ -180,7 +180,6 @@ import {
 } from "../lib/whatsapp-booking.js";
 import {
   bronzeAudioUnavailableReply,
-  bronzeMethodDifferenceReply,
   resolveRequestedWhatsappAudioClip,
   shouldSendBronzeAudio,
   shouldSendWhatsappAudioClip,
@@ -221,6 +220,7 @@ import {
   sendEvolutionAudio,
   sendEvolutionDapImage,
   sendEvolutionBathMoonBanner,
+  sendEvolutionBronzeBanner,
   sendEvolutionSessionPreparationImage,
   type EvolutionReplyReference,
   type WhatsappAudioClip,
@@ -241,6 +241,7 @@ import { persistWhatsappWebhookBeforeAcknowledgement } from "../lib/whatsapp-web
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
 import {
   bronzeNeonRecommendationReply,
+  bronzeAudioSentReply,
   bronzeTextFallbackReply,
   promisesWhatsappAudio,
   shouldAskWhatsappBronzeMethod,
@@ -259,11 +260,15 @@ import {
   glutealHarmonizationInformationReply,
   getWhatsappArrivalUpdate,
   isWhatsappTanningVisitIntent,
+  isWhatsappTanningVisitServiceAnswer,
   isWhatsappAcceptanceOfServiceOffer,
   isWhatsappDecisionDeferral,
   isDapServiceRequest,
   getWhatsappTanningFlow,
   getRememberedWhatsappTanningFlowForPriceFollowUp,
+  getWhatsappPregnancyScreenAnswer,
+  isWhatsappPregnancyScreenQuestion,
+  isExplicitWhatsappPregnancyDenial,
   isExplicitWhatsappBronzeInfoRequest,
   isTanningService,
   mentionsPregnancy,
@@ -1151,7 +1156,7 @@ const WHATSAPP_CONVERSATION_CONTINUITY_POLICY = `CONTINUIDADE DA CONVERSA E PERG
 - Antes de perguntar, verifique se a informação já aparece no histórico, se é possível responder com os dados disponíveis e se a pergunta realmente avança o atendimento. Se não souber, não invente: encaminhe à equipe quando necessário.
 - Estética avançada e ritual facial exigem agendamento; reconheça o serviço informado e consulte a agenda ou solicite apenas o dado essencial que estiver faltando.
 - Bronzeamento natural é por ordem de chegada, das 07h30 às 11h, sem agendamento; esse limite não se estende se o horário geral do Spa for maior. Não é exposição direta ao sol. Bronzeamento em máquina também é por ordem de chegada, sem agendamento: até 20h de segunda a sexta, até 18h no sábado e até 11h30 no domingo. Nunca informe 20h para sábado ou domingo.
-- Quando a cliente disser que pretende ir fazer bronzeamento natural ou em máquina, não pergunte qual serviço quer agendar. Informe a ordem de chegada e o limite do método escolhido, envie o áudio de bronzeamento e a imagem de preparo, explique que não realizamos bronzeamento durante a gravidez e encaminhe outras dúvidas de saúde à equipe. Confirme que a equipe estará aguardando e envie o endereço completo em mensagem separada.
+  - Quando a cliente confirmar que pretende ir fazer bronzeamento, pergunte com discrição se está grávida ou existe essa possibilidade. Informe que, por cuidado, o Spa não realiza bronzeamento durante a gravidez. Só após a cliente negar a gravidez, envie a orientação para trazer toalhinha e biquíni, o banner do Neon e o endereço completo, dizendo que a equipe estará aguardando. Não envie o pacote de visita antes dessa confirmação.
 - Para bronzeamento a jato ou a vapor, use apenas informações oficiais cadastradas sobre procedimento, preparo, cuidados e duração. Não presuma se exige agendamento ou se funciona por ordem de chegada; encaminhe dúvidas de saúde ou informação não confirmada à equipe.
 - Antes de enviar, confira se a resposta corresponde à última mensagem no contexto, considera o histórico, evita repetir perguntas já respondidas e não confunde agendamento com ordem de chegada.`;
 
@@ -1348,6 +1353,43 @@ const sendWhatsappSessionPreparationImage = async (
       { err: result.error, phone, appointmentId: appointment?.id ?? null },
       "WhatsApp session preparation image send failed",
     );
+  }
+  return (await updateWhatsappMessage(pending.id, {
+    status: result.ok ? "sent" : "failed",
+    providerMessageId: result.providerMessageId,
+    error: result.error,
+  })) ?? pending;
+};
+
+const sendWhatsappBronzeBanner = async (phone: string, clientName: string) => {
+  const caption = "Banner do bronzeamento Neon; os resultados podem variar. 🤎";
+  const [existing] = await db
+    .select()
+    .from(whatsappMessagesTable)
+    .where(and(
+      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
+      eq(whatsappMessagesTable.kind, "image"),
+      eq(whatsappMessagesTable.text, caption),
+      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
+    ))
+    .orderBy(desc(whatsappMessagesTable.createdAt))
+    .limit(1);
+  if (existing) return toWhatsappMessage(existing);
+
+  const pending = await addWhatsappMessage({
+    direction: "outbound",
+    phone: normalizeWhatsappPhone(phone),
+    clientName,
+    appointmentId: null,
+    text: caption,
+    status: "pending",
+    kind: "image",
+    providerMessageId: null,
+    error: null,
+  });
+  const result = await sendEvolutionBronzeBanner(phone, "neon", caption);
+  if (!result.ok) {
+    logger.warn({ err: result.error, phone }, "WhatsApp bronze banner send failed");
   }
   return (await updateWhatsappMessage(pending.id, {
     status: result.ok ? "sent" : "failed",
@@ -1875,7 +1917,7 @@ REGRAS OBRIGATÓRIAS:
 - DAP, Spa de Banhos, bronzeamento natural e bronzeamento em máquina são atendimentos por ordem de chegada, respeitando os limites específicos abaixo. Não atribua esse fluxo a outros serviços sem confirmação cadastrada.
 - O DAP (Drenagem de Alta Performance) atende abdômen, pernas e braços; dura cerca de 2h, inclui aproximadamente 40 min de manta, 40 min de drenagem corporal e uso de nutracêuticos, custa R$ 200 e é por ordem de chegada, sem agendamento. Não prometa resultados, emagrecimento ou eliminação de toxinas.
 - Para o Spa de Banhos, recomende levar uma toalha e um biquíni. Se não tiver toalha, o aluguel custa R$ 5; se não tiver biquíni, a equipe monta um tapa-sexy por R$ 10. O atendimento é por ordem de chegada, sem agendamento, nos dias e horários de funcionamento do Spa.
-- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Ao perguntar sem especificar, apresente as duas e envie os dois banners; se escolher uma, envie apenas o banner correspondente.
+- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Descreva as opções com os preços e envie diretamente os banners relevantes, sem anunciar que vai enviá-los; se escolher uma, envie apenas o banner correspondente.
 - Ao perguntarem se o spa está aberto agora, use a data e hora locais e o horário cadastrado; não confunda o horário de funcionamento do spa com disponibilidade para um serviço específico. Não prometa vaga sem consultar a agenda.
 - Não estime duração de trajeto nem diga que “dá tempo” de chegar de Uber sem informação confiável em tempo real; informe o horário de fechamento cadastrado e recomende conferir o trajeto no aplicativo.
 - Quando perguntarem sobre funcionamento, localização ou endereço, responda usando os campos configurados acima. Ao confirmar um agendamento, informe também o horário de funcionamento e o endereço completo cadastrado; não trate apenas “Belém - PA” como endereço nem invente complemento.
@@ -1891,11 +1933,11 @@ REGRAS OBRIGATÓRIAS:
 - Se a duração de um serviço estiver como "A definir", não confirme nem crie agendamento para ele. Explique que a duração ainda precisa ser confirmada.
 - Se a cliente responder “sim” a uma confirmação de agendamento no histórico, recupere serviço, data, horário e profissional da proposta anterior; não recomece a coleta nem mencione o nome da profissional.
 - Se pedir o cardápio geral ou catálogo sem especificar, use document "catalogs" para enviar juntos os dois PDFs: "menu" é o cardápio geral do Spa e Bronze; "advanced" é o catálogo de procedimentos de estética avançada. As legendas dos arquivos devem explicar claramente essa diferença. Se pedir somente estética avançada, use document "advanced"; se pedir somente o portfólio de harmonização orofacial, use document "portfolio". Caso contrário, document deve ser null.
-- Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar ou enviar áudio e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação, comparação ou resposta específica, responda sem atrasar com triagem.
+- Quando a cliente perguntar sobre bronzeamento, responda primeiro à dúvida principal com informações confirmadas e envie o áudio de bronze uma única vez na conversa; depois da tentativa bem-sucedida, diga que enviou um áudio sobre o bronzeamento Neon. Se o envio falhar, não diga que foi enviado e dê a orientação por texto. Não faça triagem de primeira experiência antes de responder.
 - Bronze natural começa em R$140. Bronze em máquina e vapor começam em R$150. Não misture esses valores entre modalidades; confirme com a equipe o preço de qualquer pacote não confirmado.
 - Antes de indicar o Turbo Neon (Protocolo Neon), confirme se a cliente prefere bronze natural ou em máquina. Se ainda não informou a modalidade, pergunte primeiro e não mencione o Neon nessa resposta. Se escolher bronze em máquina e ainda estiver avaliando opções, recomende o Neon: três sessões + esfoliação por R$180, pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; procedimento rápido e pele que pode parecer mais iluminada com cuidados adequados. Apresente como possibilidades, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Se escolher natural, não indique Neon. Também não ofereça se já escolheu outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.
 - A escolha da cliente prevalece: se ela optar por outro método/pacote ou recusar o Neon, pare de oferecer e não volte a mencionar o Neon nem suas qualidades em mensagens futuras, a menos que ela pergunte sobre ele. Não faça a oferta durante atualização de chegada ou depois de um agendamento já confirmado.
-- O áudio de bronze pode ser escolhido uma única vez quando a cliente confirmar que é a primeira vez, aceitar a explicação ou pedir diretamente o áudio. Não o escolha automaticamente ao perguntar se é a primeira vez nem antes de uma cliente experiente aceitar a explicação. Depois da tentativa, o servidor enviará a comparação dos métodos.
+- Envie o áudio de bronze quando a cliente perguntar sobre bronze, mesmo sem pedido explícito de áudio; o servidor registra tentativas e não repetirá a mesma gravação na conversa.
 - Não afirme que o Spa oferece bronzeamento diretamente sob o sol natural. O bronze em máquina é feito na WB Ultra, descrita no catálogo com 72 lâmpadas e exposição aproximada de 8 a 20 minutos conforme o fototipo, com atendimento individualizado. Não diga que um método é mais seguro ou melhor nem prometa resultados.
 - Há dois áudios pré-gravados disponíveis para enviar junto com uma mensagem de texto:
   - audioClip "combos": gravação que explica os combos do Spa e Bronze.
@@ -3524,13 +3566,13 @@ const isIndependentWhatsappMutation = (req: Request) =>
 
 router.use(async (req, res, next) => {
   let releaseProcessLock: (() => void) | undefined;
-  let releaseDatabaseLock: (() => Promise<void>) | undefined;
+  let databaseLease: DatabaseLease | undefined;
   let releasePromise: Promise<void> | undefined;
   const releaseHeldLocks = () => {
     if (!releasePromise) {
       releasePromise = (async () => {
         try {
-          await releaseDatabaseLock?.();
+          await databaseLease?.();
         } catch (error) {
           logger.error({ err: error }, "Failed to release SPA operational-state database lock");
         } finally {
@@ -3652,7 +3694,8 @@ router.use(async (req, res, next) => {
     }
 
     releaseProcessLock = await acquireSpaOperationalStateWriteLock();
-    releaseDatabaseLock = await acquireSpaOperationalStateLock();
+    const acquiredDatabaseLease = await acquireSpaOperationalStateLock();
+    databaseLease = acquiredDatabaseLease;
     await refreshSpaOperationalState();
     if (spaOperationalStateStore.status !== "ready") {
       await releaseHeldLocks();
@@ -3684,7 +3727,7 @@ router.use(async (req, res, next) => {
         return res;
       }
 
-      releaseDatabaseLock.assertHeld();
+      acquiredDatabaseLease.assertHeld();
       void spaOperationalStateStore
         .persist()
         .then(async () => {
@@ -4491,11 +4534,24 @@ const processWhatsappWebhookPayload = async (
   const isFirstClientMessage = !previousClientMessage;
   const normalizedText = text.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const isBronzeQuestion = /\b(bronze(?:amento|adas?)?|marquinhas?)\b/.test(normalizedText);
+  const previousAssistantMessage = [...conversationHistory]
+    .reverse()
+    .find((message) => message.role === "assistant")?.content ?? "";
+  const pregnancyScreenWasAsked =
+    isWhatsappPregnancyScreenQuestion(previousAssistantMessage) &&
+    /\bbronze(?:amento|adas?)?\b/i.test(previousAssistantMessage);
+  const pregnancyScreenAnswer = pregnancyScreenWasAsked
+    ? getWhatsappPregnancyScreenAnswer(text)
+    : null;
+  const explicitPregnancyDenial = isExplicitWhatsappPregnancyDenial(text);
   const pregnancyMentioned =
     conversationHistory.some((message) =>
       message.role === "user" && mentionsPregnancy(message.content),
     ) ||
     inboundBatch.some((message) => mentionsPregnancy(message.text));
+  const pregnancyRisk = pregnancyScreenAnswer === "not_pregnant" || explicitPregnancyDenial
+    ? false
+    : pregnancyMentioned || pregnancyScreenAnswer === "pregnant";
   const currentImageParts = Array.isArray(currentInput)
     ? currentInput.filter((part) => part.type === "image_url")
     : [];
@@ -4659,10 +4715,22 @@ const processWhatsappWebhookPayload = async (
     const tanningFlow =
       rememberedTanningFlow ?? getWhatsappTanningFlow(text, recentTanningContext);
     const isRememberedTanningPriceFollowUp = Boolean(rememberedTanningFlow);
+    const isTanningPriceQuestion =
+      /\b(?:preco|valor|quanto custa|quanto fica)\b/.test(normalizedText);
     const explicitBronzeInfoRequest = isExplicitWhatsappBronzeInfoRequest(text);
-    const tanningVisitIntent = Boolean(
-      tanningFlow && isWhatsappTanningVisitIntent(text, recentTanningUserContext),
+    const currentTanningVisitIntent = Boolean(
+      tanningFlow && (
+        isWhatsappTanningVisitIntent(text, recentTanningUserContext) ||
+        isWhatsappTanningVisitServiceAnswer(text, previousAssistantMessage)
+      ),
     );
+    const tanningVisitIntent = currentTanningVisitIntent || pregnancyScreenWasAsked;
+    const hasConfirmedNoPregnancy =
+      pregnancyScreenAnswer === "not_pregnant" || explicitPregnancyDenial;
+    const bronzeVisitBundle =
+      tanningVisitIntent && hasConfirmedNoPregnancy && !pregnancyRisk;
+    const shouldAskTanningPregnancy =
+      tanningVisitIntent && !hasConfirmedNoPregnancy && !pregnancyRisk;
     const latestRequestedService = [...conversationHistory].reverse().find((message) =>
       message.role === "user" &&
       (isDapServiceRequest(message.content) || Boolean(findBookingService(message.content))),
@@ -4751,9 +4819,6 @@ const processWhatsappWebhookPayload = async (
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
 
-    const previousAssistantMessage = [...conversationHistory]
-      .reverse()
-      .find((message) => message.role === "assistant")?.content ?? "";
     const currentCatalogRequest = isWhatsappCatalogRequest(text);
     const acceptedCatalogOffer =
       currentSignals.affirmative && isWhatsappCatalogOffer(previousAssistantMessage);
@@ -4850,7 +4915,7 @@ const processWhatsappWebhookPayload = async (
         "WhatsApp booking draft cleared after the client changed to a non-booking topic",
       );
     }
-    if (tanningVisitIntent && !pregnancyMentioned) {
+    if (bronzeVisitBundle) {
       const updated = await runWithSpaOperationalStateWriteLock(() => {
         const clientRecord = clients.find(
           (item) => normalizeWhatsappPhone(item.phone) === normalizeWhatsappPhone(phone),
@@ -5241,7 +5306,6 @@ const processWhatsappWebhookPayload = async (
       }
     }
     const inferredAudioClip = audioClipForWhatsappMessage(normalizedText);
-    const bronzeVisitBundle = tanningVisitIntent && !pregnancyMentioned;
     const modelAudioRequest = promisesWhatsappAudio(decision.reply)
       ? "bronze"
       : decision.audioClip === "bronze" &&
@@ -5251,7 +5315,7 @@ const processWhatsappWebhookPayload = async (
         : decision.audioClip;
     const requestedAudioClip = createdAppointment || responseDocument
       ? null
-      : (explicitBronzeInfoRequest || bronzeVisitBundle) && tanningFlow
+      : isBronzeQuestion && !pregnancyRisk
         ? "bronze"
         : resolveRequestedWhatsappAudioClip(modelAudioRequest, inferredAudioClip);
     const requestedAudioAlreadyAttempted = requestedAudioClip === "bronze"
@@ -5266,9 +5330,9 @@ const processWhatsappWebhookPayload = async (
     const canSendBronzeAudio = shouldSendBronzeAudio(
       requestedAudioClip === "bronze",
       bronzeAudioAlreadyAttempted,
-      pregnancyMentioned,
+      pregnancyRisk,
     );
-    const audioClip = (isBronzeQuestion && pregnancyMentioned) ||
+    const audioClip = (isBronzeQuestion && pregnancyRisk) ||
       !canSendAudioClipThisTurn ||
       (requestedAudioClip === "bronze" && !canSendBronzeAudio)
       ? null
@@ -5284,7 +5348,7 @@ const processWhatsappWebhookPayload = async (
       flow: tanningFlow,
       visitIntent: bronzeVisitBundle,
       explicitInfoRequest: explicitBronzeInfoRequest,
-      pregnancyMentioned,
+      pregnancyMentioned: pregnancyRisk,
     });
     const shouldSuggestNeon = shouldSuggestWhatsappNeon({
       text: normalizedText,
@@ -5292,16 +5356,18 @@ const processWhatsappWebhookPayload = async (
       flow: tanningFlow,
       visitIntent: bronzeVisitBundle,
       explicitInfoRequest: explicitBronzeInfoRequest,
-      pregnancyMentioned,
+      pregnancyMentioned: pregnancyRisk,
     });
-    const tanningServiceReply = pregnancyMentioned && tanningFlow
+    const tanningServiceReply = pregnancyRisk && (tanningFlow || pregnancyScreenWasAsked)
       ? pregnancyTanningRefusal
-      : isRememberedTanningPriceFollowUp
+      : isRememberedTanningPriceFollowUp || (isTanningPriceQuestion && !tanningVisitIntent)
         ? null
+        : shouldAskTanningPregnancy
+        ? `${tanningScheduleReply} Só para cuidar bem de você antes do bronzeamento: existe possibilidade de estar grávida? Por cuidado, não realizamos bronzeamento durante a gravidez. 🤎`
         : bronzeVisitBundle
-        ? `${tanningScheduleReply} Por cuidado, não realizamos bronzeamento durante a gravidez. Para outras condições de saúde, alergias ou uso de medicamentos, a equipe precisa confirmar antes. Vamos aguardar vocês no Spa.${shouldAskBronzeMethod ? " Você prefere o bronze natural ou em máquina? 🤎" : shouldSuggestNeon ? ` ${bronzeNeonRecommendationReply}` : " 🤎"}`
+        ? "Perfeito! Traga uma toalhinha e um biquíni. A equipe vai aguardar você no Spa. 🤎"
         : explicitBronzeInfoRequest && tanningFlow
-          ? "Vou te enviar um áudio com as informações do bronzeamento. 🤎"
+          ? null
           : shouldAskBronzeMethod
             ? "Antes de te indicar uma opção, você prefere o bronze natural ou em máquina? 🤎"
             : shouldSuggestNeon
@@ -5323,7 +5389,7 @@ const processWhatsappWebhookPayload = async (
     if (
       promisesWhatsappAudio(decision.reply) &&
       audioClip !== "bronze" &&
-      !pregnancyMentioned &&
+      !pregnancyRisk &&
       !createdAppointment
     ) {
       writtenReply = bronzeTextFallbackReply;
@@ -5362,7 +5428,7 @@ const processWhatsappWebhookPayload = async (
         ensureWhatsappDelivery(await sendWhatsappReplyOnce(
           phone,
           replyClientName,
-          bronzeAudioDelivered ? bronzeMethodDifferenceReply : bronzeAudioUnavailableReply,
+          bronzeAudioDelivered ? bronzeAudioSentReply : bronzeAudioUnavailableReply,
           replyReference,
         ));
       }
@@ -5398,12 +5464,12 @@ const processWhatsappWebhookPayload = async (
       }
     }
     if (bronzeVisitBundle) {
-      const preparationImage = await sendWhatsappSessionPreparationImage(null, phone, replyClientName);
-      if (preparationImage?.status === "failed") {
+      const bronzeBanner = await sendWhatsappBronzeBanner(phone, replyClientName);
+      if (bronzeBanner?.status === "failed") {
         ensureWhatsappDelivery(await sendWhatsappReplyOnce(
           phone,
           replyClientName,
-          "Para a sessão, leve 1 toalha e 1 protetor solar facial. Venha com roupa escura e leve, e com a pele limpa, sem cremes ou hidratantes.",
+          "Não consegui enviar o banner agora, mas lembre-se de trazer uma toalhinha e um biquíni. 🤎",
           replyReference,
         ));
       }
@@ -5414,7 +5480,7 @@ const processWhatsappWebhookPayload = async (
         ensureWhatsappDelivery(await sendWhatsappReplyOnce(
           phone,
           replyClientName,
-          `Endereço do Spa: ${address}`,
+          `A equipe vai aguardar você no endereço: ${address}`,
           replyReference,
         ));
       } else {
@@ -6047,8 +6113,8 @@ Regras obrigatórias:
 - Se a cliente disser que está a caminho, chegando ou que chegou, responda como recepcionista: confirme que a equipe está aguardando e diga que ela pode avisar a recepção ao chegar. Não pergunte qual serviço quer agendar nem reabra a coleta.
 - Se a cliente disser que vai conferir, pensar ou consultar alguém, reconheça sem pressionar e não repita uma lista de horários.
 - Se a cliente aceitar uma oferta feita na mensagem anterior, cumpra a oferta sem repetir a mesma pergunta; peça esclarecimento apenas quando a intenção ou a opção escolhida não estiver clara.
-- Quando a cliente começar a falar de bronzeamento e ainda não tiver informado sua experiência, pergunte se é a primeira vez. Se disser que já fez bronze, pergunte se quer que você explique; aguarde a resposta antes de explicar e respeite se ela não quiser. Se for a primeira vez, explique brevemente com informações confirmadas no catálogo. Use o histórico para não repetir essas perguntas. Se ela pedir diretamente uma explicação ou informação específica, responda sem atrasar com triagem.
-- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Ao perguntar sem especificar, apresente as duas e envie os dois banners; se escolher uma, envie apenas o banner correspondente.
+- Quando a cliente perguntar sobre bronzeamento, responda primeiro à dúvida principal e envie o áudio de bronze uma única vez na conversa. Após envio confirmado, diga que enviou um áudio sobre o bronzeamento Neon; se falhar, não afirme que foi enviado e responda por texto.
+- Banho de Lua tem duas ofertas atuais: 5 passos por R$ 120 e Clareador de 7 passos por R$ 150. Esses preços substituem o valor genérico anterior de R$ 190; não confunda com Shine Gourmet ou outros pacotes combinados. Descreva as opções com os preços e envie diretamente os banners relevantes, sem anunciar que vai enviá-los; se escolher uma, envie apenas o banner correspondente.
 - Spa de Banhos é por ordem de chegada, sem agendamento, nos dias e horários do Spa. Oriente a cliente a levar uma toalha e um biquíni; aluguel de toalha custa R$ 5 e, se não tiver biquíni, a equipe monta um tapa-sexy por R$ 10.
 - Bronze natural começa em R$140. Bronze em máquina e vapor começam em R$150. Não misture esses valores entre modalidades; confirme com a equipe o preço de qualquer pacote não confirmado.
 - Antes de indicar o Turbo Neon (Protocolo Neon), confirme se a cliente prefere bronze natural ou em máquina. Se ainda não informou a modalidade, pergunte primeiro e não mencione o Neon nessa resposta. Se escolher bronze em máquina e ainda estiver avaliando opções, recomende o Neon: três sessões + esfoliação por R$180, pensado para tom dourado de aparência natural, acabamento mais uniforme e marquinhas personalizadas; procedimento rápido e pele que pode parecer mais iluminada com cuidados adequados. Apresente como possibilidades, sem garantir resultados, inventar duração ou dizer que é melhor/mais seguro. Se escolher natural, não indique Neon. Também não ofereça se já escolheu outro pacote, recusou o Neon, só perguntou sobre horário/ordem de chegada, está atualizando a chegada ou já confirmou um agendamento.

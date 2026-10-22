@@ -7,4 +7,4 @@ The current standalone offers are Banho de Lua 5 passos for R$120 and Banho de L
 
 **Why:** the business supplied two current promotional banners and confirmed they replace the generic Banho de Lua price; clients should receive the relevant image.
 
-**How to apply:** present both options and send both banners when the client asks about Banho de Lua generally; for a specific option, send only its matching banner. Do not promise guaranteed lightening results.
+**How to apply:** describe the option(s) with prices and send both banners for a general inquiry, or only the matching banner for a specified option. Do not announce the banners before sending them or promise guaranteed lightening results.

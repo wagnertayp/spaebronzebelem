@@ -10,6 +10,35 @@ export const mentionsPregnancy = (value: string) =>
     normalizeSafetyText(value),
   );
 
+export const isWhatsappPregnancyScreenQuestion = (value: string) => {
+  const normalized = normalizeSafetyText(value);
+  return normalized.includes("?") &&
+    /\b(?:gravida|gravidez|gestante)\b/.test(normalized) &&
+    /\b(?:voce|existe|possibilidade|chance|esta)\b/.test(normalized);
+};
+
+export type WhatsappPregnancyScreenAnswer = "pregnant" | "not_pregnant" | "unclear";
+
+export const getWhatsappPregnancyScreenAnswer = (
+  value: string,
+): WhatsappPregnancyScreenAnswer => {
+  const normalized = normalizeSafetyText(value);
+  if (/\bnao\b.{0,30}\b(?:estou|sou|tenho|existe|ha)\b.{0,24}\b(?:gravida|gestante|gravidez|possibilidade)\b/.test(normalized)) {
+    return "not_pregnant";
+  }
+  if (/^\s*(?:nao|nao[,!. ]+nao|nao estou|nao sou)[.!?,\s]*$/.test(normalized)) {
+    return "not_pregnant";
+  }
+  if (/\b(?:sim|estou|sou|talvez|possivelmente|posso estar|acho que sim)\b/.test(normalized)) {
+    return "pregnant";
+  }
+  return "unclear";
+};
+
+export const isExplicitWhatsappPregnancyDenial = (value: string) =>
+  getWhatsappPregnancyScreenAnswer(value) === "not_pregnant" &&
+  /\b(?:gravida|gestante|gravidez|possibilidade)\b/.test(normalizeSafetyText(value));
+
 export type WhatsappArrivalUpdate = "arrived" | "on_the_way" | "eta";
 
 export const getWhatsappArrivalUpdate = (value: string): WhatsappArrivalUpdate | null => {
@@ -141,9 +170,9 @@ export const bathMoonBannerInformationReply = (
     return "Banho de Lua de 5 passos: R$ 120. Inclui parafina, loção clareadora hipoalergênica, esfoliante orgânico e mousse hidratante com óleo glicerinado. Brindes: coquetel de frutas com picolé e máscara facial de argila rosa. 🤎";
   }
   if (selection === "clarifying") {
-    return "Banho de Lua Clareador de 7 passos: R$ 150. O banner apresenta clareamento dos pelos e da pele, com base de argila branca e dolomita, e foco em 6 áreas de atrito: axilas, virilha, joelhos, cotovelos, nádegas e pescoço. Brindes: coquetel de frutas com picolé e máscara facial de ouro ou de argila branca. 🤎";
+    return "Banho de Lua Clareador de 7 passos: R$ 150. É voltado ao clareamento dos pelos e da pele, com base de argila branca e dolomita, e foco em 6 áreas de atrito: axilas, virilha, joelhos, cotovelos, nádegas e pescoço. Inclui coquetel de frutas com picolé e máscara facial de ouro ou argila branca. 🤎";
   }
-  return "Temos duas opções de Banho de Lua: 5 passos por R$ 120, com máscara facial de argila rosa, ou Clareador de 7 passos por R$ 150, com máscara facial de ouro ou argila branca. As duas incluem coquetel de frutas com picolé. Vou te enviar os banners para você ver os detalhes. Qual opção te interessa? 🤎";
+  return "O Banho de Lua é um ritual voltado ao clareamento dos pelos e à aparência dourada. Temos 5 passos por R$ 120, com parafina, loção clareadora, esfoliação e mousse hidratante, ou Clareador de 7 passos por R$ 150, com foco em 6 áreas de atrito. As duas opções incluem coquetel de frutas com picolé e máscara facial. Qual opção te interessa? 🤎";
 };
 
 const escapeRegExp = (value: string) =>
@@ -287,7 +316,7 @@ export const isWhatsappTanningVisitIntent = (
     /\b(?:quero|queria|pretendo|vamos|vou|posso|podemos)\b/.test(current) &&
     /\b(?:fazer|ir|bronze|bronzeamento|natural|maquina)\b/.test(current);
   const currentIsVisitFollowUp =
-    /\b(?:posso ir|podemos ir|vou ir|estou indo|estamos indo|amanha|hoje|as [0-2]?\d)\b/.test(
+    /\b(?:posso ir|podemos ir|vou ir|estou indo|estamos indo|estarei|estaremos|vou estar|vou chegar|vou passar|chego|chegamos|amanha|hoje|as [0-2]?\d(?::[0-5]\d)?)\b/.test(
       current,
     );
   const currentIsShortServiceAnswer =
@@ -295,6 +324,20 @@ export const isWhatsappTanningVisitIntent = (
 
   return currentExplicitVisitIntent ||
     (previousExplicitTanningIntent && (currentIsVisitFollowUp || currentIsShortServiceAnswer));
+};
+
+export const isWhatsappTanningVisitServiceAnswer = (
+  currentText: string,
+  previousAssistantMessage: string,
+) => {
+  const current = normalizeSafetyText(currentText);
+  const previous = normalizeSafetyText(previousAssistantMessage);
+  const assistantAskedWhichVisitService =
+    /\bqual\s+(?:servico|procedimento)\b.{0,45}\b(?:vir|ir|atender|fazer)\b/.test(previous) ||
+    /\b(?:vir|ir|atender|fazer)\b.{0,45}\bqual\s+(?:servico|procedimento)\b/.test(previous);
+  return assistantAskedWhichVisitService &&
+    current.length <= 60 &&
+    isTanningService(currentText);
 };
 
 export const pregnancyTanningRefusal =

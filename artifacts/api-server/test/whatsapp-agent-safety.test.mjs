@@ -14,6 +14,7 @@ import {
   getRememberedWhatsappTanningFlowForPriceFollowUp,
   isExplicitWhatsappBronzeInfoRequest,
   isWhatsappTanningVisitIntent,
+  isWhatsappTanningVisitServiceAnswer,
   isWhatsappAcceptanceOfServiceOffer,
   isWhatsappDecisionDeferral,
   isDapServiceRequest,
@@ -22,6 +23,9 @@ import {
   isWhatsappWalkInService,
   isTanningService,
   mentionsPregnancy,
+  isWhatsappPregnancyScreenQuestion,
+  getWhatsappPregnancyScreenAnswer,
+  isExplicitWhatsappPregnancyDenial,
   mentionsSpaInfantil,
   removeWhatsappProfessionalNames,
   pregnancyTanningRefusal,
@@ -47,6 +51,36 @@ test("detects common pregnancy terms without accent sensitivity", () => {
   assert.equal(mentionsPregnancy("sou gestante"), true);
   assert.equal(mentionsPregnancy("dúvida sobre gravidez"), true);
   assert.equal(mentionsPregnancy("quero fazer uma massagem"), false);
+});
+
+test("screens pregnancy only after a gentle question and classifies yes/no answers", () => {
+  const question =
+    "Só para cuidar bem de você: existe possibilidade de estar grávida?";
+  assert.equal(isWhatsappPregnancyScreenQuestion(question), true);
+  assert.equal(getWhatsappPregnancyScreenAnswer("Não"), "not_pregnant");
+  assert.equal(getWhatsappPregnancyScreenAnswer("Não estou grávida"), "not_pregnant");
+  assert.equal(getWhatsappPregnancyScreenAnswer("Sim"), "pregnant");
+  assert.equal(getWhatsappPregnancyScreenAnswer("Talvez"), "pregnant");
+  assert.equal(getWhatsappPregnancyScreenAnswer("Vou ver"), "unclear");
+  assert.equal(isExplicitWhatsappPregnancyDenial("Não estou grávida"), true);
+});
+
+test("treats a short bronze answer as a walk-in visit when asked which service they are coming for", () => {
+  assert.equal(
+    isWhatsappTanningVisitServiceAnswer(
+      "Bronzeamento",
+      "Vocês querem vir para qual serviço?",
+    ),
+    true,
+  );
+  assert.equal(
+    isWhatsappTanningVisitServiceAnswer("Bronzeamento", "Você quer saber os valores?"),
+    false,
+  );
+  assert.equal(
+    isWhatsappTanningVisitIntent("Estarei às 7:30", "Quero fazer bronzeamento"),
+    true,
+  );
 });
 
 test("recognizes on-the-way updates and avoids booking questions", () => {
@@ -143,6 +177,8 @@ test("recognizes Banho de Lua offers and distinguishes the two banner prices", (
   assert.equal(getWhatsappBathMoonBannerSelection("Quero o de 5 passos"), "five-step");
   assert.match(bathMoonBannerInformationReply(null), /R\$ 120/);
   assert.match(bathMoonBannerInformationReply(null), /R\$ 150/);
+  assert.doesNotMatch(bathMoonBannerInformationReply(null), /vou te enviar os banners/i);
+  assert.match(bathMoonBannerInformationReply(null), /clareamento dos pelos/i);
   assert.match(bathMoonBannerInformationReply("clarifying"), /6 áreas de atrito/i);
 });
 
