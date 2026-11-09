@@ -3528,7 +3528,7 @@ const isIndependentWhatsappMutation = (req: Request) =>
 
 router.use(async (req, res, next) => {
   let releaseProcessLock: (() => void) | undefined;
-  let releaseDatabaseLock: (() => Promise<void>) | undefined;
+  let releaseDatabaseLock: DatabaseLease | undefined;
   let releasePromise: Promise<void> | undefined;
   const releaseHeldLocks = () => {
     if (!releasePromise) {
@@ -3688,6 +3688,9 @@ router.use(async (req, res, next) => {
         return res;
       }
 
+      if (!releaseDatabaseLock) {
+        throw new Error("SPA operational-state database lock was not acquired");
+      }
       releaseDatabaseLock.assertHeld();
       void spaOperationalStateStore
         .persist()

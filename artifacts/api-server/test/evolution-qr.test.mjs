@@ -19,6 +19,21 @@ test("accepts a provider data URI and top-level QR fields", () => {
   );
 });
 
+test("accepts QR images returned as strings or inside the provider data envelope", () => {
+  assert.equal(
+    qrCodeFromResponse({ qrcode: `data:image/png;base64,${tinyPng}` }),
+    `data:image/png;base64,${tinyPng}`,
+  );
+  assert.equal(
+    qrCodeFromResponse({ data: { base64: tinyPng } }),
+    `data:image/png;base64,${tinyPng}`,
+  );
+  assert.equal(
+    qrCodeFromResponse({ data: { qrcode: { base64: tinyPng } } }),
+    `data:image/png;base64,${tinyPng}`,
+  );
+});
+
 test("rejects malformed base64 and non-image QR payloads", () => {
   assert.equal(qrCodeFromResponse({ qrcode: { base64: "not-an-image" } }), null);
   assert.equal(qrCodeFromResponse({ qrcode: { base64: "data:image/png;base64,???" } }), null);
