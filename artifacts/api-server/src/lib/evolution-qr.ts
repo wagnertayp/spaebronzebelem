@@ -54,14 +54,25 @@ const getBase64Image = (value: unknown): string | null => {
 
 export const qrCodeFromResponse = (body: JsonRecord): string | null => {
   const qr = asRecord(body.qrcode) ?? asRecord(body.qrCode);
+  const data = asRecord(body.data);
+  const nestedQr = asRecord(data?.qrcode) ?? asRecord(data?.qrCode);
   const candidates = [
     qr?.base64,
     qr?.base64Image,
     qr?.image,
     qr?.qrCode,
+    nestedQr?.base64,
+    nestedQr?.base64Image,
+    nestedQr?.image,
+    nestedQr?.qrCode,
     body.base64,
     body.base64Image,
+    data?.base64,
+    data?.base64Image,
     typeof body.qrCode === "string" ? body.qrCode : null,
+    typeof body.qrcode === "string" ? body.qrcode : null,
+    typeof data?.qrCode === "string" ? data.qrCode : null,
+    typeof data?.qrcode === "string" ? data.qrcode : null,
   ];
 
   for (const candidate of candidates) {
@@ -73,6 +84,8 @@ export const qrCodeFromResponse = (body: JsonRecord): string | null => {
 
 export const pairingCodeFromResponse = (body: JsonRecord): string | null => {
   const qr = asRecord(body.qrcode) ?? asRecord(body.qrCode);
-  const value = qr?.pairingCode ?? body.pairingCode;
+  const data = asRecord(body.data);
+  const nestedQr = asRecord(data?.qrcode) ?? asRecord(data?.qrCode);
+  const value = qr?.pairingCode ?? nestedQr?.pairingCode ?? body.pairingCode ?? data?.pairingCode;
   return typeof value === "string" && value.trim() ? value.trim() : null;
 };

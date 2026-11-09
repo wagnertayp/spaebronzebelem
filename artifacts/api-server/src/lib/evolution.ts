@@ -147,7 +147,16 @@ export const configureEvolutionWebhook = async (
   instance: string,
   { force = false }: { force?: boolean } = {},
 ) => {
-  const config = await getEvolutionConfig();
+  let config: EvolutionConfig | null;
+  try {
+    config = await getEvolutionConfig();
+  } catch (error) {
+    logger.warn(
+      { errorName: errorName(error), stage: "load_selected_instance" },
+      "[Evolution] Não foi possível carregar a configuração para definir o webhook",
+    );
+    return false;
+  }
   const webhookUrl = getEvolutionWebhookUrl();
   if (!config) return false;
   if (!webhookUrl) {
@@ -209,15 +218,63 @@ export const configureEvolutionWebhook = async (
   }
 };
 
+const evolutionConnectFailureMessage = (status: number, creating: boolean) => {
+  if (status === 401 || status === 403) {
+    return "A Evolution API recusou a autenticação. Verifique a URL e a chave configuradas.";
+  }
+  if (status === 404) {
+    return creating
+      ? "O endpoint de criação da instância não foi encontrado. Verifique a URL e a versão da Evolution API."
+      : "A instância selecionada não foi encontrada. Gere um novo QR Code.";
+  }
+  if (status === 409) {
+    return "A Evolution API informou conflito na instância. Atualize o status e tente novamente.";
+  }
+  if (status === 429) {
+    return "A Evolution API está recebendo muitas solicitações. Aguarde um pouco e tente novamente.";
+  }
+  if (status >= 500) {
+    return "A Evolution API está temporariamente indisponível. Tente novamente em instantes.";
+  }
+  return "A Evolution API recusou a solicitação. Verifique a configuração e tente novamente.";
+};
+
 export const connectEvolutionInstance = async () => {
-  const config = await getEvolutionConfig();
+  let config: EvolutionConfig | null;
+  try {
+    config = await getEvolutionConfig();
+  } catch (error) {
+    logger.error(
+      { errorName: errorName(error), stage: "load_selected_instance" },
+      "[Evolution] Não foi possível carregar a instância selecionada",
+    );
+    return {
+      created: false,
+      instance: "",
+      connected: false,
+      state: "instance_store_unavailable",
+      message: "Não foi possível carregar a conexão salva. Verifique a conexão com o banco de dados.",
+      qrCode: null,
+      pairingCode: null,
+    };
+  }
   if (!config) {
+    const hasBaseUrl = Boolean(process.env["EVOLUTION_API_URL"]?.trim());
+    const hasApiKey = Boolean(process.env["EVOLUTION_API_KEY"]?.trim());
+    logger.error(
+      { hasBaseUrl, hasApiKey },
+      "[Evolution] Conexão não iniciada: configuração incompleta",
+    );
     return {
       created: false,
       instance: "",
       connected: false,
       state: "not_configured",
-      message: "WhatsApp não configurado",
+      message: !hasBaseUrl
+        ? "Falta configurar EVOLUTION_API_URL."
+        : !hasApiKey
+          ? "Falta configurar EVOLUTION_API_KEY."
+          : "Não foi possível carregar a configuração do WhatsApp.",
       qrCode: null,
       pairingCode: null,
     };
@@ -258,10 +315,18 @@ export const connectEvolutionInstance = async () => {
     } else {
       response = await createInstance(instance);
     }
-    const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+    const responseBody = await parseEvolutionResponseBody(response);
+    const body = responseBody && typeof responseBody === "object" && !Array.isArray(responseBody)
+      ? responseBody as Record<string, unknown>
+      : {};
     if (!response.ok) {
+      const providerError = getEvolutionErrorDetails(responseBody);
       logger.warn(
-        { status: response.status },
+        {
+          status: response.status,
+          operation: created ? "create_instance" : "connect_instance",
+          ...providerError,
+        },
         "[Evolution] Não foi possível iniciar a conexão do WhatsApp",
       );
       return {
@@ -269,18 +334,40 @@ export const connectEvolutionInstance = async () => {
         instance,
         connected: false,
         state: `http_${response.status}`,
-        message: "Não foi possível gerar o QR Code do WhatsApp",
+        message: evolutionConnectFailureMessage(response.status, created),
         qrCode: null,
         pairingCode: null,
       };
     }
 
-    await evolutionInstanceStore.setSelectedInstance(instance);
+    try {
+      await evolutionInstanceStore.setSelectedInstance(instance);
+    } catch (error) {
+      logger.error(
+        { errorName: errorName(error), stage: "save_selected_instance" },
+        "[Evolution] A instância respondeu, mas não foi possível salvar sua seleção",
+      );
+      return {
+        created,
+        instance,
+        connected: false,
+        state: "instance_store_unavailable",
+        message: "A Evolution respondeu, mas não foi possível salvar a conexão no banco. Tente novamente após verificar o banco de dados.",
+        qrCode: null,
+        pairingCode: null,
+      };
+    }
     const webhookReady = await configureEvolutionWebhook(instance, { force: true });
     const qrCode = qrCodeFromResponse(body);
     const pairingCode = pairingCodeFromResponse(body);
+    const instanceDetails = body.instance && typeof body.instance === "object"
+      ? body.instance as Record<string, unknown>
+      : {};
     const status = String(
-      (body.instance as Record<string, unknown> | undefined)?.status ??
+      instanceDetails.status ??
+      instanceDetails.connectionStatus ??
+      instanceDetails.state ??
+      body.connectionStatus ??
       body.state ??
       (qrCode ? "qr_pending" : "created"),
     );
@@ -294,10 +381,18 @@ export const connectEvolutionInstance = async () => {
           : "A Evolution API não retornou um QR Code válido. Tente gerar novamente.";
     if (!connected && !qrCode && !pairingCode) {
       logger.warn(
-        { instance, state: status, responseKeys: Object.keys(body).sort() },
+        { state: status, responseKeys: Object.keys(body).sort() },
         "[Evolution] Resposta de conexão sem QR Code válido ou código de pareamento",
       );
     }
+    logger.info({
+      created,
+      state: status,
+      connected,
+      hasQrCode: Boolean(qrCode),
+      hasPairingCode: Boolean(pairingCode),
+      webhookReady,
+    }, "[Evolution] Resultado da solicitação de conexão");
     return {
       created,
       instance,
@@ -310,16 +405,23 @@ export const connectEvolutionInstance = async () => {
       pairingCode,
     };
   } catch (error) {
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
     logger.warn(
-      { errorName: errorName(error), timeoutMs: CONNECTION_ACTION_TIMEOUT_MS },
+      {
+        errorName: errorName(error),
+        timeoutMs: CONNECTION_ACTION_TIMEOUT_MS,
+        timedOut,
+      },
       "[Evolution] Falha ao iniciar a conexão do WhatsApp",
     );
     return {
       created: false,
       instance,
       connected: false,
-      state: "unreachable",
-      message: "Não foi possível conectar o WhatsApp",
+      state: timedOut ? "timeout" : "unreachable",
+      message: timedOut
+        ? "A Evolution API demorou mais de 15 segundos para responder. Tente novamente."
+        : "Não foi possível alcançar a Evolution API. Verifique a URL e tente novamente.",
       qrCode: null,
       pairingCode: null,
     };
@@ -862,7 +964,22 @@ export const getEvolutionConnection = async ({
 }: {
   configureWebhook?: boolean;
 } = {}) => {
-  const config = await getEvolutionConfig();
+  let config: EvolutionConfig | null;
+  try {
+    config = await getEvolutionConfig();
+  } catch (error) {
+    logger.error(
+      { errorName: errorName(error), stage: "load_selected_instance" },
+      "[Evolution] Não foi possível carregar a instância para consultar o status",
+    );
+    return {
+      configured: true,
+      connected: false,
+      instance: "",
+      state: "instance_store_unavailable",
+      message: "Não foi possível carregar a conexão salva. Verifique a conexão com o banco de dados.",
+    };
+  }
   if (!config) {
     return { configured: false, connected: false, instance: "", state: "not_configured", message: "WhatsApp não configurado" };
   }
