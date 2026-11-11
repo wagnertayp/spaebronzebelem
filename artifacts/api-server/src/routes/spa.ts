@@ -240,6 +240,8 @@ import {
 } from "../lib/whatsapp-webhook-inbox";
 import { persistWhatsappWebhookBeforeAcknowledgement } from "../lib/whatsapp-webhook-acknowledgement";
 import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
+import { getWhatsappAttendanceWindow } from "../lib/whatsapp-attendance-window";
+import { getWhatsappSimpleFactReply } from "../lib/whatsapp-simple-facts";
 import {
   bronzeNeonRecommendationReply,
   bronzeTextFallbackReply,
@@ -1685,17 +1687,25 @@ const parseAgentDecision = (content: string): AgentDecision => {
   }
 };
 
-const getConversationHistory = async (phone: string, beforeMessageId?: number) => {
+const getConversationHistory = async (
+  phone: string,
+  beforeMessageId?: number,
+  referenceAt?: Date,
+) => {
   const messages = await db
-    .select({ direction: whatsappMessagesTable.direction, text: whatsappMessagesTable.text })
+    .select({
+      direction: whatsappMessagesTable.direction,
+      text: whatsappMessagesTable.text,
+      createdAt: whatsappMessagesTable.createdAt,
+    })
     .from(whatsappMessagesTable)
     .where(and(
       eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
       beforeMessageId ? lt(whatsappMessagesTable.id, beforeMessageId) : undefined,
     ))
-    .orderBy(desc(whatsappMessagesTable.id))
-    .limit(20);
-  return messages.reverse().map((message) => ({
+    .orderBy(asc(whatsappMessagesTable.id));
+  const activeWindow = getWhatsappAttendanceWindow(messages, referenceAt);
+  return activeWindow.map((message) => ({
       role: message.direction === "inbound" ? "user" as const : "assistant" as const,
       content: message.text,
     }));
@@ -1719,6 +1729,7 @@ const getWhatsappUnansweredInboundBatch = async (phone: string) => {
       id: whatsappMessagesTable.id,
       text: whatsappMessagesTable.text,
       providerMessageId: whatsappMessagesTable.providerMessageId,
+      createdAt: whatsappMessagesTable.createdAt,
     })
     .from(whatsappMessagesTable)
     .where(and(
@@ -1798,11 +1809,13 @@ const askWhatsappAgent = async (
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date());
-  const response = await openai.chat.completions.create({
-    model: OPENAI_TEXT_MODEL,
-    max_completion_tokens: 1600,
-    response_format: { type: "json_object" },
-    messages: [
+  let response: Awaited<ReturnType<typeof openai.chat.completions.create>>;
+  try {
+    response = await openai.chat.completions.create({
+      model: OPENAI_TEXT_MODEL,
+      max_completion_tokens: 1600,
+      response_format: { type: "json_object" },
+      messages: [
       {
         role: "system",
         content: `Você é ${aiAgentConfig.name}, atendente do Spa e Bronze Belém.
@@ -1922,6 +1935,28 @@ Se a cliente informou o nome, retorne-o como string em clientName; caso contrár
     maxRetries: 0,
     timeout: 12_000,
   });
+  } catch (error) {
+    logger.warn(
+      {
+        requestedModel: OPENAI_TEXT_MODEL,
+        outcome: "request_failed",
+        errorType: error instanceof Error ? error.name : "UnknownError",
+      },
+      "WhatsApp AI usage",
+    );
+    throw error;
+  }
+  logger.info(
+    {
+      requestedModel: OPENAI_TEXT_MODEL,
+      returnedModel: response.model ?? null,
+      inputTokens: response.usage?.prompt_tokens ?? null,
+      outputTokens: response.usage?.completion_tokens ?? null,
+      totalTokens: response.usage?.total_tokens ?? null,
+      outcome: "response_received",
+    },
+    "WhatsApp AI usage",
+  );
   return parseAgentDecision(response.choices[0]?.message?.content ?? "");
 };
 
@@ -4485,7 +4520,11 @@ const processWhatsappWebhookPayload = async (
     });
   }
   text = combineWhatsappInboundMessages(inboundBatch.map((message) => message.text));
-  const conversationHistory = await getConversationHistory(phone, inboundBatch[0]!.id);
+  const conversationHistory = await getConversationHistory(
+    phone,
+    inboundBatch[0]!.id,
+    inboundBatch[0]!.createdAt,
+  );
   const [previousClientMessage] = await db
     .select({ id: whatsappMessagesTable.id })
     .from(whatsappMessagesTable)
@@ -4829,6 +4868,59 @@ const processWhatsappWebhookPayload = async (
           savedBookingDraft.professional ?? "",
         )
       : [];
+    const hasSpecialHandling = conversationHistory.some(({ content }) =>
+      /\b(?:agend|reserva|marc|bronze|banho de lua|spa de banho|gesta|gravidez|gravida|alergia|medicamento|reacao|dor|catalogo|procedimento|cheguei|estou indo)\b/.test(
+        normalizeCatalogLabel(content),
+      ),
+    ) || /\b(?:agend|reserva|marc|bronze|banho de lua|spa de banho|gesta|gravidez|gravida|alergia|medicamento|reacao|dor|catalogo|procedimento|cheguei|estou indo)\b/.test(
+      normalizedText,
+    );
+    const matchedServices = activeSpaRecords("service", services).filter((service) => {
+      const name = normalizeCatalogLabel(service.name);
+      return name.length > 3 && normalizedText.includes(name);
+    });
+    const matchedSimpleFactServices = matchedServices.filter((service) => {
+      const name = normalizeCatalogLabel(service.name);
+      return !/\b(?:bronze|banho de lua|dap|spa de banho|neon)\b/.test(name);
+    });
+    const simpleFact = inboundBatch.length === 1 &&
+      !isFirstClientMessage &&
+      !isAudioMessage &&
+      !isImageMessage &&
+      !savedBookingDraft &&
+      !explicitBookingIntent &&
+      !tanningFlow &&
+      !pregnancyMentioned &&
+      !currentCatalogRequest &&
+      !acceptedCatalogOffer &&
+      !hasSpecialHandling
+      ? getWhatsappSimpleFactReply({
+          text,
+          businessHours: aiAgentConfig.businessHours,
+          address: aiAgentConfig.address,
+          mentionedService: matchedSimpleFactServices.length === 1
+            ? {
+                name: matchedSimpleFactServices[0]!.name,
+                price: matchedSimpleFactServices[0]!.price,
+              }
+            : null,
+        })
+      : null;
+    if (simpleFact && (simpleFact.intent === "price" || matchedServices.length === 0)) {
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        simpleFact.reply,
+        "reply",
+        replyReference,
+      ));
+      log.info(
+        { intent: simpleFact.intent, outcome: "answered_without_model" },
+        "WhatsApp simple fact",
+      );
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
     const decision = await askWhatsappAgent(
       phone,
       knownClientName,
