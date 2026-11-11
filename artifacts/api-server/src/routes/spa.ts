@@ -5602,7 +5602,12 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   const body = ReceiveEvolutionWebhookBody.parse(req.body) as WhatsappWebhookPayload;
   const data = (body["data"] as Record<string, unknown> | undefined) ?? body;
   const key = (data["key"] as Record<string, unknown> | undefined) ?? {};
+  const eventType = typeof body["event"] === "string" ? body["event"] : "unknown";
   if (key["fromMe"] === true) {
+    logger.info(
+      { eventType, hasProviderMessageId: typeof key["id"] === "string" },
+      "Evolution webhook ignored own message",
+    );
     res.json(ReceiveEvolutionWebhookResponse.parse({ received: true, action: "ignored_from_me" }));
     return;
   }
@@ -5618,6 +5623,15 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
       "Could not persist Evolution webhook in the durable inbox",
     );
   }
+  logger.info(
+    {
+      eventType,
+      hasProviderMessageId: typeof key["id"] === "string",
+      statusCode: acknowledgement.statusCode,
+      action: acknowledgement.body.action ?? "persistence_failed",
+    },
+    "Evolution webhook received by the app",
+  );
   res.status(acknowledgement.statusCode).json(acknowledgement.body);
 });
 
