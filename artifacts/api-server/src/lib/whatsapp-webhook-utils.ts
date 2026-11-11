@@ -70,3 +70,6 @@ export const stripInlineMedia = (
 
 export const webhookRetryDelaySeconds = (attempts: number) =>
   Math.min(300, 2 ** Math.min(Math.max(1, Math.floor(attempts)), 9));
+
+export const shouldDeadLetterWhatsappWebhook = (attempts: number) =>
+  attempts >= MAX_WHATSAPP_WEBHOOK_ATTEMPTS;

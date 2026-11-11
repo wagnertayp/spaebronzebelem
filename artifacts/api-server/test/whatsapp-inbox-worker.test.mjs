@@ -75,6 +75,30 @@ test("SIGTERM stops new claims and drains an active webhook before returning", a
   assert.deepEqual(completed, [1]);
 });
 
+test("the durable worker passes the current retry count to the handler", async () => {
+  let claimed = false;
+  let processedAttempt;
+  const store = {
+    async claim() {
+      if (claimed) return null;
+      claimed = true;
+      return { ...job(20), attempts: 4 };
+    },
+    async renewLease() {},
+    async complete() { return true; },
+    async retry() {},
+    async releaseUnstarted() {},
+  };
+  const worker = createDurableInboxWorker(workerOptions(store, async (_payload, context) => {
+    processedAttempt = context.attempts;
+    return "processed";
+  }));
+
+  await until(() => processedAttempt !== undefined);
+  assert.equal(await worker.stop(500), true);
+  assert.equal(processedAttempt, 4);
+});
+
 test("a job claimed during shutdown is returned to pending without processing", async () => {
   let resolveClaim;
   let processingCalls = 0;

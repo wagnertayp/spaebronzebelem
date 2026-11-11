@@ -7,7 +7,7 @@ import {
 } from "./whatsapp-inbox-worker";
 import {
   makeWhatsappWebhookEventKey,
-  MAX_WHATSAPP_WEBHOOK_ATTEMPTS,
+  shouldDeadLetterWhatsappWebhook,
   stripInlineMedia,
   webhookRetryDelaySeconds,
 } from "./whatsapp-webhook-utils";
@@ -201,7 +201,7 @@ const completeWhatsappWebhook = async (job: WhatsappWebhookJob) => {
 };
 
 const retryWhatsappWebhook = async (job: WhatsappWebhookJob, error: unknown) => {
-  const exhausted = job.attempts >= MAX_WHATSAPP_WEBHOOK_ATTEMPTS;
+  const exhausted = shouldDeadLetterWhatsappWebhook(job.attempts);
   const delaySeconds = webhookRetryDelaySeconds(job.attempts);
   const message = error instanceof Error ? error.message : "Unknown webhook processing error";
   await pool.query(

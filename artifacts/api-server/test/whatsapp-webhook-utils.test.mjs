@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   combineWhatsappInboundMessages,
   makeWhatsappWebhookEventKey,
+  MAX_WHATSAPP_WEBHOOK_ATTEMPTS,
   stripInlineMedia,
+  shouldDeadLetterWhatsappWebhook,
   webhookRetryDelaySeconds,
 } from "../src/lib/whatsapp-webhook-utils.ts";
 
@@ -79,4 +81,6 @@ test("webhook retries back off and remain capped", () => {
   assert.equal(webhookRetryDelaySeconds(4), 16);
   assert.equal(webhookRetryDelaySeconds(9), 300);
   assert.equal(webhookRetryDelaySeconds(50), 300);
+  assert.equal(shouldDeadLetterWhatsappWebhook(MAX_WHATSAPP_WEBHOOK_ATTEMPTS - 1), false);
+  assert.equal(shouldDeadLetterWhatsappWebhook(MAX_WHATSAPP_WEBHOOK_ATTEMPTS), true);
 });

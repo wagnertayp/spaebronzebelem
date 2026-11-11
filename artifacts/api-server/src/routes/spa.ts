@@ -239,7 +239,10 @@ import {
   type WhatsappWebhookPayload,
 } from "../lib/whatsapp-webhook-inbox";
 import { persistWhatsappWebhookBeforeAcknowledgement } from "../lib/whatsapp-webhook-acknowledgement";
-import { combineWhatsappInboundMessages } from "../lib/whatsapp-webhook-utils";
+import {
+  combineWhatsappInboundMessages,
+  MAX_WHATSAPP_WEBHOOK_ATTEMPTS,
+} from "../lib/whatsapp-webhook-utils";
 import { getWhatsappAttendanceWindow } from "../lib/whatsapp-attendance-window";
 import { getWhatsappSimpleFactReply } from "../lib/whatsapp-simple-facts";
 import {
@@ -341,6 +344,7 @@ type DatabaseLease = (() => Promise<void>) & { assertHeld: () => void };
 const OPENAI_TEXT_MODEL = "gpt-5.6-luna";
 const WHATSAPP_REACTIONS = ["🤎", "❤️", "🧡", "💛", "👍", "😊"] as const;
 const WHATSAPP_MESSAGE_BATCH_QUIET_MS = 2_500;
+const WHATSAPP_AGENT_MAX_ATTEMPTS = 3;
 const waitForWhatsappMessages = (durationMs: number) =>
   new Promise((resolve) => setTimeout(resolve, durationMs));
 
@@ -5537,6 +5541,18 @@ const processWhatsappWebhookPayload = async (
       action: createdAppointment ? "scheduled" : "replied",
     });
   } catch (error) {
+    if (inboxJob.attempts < WHATSAPP_AGENT_MAX_ATTEMPTS) {
+      log.warn(
+        {
+          inboxId: inboxJob.id,
+          attempt: inboxJob.attempts,
+          retryLimit: WHATSAPP_AGENT_MAX_ATTEMPTS,
+          queueMaxAttempts: MAX_WHATSAPP_WEBHOOK_ATTEMPTS,
+        },
+        "WhatsApp agent attempt failed; the durable queue will retry before sending a fixed reply",
+      );
+      throw error;
+    }
     logger.error({ err: error, phone }, "WhatsApp AI response failed");
     try {
       const fallbackMessage = ensureWhatsappDelivery(await sendWhatsappReply(

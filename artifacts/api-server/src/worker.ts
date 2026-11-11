@@ -53,6 +53,7 @@ const reportWorkerHealth = async () => {
       memoryLimitMb,
       pendingCount: queue.pendingCount,
       processingCount: queue.processingCount,
+      failedCount: queue.failedCount,
       oldestPendingSeconds: queue.oldestPendingSeconds,
     };
     const memoryHigh = context.rssMb >= memoryLimitMb * memoryWarnPercent / 100;
