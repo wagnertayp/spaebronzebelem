@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 export type WhatsappWebhookPayload = Record<string, unknown>;
 const MAX_QUEUED_AUDIO_BASE64_CHARS = 8_000_000;
+export const MAX_WHATSAPP_WEBHOOK_ATTEMPTS = 8;
 
 export const combineWhatsappInboundMessages = (messages: string[]) => {
   const cleanedMessages = messages.map((message) => message.trim()).filter(Boolean);

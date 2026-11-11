@@ -14,6 +14,8 @@ export type DurableInboxWorkerStore<Payload> = {
   releaseUnstarted: (job: DurableInboxJob<Payload>) => Promise<void>;
 };
 
+export type DurableInboxJobContext = Pick<DurableInboxJob<unknown>, "id" | "attempts">;
+
 type WorkerLogger = {
   info: (context: Record<string, unknown>, message: string) => void;
   warn: (context: Record<string, unknown>, message: string) => void;
@@ -29,7 +31,7 @@ export const createDurableInboxWorker = <Payload, Result>({
   heartbeatIntervalMs,
 }: {
   store: DurableInboxWorkerStore<Payload>;
-  processPayload: (payload: Payload, job: { id: number }) => Promise<Result>;
+  processPayload: (payload: Payload, job: DurableInboxJobContext) => Promise<Result>;
   logger: WorkerLogger;
   concurrency: number;
   pollIntervalMs: number;
@@ -60,7 +62,7 @@ export const createDurableInboxWorker = <Payload, Result>({
       try {
         let result: Result;
         try {
-          result = await processPayload(job.payload, { id: job.id });
+          result = await processPayload(job.payload, { id: job.id, attempts: job.attempts });
         } catch (error) {
           await store.retry(job, error);
           logger.error(

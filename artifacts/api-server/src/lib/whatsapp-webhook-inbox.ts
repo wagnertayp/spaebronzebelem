@@ -7,6 +7,7 @@ import {
 } from "./whatsapp-inbox-worker";
 import {
   makeWhatsappWebhookEventKey,
+  MAX_WHATSAPP_WEBHOOK_ATTEMPTS,
   stripInlineMedia,
   webhookRetryDelaySeconds,
 } from "./whatsapp-webhook-utils";
@@ -24,7 +25,7 @@ if (!Number.isInteger(WORKER_CONCURRENCY) || WORKER_CONCURRENCY < 1) {
 }
 
 export type WhatsappWebhookPayload = Record<string, unknown>;
-export type WhatsappWebhookJobContext = Pick<WhatsappWebhookJob, "id">;
+export type WhatsappWebhookJobContext = Pick<WhatsappWebhookJob, "id" | "attempts">;
 
 export type WhatsappWebhookJob = DurableInboxJob<WhatsappWebhookPayload>;
 
@@ -200,19 +201,29 @@ const completeWhatsappWebhook = async (job: WhatsappWebhookJob) => {
 };
 
 const retryWhatsappWebhook = async (job: WhatsappWebhookJob, error: unknown) => {
+  const exhausted = job.attempts >= MAX_WHATSAPP_WEBHOOK_ATTEMPTS;
   const delaySeconds = webhookRetryDelaySeconds(job.attempts);
   const message = error instanceof Error ? error.message : "Unknown webhook processing error";
   await pool.query(
     `UPDATE whatsapp_webhook_inbox
-     SET status = 'pending',
-         available_at = NOW() + ($3 * INTERVAL '1 second'),
+     SET status = CASE WHEN $5 THEN 'failed' ELSE 'pending' END,
+         available_at = CASE
+           WHEN $5 THEN available_at
+           ELSE NOW() + ($3 * INTERVAL '1 second')
+         END,
          locked_at = NULL,
          lease_token = NULL,
          last_error = $4,
          updated_at = NOW()
      WHERE id = $1 AND status = 'processing' AND lease_token = $2`,
-    [job.id, job.leaseToken, delaySeconds, message.slice(0, 1_000)],
+    [job.id, job.leaseToken, delaySeconds, message.slice(0, 1_000), exhausted],
   );
+  if (exhausted) {
+    logger.error(
+      { inboxId: job.id, attempts: job.attempts },
+      "WhatsApp webhook moved to failed queue after retry limit",
+    );
+  }
 };
 
 const releaseUnstartedWhatsappWebhook = async (job: WhatsappWebhookJob) => {
@@ -233,11 +244,13 @@ export const getWhatsappWebhookQueueStats = async () => {
   const result = await pool.query<{
     pending_count: number;
     processing_count: number;
+    failed_count: number;
     oldest_pending_seconds: number;
   }>(
     `SELECT
        COUNT(*) FILTER (WHERE status = 'pending')::int AS pending_count,
        COUNT(*) FILTER (WHERE status = 'processing')::int AS processing_count,
+       COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_count,
        COALESCE(
          FLOOR(EXTRACT(EPOCH FROM (
            NOW() - (
@@ -253,6 +266,7 @@ export const getWhatsappWebhookQueueStats = async () => {
   return {
     pendingCount: Number(stats?.pending_count ?? 0),
     processingCount: Number(stats?.processing_count ?? 0),
+    failedCount: Number(stats?.failed_count ?? 0),
     oldestPendingSeconds: Number(stats?.oldest_pending_seconds ?? 0),
   };
 };
