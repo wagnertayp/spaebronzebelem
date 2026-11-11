@@ -8,6 +8,11 @@ import {
   shouldDeadLetterWhatsappWebhook,
   webhookRetryDelaySeconds,
 } from "../src/lib/whatsapp-webhook-utils.ts";
+import {
+  evolutionRecipient,
+  evolutionRecipientJid,
+  normalizeWhatsappPhone,
+} from "../src/lib/whatsapp-phone.ts";
 
 test("combines consecutive client messages in their original order", () => {
   assert.equal(
@@ -83,4 +88,18 @@ test("webhook retries back off and remain capped", () => {
   assert.equal(webhookRetryDelaySeconds(50), 300);
   assert.equal(shouldDeadLetterWhatsappWebhook(MAX_WHATSAPP_WEBHOOK_ATTEMPTS - 1), false);
   assert.equal(shouldDeadLetterWhatsappWebhook(MAX_WHATSAPP_WEBHOOK_ATTEMPTS), true);
+});
+
+test("phone normalization preserves international numbers and provider JIDs", () => {
+  assert.equal(normalizeWhatsappPhone("11987654321"), "5511987654321");
+  assert.equal(normalizeWhatsappPhone("351935964585"), "351935964585");
+  assert.equal(normalizeWhatsappPhone("177519739330751"), "177519739330751");
+  assert.equal(
+    evolutionRecipient("351935964585@s.whatsapp.net"),
+    "351935964585@s.whatsapp.net",
+  );
+  assert.equal(
+    evolutionRecipientJid("177519739330751@lid"),
+    "177519739330751@lid",
+  );
 });

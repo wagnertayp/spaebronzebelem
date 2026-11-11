@@ -1142,7 +1142,7 @@ const sendWhatsappReply = async (
     providerMessageId: null,
     error: null,
   });
-  const result = await sendEvolutionText(phone, outgoingText, replyTo);
+  const result = await sendEvolutionText(replyTo?.remoteJid ?? phone, outgoingText, replyTo);
   return (await updateWhatsappMessage(item.id, {
     status: result.ok ? "sent" : "failed",
     providerMessageId: result.providerMessageId,
@@ -1289,7 +1289,12 @@ const sendWhatsappDocumentMessage = async (
     providerMessageId: null,
     error: null,
   });
-  const result = await sendEvolutionDocument(phone, document, outgoingCaption, replyTo);
+  const result = await sendEvolutionDocument(
+    replyTo?.remoteJid ?? phone,
+    document,
+    outgoingCaption,
+    replyTo,
+  );
   return (await updateWhatsappMessage(item.id, {
     status: result.ok ? "sent" : "failed",
     providerMessageId: result.providerMessageId,
@@ -1318,6 +1323,7 @@ const sendWhatsappSessionPreparationImage = async (
   appointment: Appointment | null,
   phone: string,
   clientName: string,
+  recipient?: string,
 ) => {
   if (appointment) {
     const service = serviceForAppointment(appointment);
@@ -1352,7 +1358,7 @@ const sendWhatsappSessionPreparationImage = async (
     providerMessageId: null,
     error: null,
   });
-  const result = await sendEvolutionSessionPreparationImage(phone, caption);
+  const result = await sendEvolutionSessionPreparationImage(recipient ?? phone, caption);
   if (!result.ok) {
     logger.warn(
       { err: result.error, phone, appointmentId: appointment?.id ?? null },
@@ -1377,7 +1383,11 @@ const dapImageOutboxItems: Array<{ image: WhatsappDapImage; caption: string }> =
   },
 ];
 
-const sendWhatsappDapImages = async (phone: string, clientName: string) => {
+const sendWhatsappDapImages = async (
+  phone: string,
+  clientName: string,
+  recipient = phone,
+) => {
   const normalizedPhone = normalizeWhatsappPhone(phone);
   const captions = dapImageOutboxItems.map((item) => item.caption);
   const existingAttempts = await db
@@ -1425,7 +1435,7 @@ const sendWhatsappDapImages = async (phone: string, clientName: string) => {
           providerMessageId: null,
           error: null,
         });
-    const result = await sendEvolutionDapImage(phone, item.image, item.caption);
+    const result = await sendEvolutionDapImage(recipient, item.image, item.caption);
     if (!result.ok) {
       logger.warn(
         { err: result.error, phone, image: item.image },
@@ -1455,6 +1465,7 @@ const sendWhatsappBathMoonBanners = async (
   phone: string,
   clientName: string,
   selection: "five-step" | "clarifying" | null,
+  recipient = phone,
 ) => {
   const normalizedPhone = normalizeWhatsappPhone(phone);
   const items = selection
@@ -1505,7 +1516,7 @@ const sendWhatsappBathMoonBanners = async (
           providerMessageId: null,
           error: null,
         });
-    const result = await sendEvolutionBathMoonBanner(phone, item.image, item.caption);
+    const result = await sendEvolutionBathMoonBanner(recipient, item.image, item.caption);
     if (!result.ok) {
       logger.warn({ err: result.error, phone, image: item.image }, "WhatsApp Banho de Lua banner send failed");
     }
@@ -1522,6 +1533,7 @@ const sendWhatsappAudioMessage = async (
   clientName: string,
   clip: WhatsappAudioClip,
   appointmentId: number | null = null,
+  recipient?: string,
 ) => {
   const item = await addWhatsappMessage({
     direction: "outbound",
@@ -1534,7 +1546,7 @@ const sendWhatsappAudioMessage = async (
     providerMessageId: null,
     error: null,
   });
-  const result = await sendEvolutionAudio(phone, clip);
+  const result = await sendEvolutionAudio(recipient ?? phone, clip);
   if (!result.ok) {
     logger.warn({ err: result.error, phone, clip }, "WhatsApp pre-recorded audio send failed");
   }
@@ -4486,7 +4498,7 @@ const processWhatsappWebhookPayload = async (
   }
   if (providerMessageId) {
     void sendEvolutionReaction(
-      phone,
+      remoteJid || phone,
       providerMessageId,
       reactionForWhatsappMessage(providerMessageId, text),
     ).then((reactionResult) => {
@@ -4744,7 +4756,7 @@ const processWhatsappWebhookPayload = async (
       );
       ensureWhatsappDelivery(dapReply);
       if (dapReply.status === "sent" || dapReply.status === "delivered") {
-        await sendWhatsappDapImages(phone, knownClientName);
+        await sendWhatsappDapImages(phone, knownClientName, remoteJid);
       }
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
@@ -4782,7 +4794,7 @@ const processWhatsappWebhookPayload = async (
         "reply",
         replyReference,
       ));
-      await sendWhatsappBathMoonBanners(phone, knownClientName, selection);
+      await sendWhatsappBathMoonBanners(phone, knownClientName, selection, remoteJid);
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
 
@@ -5456,6 +5468,7 @@ const processWhatsappWebhookPayload = async (
           replyClientName,
           audioClip,
           appointment?.id ?? null,
+          remoteJid,
         );
         bronzeAudioDelivered = audioMessage.status === "sent" || audioMessage.status === "delivered";
       } catch (error) {
@@ -5475,6 +5488,7 @@ const processWhatsappWebhookPayload = async (
         replyClientName,
         audioClip,
         appointment?.id ?? null,
+        remoteJid,
       ));
       if (audioMessage.status === "sent" && !shouldReplyBeforeAudio) {
         writtenReply = "Te enviei um áudio com a explicação dos nossos combos. 🤎";
@@ -5501,7 +5515,12 @@ const processWhatsappWebhookPayload = async (
       }
     }
     if (bronzeVisitBundle) {
-      const preparationImage = await sendWhatsappSessionPreparationImage(null, phone, replyClientName);
+      const preparationImage = await sendWhatsappSessionPreparationImage(
+        null,
+        phone,
+        replyClientName,
+        remoteJid,
+      );
       if (preparationImage?.status === "failed") {
         ensureWhatsappDelivery(await sendWhatsappReplyOnce(
           phone,
@@ -5529,6 +5548,7 @@ const processWhatsappWebhookPayload = async (
         createdAppointment,
         phone,
         client?.name ?? decision.appointment?.clientName ?? phone,
+        remoteJid,
       ).catch((error) => {
         logger.error(
           { err: error, phone, appointmentId: createdAppointment?.id },

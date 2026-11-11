@@ -5,6 +5,11 @@ import { resolve } from "node:path";
 import { evolutionInstanceStore } from "./evolution-instance-repository";
 import { getEvolutionErrorDetails, parseEvolutionResponseBody } from "./evolution-error";
 import { sendTextWithQuoteFallback } from "./evolution-text-fallback";
+import {
+  evolutionRecipient,
+  evolutionRecipientJid,
+  normalizeWhatsappPhone,
+} from "./whatsapp-phone";
 import { pairingCodeFromResponse, qrCodeFromResponse } from "./evolution-qr";
 import { logger } from "./logger";
 
@@ -491,11 +496,7 @@ export const disconnectEvolutionInstance = async () => {
   }
 };
 
-export const normalizeWhatsappPhone = (value: string): string => {
-  const digits = value.replace(/\D/g, "");
-  if (!digits) return "";
-  return digits.startsWith("55") ? digits : `55${digits}`;
-};
+export { normalizeWhatsappPhone } from "./whatsapp-phone";
 
 export const sendEvolutionText = async (
   phone: string,
@@ -520,7 +521,7 @@ export const sendEvolutionText = async (
         },
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
         body: JSON.stringify({
-          number: normalizeWhatsappPhone(phone),
+          number: evolutionRecipient(phone),
           text,
           ...(replyTo && includeQuote
             ? {
@@ -597,7 +598,7 @@ export const sendEvolutionReaction = async (
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
         body: JSON.stringify({
           key: {
-            remoteJid: `${normalizeWhatsappPhone(phone)}@s.whatsapp.net`,
+            remoteJid: evolutionRecipientJid(phone),
             fromMe: false,
             id: providerMessageId,
           },
@@ -652,7 +653,7 @@ export const sendEvolutionDocument = async (
         },
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
         body: JSON.stringify({
-          number: normalizeWhatsappPhone(phone),
+          number: evolutionRecipient(phone),
           mediatype: "document",
           mimetype: "application/pdf",
           caption,
@@ -730,7 +731,7 @@ const sendEvolutionImage = async (
         },
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
         body: JSON.stringify({
-          number: normalizeWhatsappPhone(phone),
+          number: evolutionRecipient(phone),
           mediatype: "image",
           mimetype: "image/jpeg",
           caption,
@@ -833,7 +834,7 @@ export const sendEvolutionAudio = async (
         },
         signal: AbortSignal.timeout(VOICE_NOTE_SEND_TIMEOUT_MS),
         body: JSON.stringify({
-          number: normalizeWhatsappPhone(phone),
+          number: evolutionRecipient(phone),
           audio,
           encoding: true,
           delay: VOICE_NOTE_RECORDING_DELAY_MS,
