@@ -1043,8 +1043,14 @@ export const getEvolutionConnection = async ({
         };
       }
     }
+    const instanceDetails = body.instance && typeof body.instance === "object"
+      ? body.instance as Record<string, unknown>
+      : {};
     const state = String(
-      (body.instance as Record<string, unknown> | undefined)?.state ??
+      instanceDetails.status ??
+      instanceDetails.connectionStatus ??
+      instanceDetails.state ??
+      body.connectionStatus ??
       body.state ??
       (response.ok ? "unknown" : `http_${response.status}`),
     );
