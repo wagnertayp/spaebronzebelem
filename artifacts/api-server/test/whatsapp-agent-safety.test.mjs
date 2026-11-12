@@ -125,6 +125,11 @@ test("recognizes on-the-way updates and avoids booking questions", () => {
   assert.doesNotMatch(clientOnTheWayReply, /agendar|qual serviço/i);
 });
 
+test("treats a tanning arrival as a visit intent for screening and queue confirmation", () => {
+  assert.equal(isWhatsappTanningVisitIntent("Estou indo fazer bronze natural"), true);
+  assert.equal(isWhatsappTanningVisitIntent("Quero saber sobre bronze natural"), false);
+});
+
 test("acknowledges a pause while the client checks a booking without repeating slot choices", () => {
   assert.equal(isWhatsappDecisionDeferral("Um momento irei ver que vou com minha amiga"), true);
   assert.equal(isWhatsappDecisionDeferral("Vou confirmar com minha amiga"), true);

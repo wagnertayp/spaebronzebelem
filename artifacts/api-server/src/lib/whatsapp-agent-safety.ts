@@ -373,8 +373,14 @@ export const isWhatsappTanningVisitIntent = (
     );
   const currentExplicitVisitIntent =
     currentMentionsTanning &&
-    /\b(?:quero|queria|pretendo|vamos|vou|posso|podemos)\b/.test(current) &&
-    /\b(?:fazer|ir|bronze|bronzeamento|natural|maquina)\b/.test(current);
+    /\b(?:quero|queria|pretendo|vamos|vou)\s+(?:ir|fazer|passar)\b.{0,40}\b(?:bronze|bronzeamento|natural|maquina)\b/.test(
+      current,
+    );
+  const currentExplicitArrivalIntent =
+    currentMentionsTanning &&
+    /\b(?:estou indo|to indo|estamos indo|vamos indo|estou chegando|to chegando|vou chegar|vou passar|a caminho)\b/.test(
+      current,
+    );
   const currentIsVisitFollowUp =
     /\b(?:posso ir|podemos ir|vou ir|estou indo|estamos indo|estarei|estaremos|vou estar|vou chegar|vou passar|chego|chegamos|amanha|hoje|as [0-2]?\d(?::[0-5]\d)?)\b/.test(
       current,
@@ -383,6 +389,7 @@ export const isWhatsappTanningVisitIntent = (
     current.length <= 50 && currentMentionsTanning;
 
   return currentExplicitVisitIntent ||
+    currentExplicitArrivalIntent ||
     (previousExplicitTanningIntent && (currentIsVisitFollowUp || currentIsShortServiceAnswer));
 };
 

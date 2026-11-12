@@ -203,7 +203,10 @@ import {
   type AuthenticatedSession,
 } from "../lib/auth";
 import { createSpaOperationalStateStore } from "../lib/spa-state-store";
-import type { WhatsappWalkInQueueEntry } from "../lib/whatsapp-walk-in-queue";
+import {
+  enqueueConfirmedTanningWalkIn,
+  type WhatsappWalkInQueueEntry,
+} from "../lib/whatsapp-walk-in-queue";
 import {
   deduplicateSeedClientRecords,
   mergeKnownSnapshotClientDuplicates,
@@ -276,7 +279,9 @@ import {
   getWhatsappTanningFlow,
   getRememberedWhatsappTanningFlowForPriceFollowUp,
   getWhatsappPregnancyScreenAnswer,
+  getWhatsappPregnancyAnswerFromHistory,
   isWhatsappPregnancyScreenQuestion,
+  isWhatsappTanningVisitConfirmation,
   isExplicitWhatsappPregnancyDenial,
   isExplicitWhatsappBronzeInfoRequest,
   isTanningService,
@@ -4652,7 +4657,10 @@ const processWhatsappWebhookPayload = async (
     await setWhatsappConversationStatus(phone, "agent");
   }
   const arrivalUpdate = getWhatsappArrivalUpdate(normalizedText);
-  if (arrivalUpdate) {
+  const recentTanningArrivalContext =
+    isTanningService(text) ||
+    conversationHistory.slice(-6).some((message) => isTanningService(message.content));
+  if (arrivalUpdate && !recentTanningArrivalContext) {
     if (conversation) await cancelPendingWhatsappFollowUps(conversation.id);
     ensureWhatsappDelivery(await sendWhatsappReply(
       phone,
@@ -4739,6 +4747,121 @@ const processWhatsappWebhookPayload = async (
     const tanningVisitIntent = Boolean(
       tanningFlow && isWhatsappTanningVisitIntent(text, recentTanningUserContext),
     );
+    const previousAssistantMessage = [...conversationHistory]
+      .reverse()
+      .find((message) => message.role === "assistant")?.content ?? "";
+    const previousAssistantNormalized = normalizeCatalogLabel(previousAssistantMessage);
+    const awaitingTanningPregnancyScreen =
+      isWhatsappPregnancyScreenQuestion(previousAssistantMessage) &&
+      previousAssistantNormalized.includes("incluir voce na fila do bronze");
+    const awaitingTanningVisitConfirmation =
+      previousAssistantNormalized.includes("confirma que vai ao spa para o bronze");
+    const pregnancyAnswer = getWhatsappPregnancyAnswerFromHistory([
+      ...conversationHistory,
+      { role: "user" as const, content: text },
+    ]);
+    const currentPregnancyAnswer = getWhatsappPregnancyScreenAnswer(text);
+    const queueConfirmedTanningVisit = async () => {
+      const entry = await runWithSpaOperationalStateWriteLock(() =>
+        enqueueConfirmedTanningWalkIn(walkInQueue, {
+          clientName: knownClientName || "Cliente WhatsApp",
+          phone,
+          timeZone: whatsappAutomation.timezone,
+        }),
+      );
+      const arrivalDay = new Intl.DateTimeFormat("pt-BR", {
+        timeZone: whatsappAutomation.timezone,
+        day: "2-digit",
+        month: "2-digit",
+      }).format(new Date(entry.createdAt));
+      const reply = await sendWhatsappReplyOnce(
+        phone,
+        knownClientName,
+        `Sua ida para o bronze foi incluída na fila de atendimento de ${arrivalDay}. A equipe te aguarda! 🤎`,
+        replyReference,
+      );
+      ensureWhatsappDelivery(reply);
+      log.info(
+        { inboxId: inboxJob.id, queueEntryId: entry.id },
+        "Confirmed bronze walk-in added to the attendance queue",
+      );
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    };
+    const askForTanningVisitConfirmation = async () => {
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        "Entendi. Você confirma que vai ao Spa para o bronze hoje? Só incluo na fila quando você confirmar. 🤎",
+        "reply",
+        replyReference,
+      ));
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    };
+    if (awaitingTanningVisitConfirmation) {
+      if (
+        pregnancyAnswer === "not_pregnant" &&
+        isWhatsappTanningVisitConfirmation(text, previousAssistantMessage, recentTanningContext)
+      ) {
+        return await queueConfirmedTanningVisit();
+      }
+      if (/^(?:nao|agora nao|ainda nao|nao sei|talvez)[.!?]*$/.test(normalizedText)) {
+        ensureWhatsappDelivery(await sendWhatsappReply(
+          phone,
+          knownClientName,
+          appointment?.id ?? null,
+          "Tudo bem, não vou incluir você na fila agora. Quando confirmar que vai, me avise por aqui. 🤎",
+          "reply",
+          replyReference,
+        ));
+        return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+      }
+    }
+    if (awaitingTanningPregnancyScreen) {
+      if (pregnancyAnswer === "not_pregnant") {
+        return await askForTanningVisitConfirmation();
+      }
+      const screenReply = pregnancyAnswer === "pregnant"
+        ? pregnancyTanningRefusal
+        : "Antes de incluir você na fila do bronze, preciso confirmar: você está grávida ou existe possibilidade de gravidez? Por cuidado, não realizamos bronzeamento durante a gravidez. Responda sim ou não, por favor. 🤎";
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        screenReply,
+        "reply",
+        replyReference,
+      ));
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
+    if (tanningVisitIntent) {
+      if (currentPregnancyAnswer === "pregnant") {
+        ensureWhatsappDelivery(await sendWhatsappReply(
+          phone,
+          knownClientName,
+          appointment?.id ?? null,
+          pregnancyTanningRefusal,
+          "reply",
+          replyReference,
+        ));
+        return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+      }
+      if (
+        currentPregnancyAnswer === "not_pregnant" &&
+        isExplicitWhatsappPregnancyDenial(text)
+      ) {
+        return await askForTanningVisitConfirmation();
+      }
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        "Antes de incluir você na fila do bronze, preciso confirmar: você está grávida ou existe possibilidade de gravidez? Por cuidado, não realizamos bronzeamento durante a gravidez. Responda sim ou não, por favor. 🤎",
+        "reply",
+        replyReference,
+      ));
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
     const latestRequestedService = [...conversationHistory].reverse().find((message) =>
       message.role === "user" &&
       (isDapServiceRequest(message.content) || Boolean(findBookingService(message.content))),
@@ -4827,9 +4950,6 @@ const processWhatsappWebhookPayload = async (
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }
 
-    const previousAssistantMessage = [...conversationHistory]
-      .reverse()
-      .find((message) => message.role === "assistant")?.content ?? "";
     const currentCatalogRequest = isWhatsappCatalogRequest(text);
     const acceptedCatalogOffer =
       currentSignals.affirmative && isWhatsappCatalogOffer(previousAssistantMessage);
