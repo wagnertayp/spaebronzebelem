@@ -926,7 +926,7 @@ export function WhatsApp() {
                 src={qrCode}
                 alt="QR Code para conectar o WhatsApp"
                 onError={() => setQrImageFailed(true)}
-                className="aspect-square w-full max-w-64 rounded-2xl border border-border bg-white p-2 object-contain shadow-sm"
+                className="aspect-square w-full max-w-80 rounded-2xl border border-border bg-white p-2 object-contain shadow-sm"
               />
             )}
             {qrImageFailed && (
