@@ -145,6 +145,10 @@ import {
   ListCommissionAuditQueryParams,
   ListCommissionAuditResponse,
   ListArchivedRecordsResponse,
+  ListWalkInQueueResponse,
+  UpdateWalkInQueueEntryBody,
+  UpdateWalkInQueueEntryParams,
+  UpdateWalkInQueueEntryResponse,
   ManageArchivedRecordsBody,
   ManageArchivedRecordsResponse,
 } from "@workspace/api-zod";
@@ -199,6 +203,7 @@ import {
   type AuthenticatedSession,
 } from "../lib/auth";
 import { createSpaOperationalStateStore } from "../lib/spa-state-store";
+import type { WhatsappWalkInQueueEntry } from "../lib/whatsapp-walk-in-queue";
 import {
   deduplicateSeedClientRecords,
   mergeKnownSnapshotClientDuplicates,
@@ -593,6 +598,7 @@ const commissionClosures: CommissionClosure[] = [];
 const commissionAudit: CommissionAudit[] = [];
 
 const financialMovements: FinancialMovement[] = [];
+const walkInQueue: WhatsappWalkInQueueEntry[] = [];
 
 const backupClientCleanup = deduplicateSeedClientRecords(backup.clients);
 const deduplicatedBackupClients = backupClientCleanup.records;
@@ -3015,6 +3021,7 @@ type SpaOperationalSnapshot = {
   services: typeof services;
   inventory: typeof inventory;
   archivedSpaRecords: ArchivedSpaRecord[];
+  walkInQueue: WhatsappWalkInQueueEntry[];
 };
 
 let clientDeduplicationMigrationPending = false;
@@ -3037,6 +3044,7 @@ const createSpaOperationalSnapshot = (): SpaOperationalSnapshot => ({
   services: clone(services),
   inventory: clone(inventory),
   archivedSpaRecords: clone(archivedSpaRecords),
+  walkInQueue: clone(walkInQueue),
 });
 
 type DashboardOperationalSnapshot = Pick<
@@ -3141,7 +3149,8 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
       typeof candidate.clientDeduplicationApplied !== "boolean") ||
     collectionKeys.some((key) => !Array.isArray(candidate[key])) ||
     (candidate.workOrders !== undefined && !Array.isArray(candidate.workOrders)) ||
-    (candidate.archivedSpaRecords !== undefined && !Array.isArray(candidate.archivedSpaRecords))
+    (candidate.archivedSpaRecords !== undefined && !Array.isArray(candidate.archivedSpaRecords)) ||
+    (candidate.walkInQueue !== undefined && !Array.isArray(candidate.walkInQueue))
   ) {
     throw new Error("Stored SPA operational state has an unsupported shape.");
   }
@@ -3149,6 +3158,10 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
   const snapshot = {
     ...candidate,
     workOrders: candidate.workOrders ?? [],
+    walkInQueue: ListWalkInQueueResponse.parse(candidate.walkInQueue ?? []).map((entry) => ({
+      ...entry,
+      createdAt: entry.createdAt.toISOString(),
+    })),
     clientDeduplicationApplied: candidate.clientDeduplicationApplied === true,
   } as unknown as SpaOperationalSnapshot;
   const archiveEntries = [...(candidate.archivedSpaRecords ?? [])] as ArchivedSpaRecord[];
@@ -3195,6 +3208,7 @@ const restoreSpaOperationalSnapshot = (value: unknown) => {
     target.splice(0, target.length, ...source);
   };
   replace(appointments, snapshot.appointments);
+  replace(walkInQueue, snapshot.walkInQueue);
   replace(professionals, snapshot.professionals);
   replace(commissionRules, snapshot.commissionRules);
   replace(commissionClosures, snapshot.commissionClosures);
@@ -5718,6 +5732,22 @@ export const startWhatsappBackgroundServices = (
     return schedulersDrained;
   };
 };
+
+router.get("/walk-in-queue", (_req, res) => {
+  res.json(ListWalkInQueueResponse.parse(walkInQueue));
+});
+
+router.patch("/walk-in-queue/:id", (req, res) => {
+  const { id } = UpdateWalkInQueueEntryParams.parse(req.params);
+  const { status } = UpdateWalkInQueueEntryBody.parse(req.body);
+  const entry = walkInQueue.find((item) => item.id === id);
+  if (!entry) {
+    res.status(404).json({ error: "Atendimento não encontrado na fila." });
+    return;
+  }
+  entry.status = status;
+  res.json(UpdateWalkInQueueEntryResponse.parse(entry));
+});
 
 router.get("/clients", (req, res) => {
   const snapshot = dashboardSnapshotForResponse(res);
