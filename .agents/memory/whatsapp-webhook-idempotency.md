@@ -34,3 +34,9 @@ Production logs showed SPA state lock query timeouts and reminder lock-release f
 **Why:** Production spans many dynos, and a transaction-pooling connection can move a session-level advisory lock between backend sessions, causing timeouts or an apparent lost lock.
 
 **How to apply:** Prefer a short atomic lease row with an owner token and expiry over session advisory locks for these cross-dyno critical sections. Renew long-held leases, check ownership before side effects, and ensure the additive lease-table migration is applied before deploying the new code.
+
+The user reports that inbound WhatsApp handling worked with the QR-connected instance before the attendance-queue feature was added, and stopped afterward.
+
+**Why:** The user explicitly identified this regression boundary; preserve it when investigating instead of assuming a provider disconnect from QR status alone.
+
+**How to apply:** Compare queue-related changes and verify each stage from provider webhook ingress through durable inbox and worker processing before removing the queue feature. Removing the menu alone cannot fix a webhook that never reaches the API.
