@@ -161,7 +161,7 @@ import {
   whatsappMessagesTable,
   whatsappSettingsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gt, inArray, lt, lte, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, gt, inArray, lt, lte, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
@@ -252,6 +252,10 @@ import {
   combineWhatsappInboundMessages,
   MAX_WHATSAPP_WEBHOOK_ATTEMPTS,
 } from "../lib/whatsapp-webhook-utils";
+import {
+  isWhatsappReplyAfterInbound,
+  WHATSAPP_CUSTOMER_ANSWER_KINDS,
+} from "../lib/whatsapp-reply-idempotency";
 import { getWhatsappAttendanceWindow } from "../lib/whatsapp-attendance-window";
 import { getWhatsappSimpleFactReply } from "../lib/whatsapp-simple-facts";
 import { matchWhatsappKeywordFlow } from "../lib/whatsapp-keyword-flows";
@@ -1144,9 +1148,45 @@ const sendWhatsappReply = async (
     professionals.map((professional) => professional.name),
     clientName,
   );
+  const normalizedPhone = normalizeWhatsappPhone(phone);
+  if (replyTo?.id) {
+    const [inbound] = await db
+      .select({
+        id: whatsappMessagesTable.id,
+        conversationId: whatsappMessagesTable.conversationId,
+        createdAt: whatsappMessagesTable.createdAt,
+      })
+      .from(whatsappMessagesTable)
+      .where(and(
+        eq(whatsappMessagesTable.phone, normalizedPhone),
+        eq(whatsappMessagesTable.direction, "inbound"),
+        eq(whatsappMessagesTable.providerMessageId, replyTo.id),
+      ))
+      .limit(1);
+
+    if (inbound) {
+      const [candidate] = await db
+        .select()
+        .from(whatsappMessagesTable)
+        .where(and(
+          eq(whatsappMessagesTable.conversationId, inbound.conversationId),
+          eq(whatsappMessagesTable.direction, "outbound"),
+          eq(whatsappMessagesTable.kind, kind),
+          eq(whatsappMessagesTable.text, outgoingText),
+          inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
+          gte(whatsappMessagesTable.createdAt, inbound.createdAt),
+        ))
+        .orderBy(desc(whatsappMessagesTable.createdAt), desc(whatsappMessagesTable.id))
+        .limit(1);
+      if (candidate && isWhatsappReplyAfterInbound(inbound, candidate)) {
+        return toWhatsappMessage(candidate);
+      }
+    }
+  }
+
   const item = await addWhatsappMessage({
     direction: "outbound",
-    phone: normalizeWhatsappPhone(phone),
+    phone: normalizedPhone,
     clientName,
     appointmentId,
     text: outgoingText,
@@ -1262,21 +1302,7 @@ const sendWhatsappReplyOnce = async (
   clientName: string,
   text: string,
   replyTo?: EvolutionReplyReference,
-) => {
-  const [existing] = await db
-    .select()
-    .from(whatsappMessagesTable)
-    .where(and(
-      eq(whatsappMessagesTable.phone, normalizeWhatsappPhone(phone)),
-      eq(whatsappMessagesTable.direction, "outbound"),
-      eq(whatsappMessagesTable.text, text),
-      inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
-    ))
-    .limit(1);
-  return existing
-    ? toWhatsappMessage(existing)
-    : sendWhatsappReply(phone, clientName, null, text, "reply", replyTo);
-};
+) => sendWhatsappReply(phone, clientName, null, text, "reply", replyTo);
 
 const sendWhatsappDocumentMessage = async (
   phone: string,
@@ -1748,6 +1774,7 @@ const getWhatsappUnansweredInboundBatch = async (phone: string) => {
     .where(and(
       eq(whatsappMessagesTable.phone, normalizedPhone),
       eq(whatsappMessagesTable.direction, "outbound"),
+      inArray(whatsappMessagesTable.kind, WHATSAPP_CUSTOMER_ANSWER_KINDS),
       inArray(whatsappMessagesTable.status, ["sent", "delivered"]),
     ))
     .orderBy(desc(whatsappMessagesTable.id))

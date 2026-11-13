@@ -551,6 +551,19 @@ export const sendEvolutionText = async (
         : typeof body.error === "string"
           ? body.error
           : JSON.stringify(body).slice(0, 500) || "resposta vazia do provedor";
+      logger.warn(
+        {
+          instance: config.instance,
+          status: response.status,
+          recipientKind: phone.includes("@")
+            ? phone.endsWith("@lid")
+              ? "lid"
+              : "jid"
+            : "phone",
+          hasReplyReference: Boolean(replyTo),
+        },
+        "[Evolution] WhatsApp text send rejected",
+      );
       return {
         ok: false,
         providerMessageId: null,
@@ -568,6 +581,20 @@ export const sendEvolutionText = async (
       error: null,
     };
   } catch (error) {
+    logger.warn(
+      {
+        instance: config.instance,
+        errorName: errorName(error),
+        timeoutMs: PROVIDER_TIMEOUT_MS,
+        recipientKind: phone.includes("@")
+          ? phone.endsWith("@lid")
+            ? "lid"
+            : "jid"
+          : "phone",
+        hasReplyReference: Boolean(replyTo),
+      },
+      "[Evolution] WhatsApp text send failed",
+    );
     return {
       ok: false,
       providerMessageId: null,
