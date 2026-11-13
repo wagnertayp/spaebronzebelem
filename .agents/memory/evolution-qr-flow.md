@@ -18,3 +18,9 @@ Diagnose connection failures by stage: config/instance lookup, provider create/c
 **Why:** The user explicitly chose a single active Spa number, with a newly connected number replacing the previous one.
 
 **Why:** A development-side live QR generation configured the newly created pending instance to send messages to the Replit development webhook, not the Heroku production webhook.
+
+When development and Heroku share an Evolution instance, the instance has one global webhook target. A development app with no explicit `EVOLUTION_WEBHOOK_URL` falls back to `REPLIT_DEV_DOMAIN`; querying connection status can then overwrite the production callback. If sharing is unavoidable, set the development webhook URL explicitly to the production endpoint and do not use that instance for local webhook tests; preferably use a separate Evolution instance.
+
+**Why:** The Replit preview successfully received and answered a real message while Heroku received none; its logs showed the callback host was the preview domain and the worker dyno was local.
+
+**How to apply:** Check `webhookHost` and the processing `dyno` in logs. Never let development fallback choose a Replit domain for a provider instance used by production.

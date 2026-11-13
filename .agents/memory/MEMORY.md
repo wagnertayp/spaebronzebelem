@@ -1,4 +1,4 @@
-- [Evolution QR connection flow](evolution-qr-flow.md) — connect by creating an instance and showing its QR, not by selecting from shared instances.
+- [Evolution QR connection flow](evolution-qr-flow.md) — one Evolution instance has one global webhook; prevent Replit development from overriding Heroku's callback.
 - [WhatsApp unanswered-message scope](whatsapp-unanswered-scope.md) — only saved app messages are in scope; do not recover provider history or send automatic replies.
 - [WhatsApp PTT audio](whatsapp-ptt-audio.md) — preserve PTT delivery; the bronze clip is one attempt only, then compare solar exposure with WB Ultra.
 - [Arrival and bronze guidance](whatsapp-arrival-neon.md) — acknowledge arrivals, classify service flow, give confirmed tanning care, and recommend Neon only while the client is choosing.
