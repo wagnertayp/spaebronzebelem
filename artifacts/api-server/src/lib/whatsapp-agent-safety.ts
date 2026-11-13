@@ -21,6 +21,7 @@ export type WhatsappPregnancyScreenAnswer = "pregnant" | "not_pregnant" | "uncle
 
 export const getWhatsappPregnancyScreenAnswer = (
   value: string,
+  { acceptContextualShortDenial = false }: { acceptContextualShortDenial?: boolean } = {},
 ): WhatsappPregnancyScreenAnswer => {
   const normalized = normalizeSafetyText(value);
   const segments = normalized
@@ -60,6 +61,12 @@ export const getWhatsappPregnancyScreenAnswer = (
     return "pregnant";
   }
   if (shortAnswer === "nao" || shortAnswer === "nao nao") return "not_pregnant";
+  if (
+    acceptContextualShortDenial &&
+    segments.some((segment) => /^(?:nao estou|nao to|nao sou)(?:\s+(?:kk+|rs+))?$/.test(segment))
+  ) {
+    return "not_pregnant";
+  }
   return "unclear";
 };
 
@@ -82,7 +89,9 @@ export const getWhatsappPregnancyAnswerFromHistory = (
       if (message.role === "user") answerMessages.push(message.content);
     }
     const answerAfterQuestion = answerMessages.join("\n");
-    const answer = getWhatsappPregnancyScreenAnswer(answerAfterQuestion);
+    const answer = getWhatsappPregnancyScreenAnswer(answerAfterQuestion, {
+      acceptContextualShortDenial: true,
+    });
     if (answer !== "unclear") return answer;
   }
 
@@ -393,6 +402,17 @@ export const isWhatsappTanningVisitIntent = (
     (previousExplicitTanningIntent && (currentIsVisitFollowUp || currentIsShortServiceAnswer));
 };
 
+export type WhatsappTanningVisitDay = "today" | "tomorrow";
+
+export const getWhatsappTanningVisitDay = (
+  value: string,
+): WhatsappTanningVisitDay | null => {
+  const normalized = normalizeSafetyText(value);
+  if (/\b(?:depois de amanha|amanha)\b/.test(normalized)) return "tomorrow";
+  if (/\b(?:hoje|agora)\b/.test(normalized)) return "today";
+  return null;
+};
+
 export const isWhatsappTanningVisitConfirmation = (
   currentText: string,
   previousAssistantMessage: string,
@@ -400,6 +420,12 @@ export const isWhatsappTanningVisitConfirmation = (
 ) => {
   const current = normalizeSafetyText(currentText);
   const previous = normalizeSafetyText(previousAssistantMessage);
+  if (
+    getWhatsappTanningVisitDay(currentText) === "tomorrow" &&
+    getWhatsappTanningVisitDay(previousAssistantMessage) === "today"
+  ) {
+    return false;
+  }
   const contextHasTanning = isTanningService(previousAssistantMessage) ||
     isTanningService(conversationContext);
   const assistantAskedAboutVisit =
