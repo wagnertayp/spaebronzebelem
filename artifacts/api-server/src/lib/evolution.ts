@@ -786,6 +786,66 @@ const sendEvolutionImage = async (
   }
 };
 
+export const sendEvolutionFlowImage = async (
+  phone: string,
+  imageUrl: string,
+  caption: string,
+  replyTo?: EvolutionReplyReference,
+): Promise<EvolutionSendResult> => {
+  const config = await getEvolutionConfig();
+  if (!config?.instance) {
+    return { ok: false, providerMessageId: null, error: "WhatsApp não configurado" };
+  }
+
+  try {
+    const response = await fetch(
+      `${config.baseUrl}/message/sendMedia/${encodeURIComponent(config.instance)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: config.apiKey },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        body: JSON.stringify({
+          number: evolutionRecipient(replyTo?.remoteJid ?? phone),
+          mediatype: "image",
+          mimetype: "image/jpeg",
+          caption,
+          media: imageUrl,
+          ...(replyTo ? {
+            quoted: {
+              key: { remoteJid: replyTo.remoteJid, fromMe: replyTo.fromMe, id: replyTo.id },
+              message: replyTo.message,
+            },
+          } : {}),
+        }),
+      },
+    );
+    const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok) {
+      return {
+        ok: false,
+        providerMessageId: null,
+        error: `Evolution API ${response.status}: ${String(body.message ?? body.error ?? "erro desconhecido")}`,
+      };
+    }
+    const key = body.key as Record<string, unknown> | undefined;
+    return {
+      ok: true,
+      providerMessageId: typeof key?.id === "string"
+        ? key.id
+        : typeof body.messageId === "string"
+          ? body.messageId
+          : null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      providerMessageId: null,
+      error: error instanceof Error ? error.message : "Falha ao enviar a imagem pelo WhatsApp",
+    };
+  }
+};
+
 export const sendEvolutionSessionPreparationImage = (
   phone: string,
   caption: string,

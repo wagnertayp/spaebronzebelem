@@ -14,6 +14,7 @@ import {
   useGetWhatsappAutomation,
   useUpdateWhatsappAutomation,
   getGetWhatsappAutomationQueryKey,
+  uploadWhatsappFlowImage,
   useListWhatsappMessages,
   getListWhatsappMessagesQueryKey,
   useListWhatsappConversations,
@@ -40,7 +41,7 @@ import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useBulkArchiveSelection } from '@/hooks/use-bulk-archive-selection';
 import { BulkArchiveToolbar } from '@/components/archive/bulk-archive-toolbar';
-import { AgentFlows } from '@/components/whatsapp/agent-flows';
+import { AgentFlows, type AgentFlow } from '@/components/whatsapp/agent-flows';
 import {
   Dialog,
   DialogContent,
@@ -196,6 +197,30 @@ export function WhatsApp() {
         onError: () => toast({ title: 'Erro', description: 'Não foi possível salvar as automações.', variant: 'destructive' }),
       },
     );
+  };
+
+  const handleSaveKeywordFlows = async (flows: AgentFlow[]) => {
+    const current = whatsappAutomation ?? automationForm;
+    const data = await updateWhatsappAutomation.mutateAsync({
+      data: {
+        ...current,
+        keywordFlows: flows.map((flow) => ({
+          ...flow,
+          name: flow.name.trim(),
+          keywords: flow.keywords.map((keyword) => keyword.trim()).filter(Boolean),
+          message: flow.message.trim(),
+        })),
+      },
+    });
+    queryClient.setQueryData(getGetWhatsappAutomationQueryKey(), data);
+    setAutomationForm(data);
+  };
+
+  const handleUploadFlowImage = async (file: File) => {
+    const response = await uploadWhatsappFlowImage(file, {
+      headers: { 'X-Image-Type': file.type },
+    });
+    return response.imageUrl;
   };
 
   const handleConnectWhatsapp = () => {
@@ -1182,7 +1207,14 @@ export function WhatsApp() {
           </div>
         )}
 
-        {activeTab === 'flows' && <AgentFlows />}
+        {activeTab === 'flows' && (
+          <AgentFlows
+            flows={whatsappAutomation?.keywordFlows ?? []}
+            isLoading={!whatsappAutomation}
+            onSave={handleSaveKeywordFlows}
+            onUploadImage={handleUploadFlowImage}
+          />
+        )}
 
         {activeTab === 'services' && (
           <div className="h-full flex flex-col space-y-4">

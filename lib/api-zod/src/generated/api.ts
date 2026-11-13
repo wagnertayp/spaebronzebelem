@@ -363,9 +363,12 @@ export const getWhatsappAutomationResponseKeywordFlowsItemNameMax = 100;
 
 export const getWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax = 80;
 
+export const getWhatsappAutomationResponseKeywordFlowsItemKeywordsMax = 20;
 
 export const getWhatsappAutomationResponseKeywordFlowsItemEnabledDefault = false;
 export const getWhatsappAutomationResponseKeywordFlowsItemMessageMax = 1500;
+
+export const getWhatsappAutomationResponseKeywordFlowsMax = 30;
 
 
 
@@ -381,11 +384,11 @@ export const GetWhatsappAutomationResponse = zod.object({
   "keywordFlows": zod.array(zod.object({
   "id": zod.string().min(1).max(getWhatsappAutomationResponseKeywordFlowsItemIdMax),
   "name": zod.string().min(1).max(getWhatsappAutomationResponseKeywordFlowsItemNameMax),
-  "keywords": zod.array(zod.string().min(1).max(getWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax)).min(1),
+  "keywords": zod.array(zod.string().min(1).max(getWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax)).min(1).max(getWhatsappAutomationResponseKeywordFlowsItemKeywordsMax),
   "enabled": zod.boolean().default(getWhatsappAutomationResponseKeywordFlowsItemEnabledDefault),
-  "message": zod.string().max(getWhatsappAutomationResponseKeywordFlowsItemMessageMax),
+  "message": zod.string().min(1).max(getWhatsappAutomationResponseKeywordFlowsItemMessageMax),
   "imageUrl": zod.string().url().nullable()
-})).optional()
+})).max(getWhatsappAutomationResponseKeywordFlowsMax).optional()
 })
 
 
@@ -401,9 +404,12 @@ export const updateWhatsappAutomationBodyKeywordFlowsItemNameMax = 100;
 
 export const updateWhatsappAutomationBodyKeywordFlowsItemKeywordsItemMax = 80;
 
+export const updateWhatsappAutomationBodyKeywordFlowsItemKeywordsMax = 20;
 
 export const updateWhatsappAutomationBodyKeywordFlowsItemEnabledDefault = false;
 export const updateWhatsappAutomationBodyKeywordFlowsItemMessageMax = 1500;
+
+export const updateWhatsappAutomationBodyKeywordFlowsMax = 30;
 
 
 
@@ -419,11 +425,11 @@ export const UpdateWhatsappAutomationBody = zod.object({
   "keywordFlows": zod.array(zod.object({
   "id": zod.string().min(1).max(updateWhatsappAutomationBodyKeywordFlowsItemIdMax),
   "name": zod.string().min(1).max(updateWhatsappAutomationBodyKeywordFlowsItemNameMax),
-  "keywords": zod.array(zod.string().min(1).max(updateWhatsappAutomationBodyKeywordFlowsItemKeywordsItemMax)).min(1),
+  "keywords": zod.array(zod.string().min(1).max(updateWhatsappAutomationBodyKeywordFlowsItemKeywordsItemMax)).min(1).max(updateWhatsappAutomationBodyKeywordFlowsItemKeywordsMax),
   "enabled": zod.boolean().default(updateWhatsappAutomationBodyKeywordFlowsItemEnabledDefault),
-  "message": zod.string().max(updateWhatsappAutomationBodyKeywordFlowsItemMessageMax),
+  "message": zod.string().min(1).max(updateWhatsappAutomationBodyKeywordFlowsItemMessageMax),
   "imageUrl": zod.string().url().nullable()
-})).optional()
+})).max(updateWhatsappAutomationBodyKeywordFlowsMax).optional()
 })
 
 export const updateWhatsappAutomationResponseFollowUp30mDefault = true;
@@ -435,9 +441,12 @@ export const updateWhatsappAutomationResponseKeywordFlowsItemNameMax = 100;
 
 export const updateWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax = 80;
 
+export const updateWhatsappAutomationResponseKeywordFlowsItemKeywordsMax = 20;
 
 export const updateWhatsappAutomationResponseKeywordFlowsItemEnabledDefault = false;
 export const updateWhatsappAutomationResponseKeywordFlowsItemMessageMax = 1500;
+
+export const updateWhatsappAutomationResponseKeywordFlowsMax = 30;
 
 
 
@@ -453,11 +462,11 @@ export const UpdateWhatsappAutomationResponse = zod.object({
   "keywordFlows": zod.array(zod.object({
   "id": zod.string().min(1).max(updateWhatsappAutomationResponseKeywordFlowsItemIdMax),
   "name": zod.string().min(1).max(updateWhatsappAutomationResponseKeywordFlowsItemNameMax),
-  "keywords": zod.array(zod.string().min(1).max(updateWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax)).min(1),
+  "keywords": zod.array(zod.string().min(1).max(updateWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax)).min(1).max(updateWhatsappAutomationResponseKeywordFlowsItemKeywordsMax),
   "enabled": zod.boolean().default(updateWhatsappAutomationResponseKeywordFlowsItemEnabledDefault),
-  "message": zod.string().max(updateWhatsappAutomationResponseKeywordFlowsItemMessageMax),
+  "message": zod.string().min(1).max(updateWhatsappAutomationResponseKeywordFlowsItemMessageMax),
   "imageUrl": zod.string().url().nullable()
-})).optional()
+})).max(updateWhatsappAutomationResponseKeywordFlowsMax).optional()
 })
 
 

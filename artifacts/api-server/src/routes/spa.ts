@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request, type Response } from "express";
+import { raw, Router, type IRouter, type Request, type Response } from "express";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -231,6 +231,7 @@ import {
   sendEvolutionBathMoonBanner,
   sendEvolutionBronzeBanner,
   sendEvolutionSessionPreparationImage,
+  sendEvolutionFlowImage,
   type EvolutionReplyReference,
   type WhatsappAudioClip,
   type WhatsappDapImage,
@@ -253,6 +254,7 @@ import {
 } from "../lib/whatsapp-webhook-utils";
 import { getWhatsappAttendanceWindow } from "../lib/whatsapp-attendance-window";
 import { getWhatsappSimpleFactReply } from "../lib/whatsapp-simple-facts";
+import { matchWhatsappKeywordFlow } from "../lib/whatsapp-keyword-flows";
 import {
   bronzeNeonRecommendationReply,
   bronzeTextFallbackReply,
@@ -4181,11 +4183,69 @@ router.get("/whatsapp/automation", (_req, res) => {
 router.put("/whatsapp/automation", (req, res) => {
   void (async () => {
     await loadWhatsappSettings();
-    whatsappAutomation = UpdateWhatsappAutomationBody.parse(req.body);
+    const updatedAutomation = UpdateWhatsappAutomationBody.parse(req.body);
+    const invalidImageFlow = (updatedAutomation.keywordFlows ?? []).some((flow) => {
+      if (!flow.imageUrl) return false;
+      try {
+        const url = new URL(flow.imageUrl);
+        return url.protocol !== "https:" || url.hostname !== "i.ibb.co";
+      } catch {
+        return true;
+      }
+    });
+    if (invalidImageFlow) {
+      res.status(400).json({ error: "As imagens dos fluxos devem estar hospedadas no ImgBB." });
+      return;
+    }
+    whatsappAutomation = updatedAutomation;
     await saveWhatsappSettings();
     res.json(UpdateWhatsappAutomationResponse.parse(whatsappAutomation));
   })();
 });
+
+router.post(
+  "/ai-agent/flows/upload-image",
+  raw({ type: "application/octet-stream", limit: "8mb" }),
+  async (req, res): Promise<void> => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: "Envie um arquivo de imagem válido." });
+      return;
+    }
+    const mimeType = String(req.header("x-image-type") ?? "").toLowerCase();
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(mimeType)) {
+      res.status(400).json({ error: "Formato inválido. Use JPEG, PNG, WebP ou GIF." });
+      return;
+    }
+    const apiKey = process.env["IMGBB_API_KEY"];
+    if (!apiKey) {
+      res.status(503).json({ error: "A hospedagem de imagens ainda não está configurada." });
+      return;
+    }
+    try {
+      const form = new FormData();
+      const imageBytes = new Uint8Array(req.body.length);
+      imageBytes.set(req.body);
+      form.append("image", new Blob([imageBytes], { type: mimeType }), `fluxo.${mimeType.split("/")[1]}`);
+      const response = await fetch(
+        `https://api.imgbb.com/1/upload?key=${encodeURIComponent(apiKey)}`,
+        { method: "POST", body: form, signal: AbortSignal.timeout(20_000) },
+      );
+      const result = await response.json().catch(() => ({})) as {
+        success?: boolean;
+        data?: { url?: unknown };
+      };
+      if (!response.ok || result.success !== true || typeof result.data?.url !== "string") {
+        logger.warn({ status: response.status }, "ImgBB image upload failed");
+        res.status(502).json({ error: "Não foi possível hospedar esta imagem agora." });
+        return;
+      }
+      res.json({ imageUrl: result.data.url });
+    } catch (error) {
+      logger.warn({ err: error }, "ImgBB image upload request failed");
+      res.status(502).json({ error: "Não foi possível hospedar esta imagem agora." });
+    }
+  },
+);
 
 router.get("/whatsapp/messages", (req, res) => {
   void (async () => {
@@ -5068,6 +5128,47 @@ const processWhatsappWebhookPayload = async (
       log.info(
         { intent: simpleFact.intent, outcome: "answered_without_model" },
         "WhatsApp simple fact",
+      );
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    }
+    const keywordFlow = whatsappAutomation.enabled && whatsappAutomation.aiReplies &&
+      aiAgentConfig.active && !pregnancyMentioned && !asksForHuman &&
+      !mentionsSpaInfantil(normalizedText) && !hasWhatsappBookingIntent(text)
+      ? matchWhatsappKeywordFlow(text, whatsappAutomation.keywordFlows ?? [])
+      : null;
+    if (keywordFlow) {
+      const pending = await addWhatsappMessage({
+        direction: "outbound",
+        phone: normalizedPhone,
+        clientName: knownClientName,
+        appointmentId: appointment?.id ?? null,
+        text: keywordFlow.message,
+        status: "pending",
+        kind: "reply",
+        providerMessageId: null,
+        error: null,
+      });
+      const delivery = keywordFlow.imageUrl
+        ? await sendEvolutionFlowImage(
+            remoteJid || phone,
+            keywordFlow.imageUrl,
+            keywordFlow.message,
+            replyReference,
+          )
+        : await sendEvolutionText(
+            replyReference?.remoteJid ?? phone,
+            keywordFlow.message,
+            replyReference,
+          );
+      const sent = await updateWhatsappMessage(pending.id, {
+        status: delivery.ok ? "sent" : "failed",
+        providerMessageId: delivery.providerMessageId,
+        error: delivery.error,
+      });
+      ensureWhatsappDelivery(sent ?? pending);
+      log.info(
+        { inboxId: inboxJob.id, flowId: keywordFlow.id, sentImage: Boolean(keywordFlow.imageUrl) },
+        "WhatsApp keyword flow sent",
       );
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     }

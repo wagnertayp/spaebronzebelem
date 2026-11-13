@@ -19,12 +19,16 @@ export interface WhatsappKeywordFlow {
   name: string;
   /**
      * @minItems 1
+     * @maxItems 20
      * @items.minLength 1
      * @items.maxLength 80
      */
   keywords: string[];
   enabled: boolean;
-  /** @maxLength 1500 */
+  /**
+     * @minLength 1
+     * @maxLength 1500
+     */
   message: string;
   /** @nullable */
   imageUrl: string | null;

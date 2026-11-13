@@ -1493,6 +1493,7 @@ components:
         timezone: { type: string, minLength: 3 }
         keywordFlows:
           type: array
+          maxItems: 30
           items: { $ref: "#/components/schemas/WhatsappKeywordFlow" }
       required: [enabled, aiReplies, humanSupervision, confirmations, reminder24h, reminder2h, followUp30m, timezone]
     WhatsappKeywordFlow:
@@ -1503,9 +1504,10 @@ components:
         keywords:
           type: array
           minItems: 1
+          maxItems: 20
           items: { type: string, minLength: 1, maxLength: 80 }
         enabled: { type: boolean, default: false }
-        message: { type: string, maxLength: 1500 }
+        message: { type: string, minLength: 1, maxLength: 1500 }
         imageUrl: { type: ["string", "null"], format: uri }
       required: [id, name, keywords, enabled, message, imageUrl]
     WhatsappFlowImage:

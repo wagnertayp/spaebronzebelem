@@ -17,5 +17,6 @@ export interface WhatsappAutomation {
   followUp30m: boolean;
   /** @minLength 3 */
   timezone: string;
+  /** @maxItems 30 */
   keywordFlows?: WhatsappKeywordFlow[];
 }

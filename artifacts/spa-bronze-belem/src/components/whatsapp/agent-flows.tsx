@@ -119,6 +119,22 @@ export function AgentFlows({
       setSaveError('A gravação dos fluxos ainda não está conectada. Nenhuma alteração foi salva.');
       return;
     }
+    if (drafts.length > 30) {
+      setSaveError('O limite é de 30 fluxos personalizados.');
+      return;
+    }
+    const incomplete = drafts.find((flow) =>
+      !flow.name.trim() ||
+      !flow.keywords.some((keyword) => keyword.trim()) ||
+      !flow.message.trim() ||
+      flow.keywords.length > 20 ||
+      flow.keywords.some((keyword) => keyword.length > 80) ||
+      flow.message.length > 1500
+    );
+    if (incomplete) {
+      setSaveError('Preencha o nome, ao menos uma palavra-chave e a mensagem. Cada fluxo aceita até 20 palavras-chave e 1.500 caracteres.');
+      return;
+    }
     setIsSaving(true);
     setSaveError('');
     setSaveMessage('');
@@ -135,8 +151,8 @@ export function AgentFlows({
   const handleImage = async (flow: AgentFlow, file?: File) => {
     if (!file) return;
     setUploadError((current) => ({ ...current, [flow.id]: '' }));
-    if (!file.type.startsWith('image/')) {
-      setUploadError((current) => ({ ...current, [flow.id]: 'Escolha um arquivo de imagem.' }));
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+      setUploadError((current) => ({ ...current, [flow.id]: 'Use uma imagem JPG, PNG, WebP ou GIF.' }));
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
@@ -230,7 +246,7 @@ export function AgentFlows({
           <div>
             <p className="text-xs font-semibold text-text-primary">Os novos fluxos começam desligados</p>
             <p className="mt-0.5 text-xs leading-relaxed text-text-secondary">
-              Uma resposta só poderá ser enviada automaticamente depois que você ativar o fluxo. Revise o texto antes de ligar.
+              Para enviar automaticamente, ative este fluxo e mantenha a automação do WhatsApp e as respostas da IA ligadas. Revise o texto antes de ativar.
             </p>
           </div>
         </div>
@@ -432,11 +448,11 @@ export function AgentFlows({
                           <ImagePlus className="h-5 w-5" />
                         </span>
                         <p className="mt-2 text-xs font-semibold text-text-secondary">Sem imagem nesta resposta</p>
-                        <p className="mt-1 text-[11px] text-text-muted">JPG, PNG ou outro formato de imagem · até 8 MB</p>
+                        <p className="mt-1 text-[11px] text-text-muted">JPG, PNG, WebP ou GIF · até 8 MB</p>
                         <input
                           ref={(element) => { fileInputs.current[flow.id] = element; }}
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
                           onChange={(event) => {
                             void handleImage(flow, event.currentTarget.files?.[0]);
                             event.currentTarget.value = '';
@@ -463,7 +479,7 @@ export function AgentFlows({
                         <input
                           ref={(element) => { fileInputs.current[flow.id] = element; }}
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
                           onChange={(event) => {
                             void handleImage(flow, event.currentTarget.files?.[0]);
                             event.currentTarget.value = '';
