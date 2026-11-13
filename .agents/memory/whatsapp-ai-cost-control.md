@@ -7,4 +7,6 @@ The user considers the WhatsApp AI agent's current cost high and wants to reduce
 
 **Why:** The user asked how token billing works, how much the app is costing, and whether cost can be lowered.
 
+The user is comfortable spending tokens for pregnancy guidance and other sensitive or nuanced atendimento topics. Do not reduce context or quality in those cases to save tokens.
+
 **How to apply:** Log model and input/output token counts without conversation text or credentials, separate successful calls from failures, and prefer prompt-efficiency or provider-supported caching before reducing context within the active 24-hour attendance window or changing models.
