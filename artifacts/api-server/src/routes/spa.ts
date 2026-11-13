@@ -284,6 +284,7 @@ import {
   isDapServiceRequest,
   getWhatsappTanningFlow,
   getRememberedWhatsappTanningFlowForPriceFollowUp,
+  getWhatsappTanningVisitDay,
   getWhatsappPregnancyScreenAnswer,
   getWhatsappPregnancyAnswerFromHistory,
   isWhatsappPregnancyScreenQuestion,
@@ -4885,7 +4886,21 @@ const processWhatsappWebhookPayload = async (
       ));
       return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
     };
+    const acknowledgeFutureTanningVisit = async () => {
+      ensureWhatsappDelivery(await sendWhatsappReply(
+        phone,
+        knownClientName,
+        appointment?.id ?? null,
+        "Combinado, amanhã! Como a fila do bronze é por ordem de chegada, não vou incluir você na fila de hoje. Quando chegar amanhã, avise a equipe por aqui para registrarmos sua chegada. 🤎",
+        "reply",
+        replyReference,
+      ));
+      return ReceiveEvolutionWebhookResponse.parse({ received: true, action: "replied" });
+    };
     if (awaitingTanningVisitConfirmation) {
+      if (getWhatsappTanningVisitDay(text) === "tomorrow") {
+        return await acknowledgeFutureTanningVisit();
+      }
       if (
         pregnancyAnswer === "not_pregnant" &&
         isWhatsappTanningVisitConfirmation(text, previousAssistantMessage, recentTanningContext)
@@ -4906,6 +4921,9 @@ const processWhatsappWebhookPayload = async (
     }
     if (awaitingTanningPregnancyScreen) {
       if (pregnancyAnswer === "not_pregnant") {
+        if (getWhatsappTanningVisitDay(recentTanningUserContext) === "tomorrow") {
+          return await acknowledgeFutureTanningVisit();
+        }
         return await askForTanningVisitConfirmation();
       }
       const screenReply = pregnancyAnswer === "pregnant"

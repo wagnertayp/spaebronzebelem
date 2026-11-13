@@ -15,6 +15,7 @@ import {
   getWhatsappArrivalUpdate,
   getWhatsappTanningFlow,
   getRememberedWhatsappTanningFlowForPriceFollowUp,
+  getWhatsappTanningVisitDay,
   isExplicitWhatsappBronzeInfoRequest,
   isWhatsappTanningVisitIntent,
   isWhatsappTanningVisitConfirmation,
@@ -88,6 +89,13 @@ test("screens pregnancy only after a gentle question and classifies yes/no answe
     ]),
     "not_pregnant",
   );
+  assert.equal(
+    getWhatsappPregnancyAnswerFromHistory([
+      { role: "assistant", content: question },
+      { role: "user", content: "Não estou, kk" },
+    ]),
+    "not_pregnant",
+  );
 });
 
 test("treats a short bronze answer as a walk-in visit when asked which service they are coming for", () => {
@@ -128,6 +136,9 @@ test("recognizes on-the-way updates and avoids booking questions", () => {
 test("treats a tanning arrival as a visit intent for screening and queue confirmation", () => {
   assert.equal(isWhatsappTanningVisitIntent("Estou indo fazer bronze natural"), true);
   assert.equal(isWhatsappTanningVisitIntent("Quero saber sobre bronze natural"), false);
+  assert.equal(getWhatsappTanningVisitDay("Vou fazer bronze amanhã"), "tomorrow");
+  assert.equal(getWhatsappTanningVisitDay("Vou hoje"), "today");
+  assert.equal(getWhatsappTanningVisitDay("Quero fazer bronze"), null);
 });
 
 test("acknowledges a pause while the client checks a booking without repeating slot choices", () => {
@@ -381,6 +392,14 @@ test("recognizes a natural-bronze follow-up from recent context and honors expli
       "Quero fazer bronze natural.",
     ),
     true,
+  );
+  assert.equal(
+    isWhatsappTanningVisitConfirmation(
+      "Vou amanhã",
+      "Você confirma que vai ao Spa para o bronze hoje?",
+      "Quero fazer bronze amanhã.",
+    ),
+    false,
   );
   assert.equal(
     isWhatsappTanningVisitConfirmation(
