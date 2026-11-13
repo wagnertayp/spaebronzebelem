@@ -40,6 +40,7 @@ import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useBulkArchiveSelection } from '@/hooks/use-bulk-archive-selection';
 import { BulkArchiveToolbar } from '@/components/archive/bulk-archive-toolbar';
+import { AgentFlows } from '@/components/whatsapp/agent-flows';
 import {
   Dialog,
   DialogContent,
@@ -52,7 +53,7 @@ import {
   BrainCircuit, Sparkles, Settings2, Database, 
   Plus, Edit2, Trash2, SendHorizontal, Trash, 
   CheckCircle2, XCircle, Clock, Loader2, Bot, AlertTriangle,
-  Save, MessageCircle, CalendarCheck, BellRing, RefreshCw, QrCode
+  Save, MessageCircle, CalendarCheck, BellRing, RefreshCw, QrCode, Workflow
 } from 'lucide-react';
 
 const DEFAULT_BUSINESS_HOURS = [
@@ -130,7 +131,7 @@ export function WhatsApp() {
     action: 'archive',
   });
 
-  const [activeTab, setActiveTab] = useState<'config' | 'services' | 'test'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'services' | 'flows' | 'test'>('config');
   const [automationForm, setAutomationForm] = useState<WhatsappAutomation>({
     enabled: false,
     aiReplies: false,
@@ -983,6 +984,14 @@ export function WhatsApp() {
           Serviços e Preços
         </button>
         <button 
+          onClick={() => setActiveTab('flows')} 
+          className={cn("shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2", activeTab === 'flows' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary')}
+          aria-current={activeTab === 'flows' ? 'page' : undefined}
+        >
+          <Workflow className="w-4 h-4" />
+          Fluxos
+        </button>
+        <button 
           onClick={() => setActiveTab('test')} 
           className={cn("shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2", activeTab === 'test' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary')}
         >
@@ -1172,6 +1181,8 @@ export function WhatsApp() {
             )}
           </div>
         )}
+
+        {activeTab === 'flows' && <AgentFlows />}
 
         {activeTab === 'services' && (
           <div className="h-full flex flex-col space-y-4">
