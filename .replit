@@ -32,5 +32,6 @@ EVOLUTION_INSTANCE = "spa-08c7cff6"
 RESEND_FROM_EMAIL = "Spa e Bronze Belém <acesso@login.kalidigital.com.br>"
 
 [userenv.development]
+EVOLUTION_WEBHOOK_URL = "https://spaebronzebelem.kalidigital.com.br/api/integrations/evolution/webhook"
 
 [userenv.production]
