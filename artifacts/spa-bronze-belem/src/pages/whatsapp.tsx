@@ -168,7 +168,7 @@ export function WhatsApp() {
     confirmations: true,
     reminder24h: true,
     reminder2h: true,
-    followUp30m: true,
+    followUp30m: false,
     timezone: 'America/Belem',
   });
   const [selectedPhone, setSelectedPhone] = useState('');
@@ -197,7 +197,9 @@ export function WhatsApp() {
   }, [config]);
 
   useEffect(() => {
-    if (whatsappAutomation) setAutomationForm(whatsappAutomation);
+    if (whatsappAutomation) {
+      setAutomationForm({ ...whatsappAutomation, followUp30m: false });
+    }
   }, [whatsappAutomation]);
 
   const handleSaveConfig = () => {
@@ -215,11 +217,11 @@ export function WhatsApp() {
 
   const handleSaveAutomation = () => {
     updateWhatsappAutomation.mutate(
-      { data: automationForm },
+      { data: { ...automationForm, followUp30m: false } },
       {
         onSuccess: (data) => {
           queryClient.setQueryData(getGetWhatsappAutomationQueryKey(), data);
-          setAutomationForm(data);
+          setAutomationForm({ ...data, followUp30m: false });
           toast({ title: 'Automação salva', description: 'As respostas, confirmações e lembretes foram atualizados.' });
         },
         onError: () => toast({ title: 'Erro', description: 'Não foi possível salvar as automações.', variant: 'destructive' }),
@@ -232,6 +234,7 @@ export function WhatsApp() {
     const data = await updateWhatsappAutomation.mutateAsync({
       data: {
         ...current,
+        followUp30m: false,
         keywordFlows: flows.map((flow) => ({
           ...flow,
           name: flow.name.trim(),
@@ -241,7 +244,7 @@ export function WhatsApp() {
       },
     });
     queryClient.setQueryData(getGetWhatsappAutomationQueryKey(), data);
-    setAutomationForm(data);
+    setAutomationForm({ ...data, followUp30m: false });
   };
 
   const handleUploadFlowImage = async (file: File) => {
@@ -688,7 +691,7 @@ export function WhatsApp() {
               Confirmações e lembretes de agenda
             </h3>
             <p className="text-sm text-text-muted mt-1">
-              As automações são verificadas a cada minuto. O follow-up só é enviado quando o agente faz uma pergunta e não recebe resposta por 30 minutos; qualquer nova resposta da cliente cancela o envio. O simulador não envia mensagens nem testa lembretes.
+              O agente responde quando chegam novas mensagens. Ele não envia mensagens para retomar conversas antigas; confirmações e lembretes de agendamentos seguem as opções abaixo.
             </p>
           </div>
           <Button onClick={handleSaveAutomation} disabled={updateWhatsappAutomation.isPending} className="gap-2 shrink-0">
@@ -705,7 +708,6 @@ export function WhatsApp() {
             { key: 'confirmations' as const, title: 'Confirmar agendamento', description: 'Envia a confirmação após criar ou alterar a agenda.', icon: CalendarCheck },
             { key: 'reminder24h' as const, title: 'Lembrete de 24 horas', description: 'Lembra o cliente no dia anterior.', icon: BellRing },
             { key: 'reminder2h' as const, title: 'Lembrete de 2 horas', description: 'Lembra o cliente próximo do atendimento.', icon: Clock },
-            { key: 'followUp30m' as const, title: 'Follow-up após 30 minutos', description: 'Envia uma mensagem leve quando a cliente não responde a uma pergunta do agente.', icon: MessageCircle },
           ].map((item) => {
             const Icon = item.icon;
             const enabled = automationForm[item.key];

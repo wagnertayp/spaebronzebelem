@@ -68,3 +68,9 @@ The user requires that conversations avoid this class of error: do not repeat a 
 **Why:** The user stated they do not want any errors of this kind in customer conversations.
 
 **How to apply:** Treat clear answers, corrections, and dates as state. For safety screens and queue actions, use deterministic checks and regression tests based on real conversation sequences before deploying.
+
+The WhatsApp agent must only reply to new incoming client messages or explicit staff actions. Never proactively revive an old conversation due to inactivity; appointment confirmations and reminders remain separate.
+
+**Why:** The user explicitly requires the agent to answer incoming messages without resuming previous conversations.
+
+**How to apply:** Do not schedule or send inactivity follow-ups. Keep inbound webhook processing active, and preserve separately configured appointment confirmations and reminders.

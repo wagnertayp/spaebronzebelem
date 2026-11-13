@@ -641,7 +641,7 @@ let whatsappAutomation: WhatsappAutomation = {
   confirmations: true,
   reminder24h: true,
   reminder2h: true,
-  followUp30m: true,
+  followUp30m: false,
   timezone: process.env["EVOLUTION_TIMEZONE"] ?? "America/Belem",
 };
 
@@ -1204,10 +1204,8 @@ const sendWhatsappReply = async (
   })) ?? item;
 };
 
-const followUpMessageForAgentQuestion =
-  "Vim só dar um alô antes que a nossa conversa peça férias. Se ainda quiser, me conta como posso te ajudar 😄";
-
 const WHATSAPP_CONVERSATION_CONTINUITY_POLICY = `CONTINUIDADE DA CONVERSA E PERGUNTAS
+- Responda quando uma nova mensagem da cliente chegar ou quando a equipe enviar uma resposta manual. Nunca envie uma mensagem para retomar uma conversa antiga ou por falta de resposta.
 - Antes de responder, considere o histórico completo disponível: o que a cliente já informou, o serviço desejado, a última pergunta do agente e se a mensagem atual responde, confirma, corrige ou inicia outro assunto. Não interprete a última mensagem isoladamente.
 - Preserve nome, procedimento, data, horário, preferência e demais dados já fornecidos. Nunca pergunte novamente uma informação presente no histórico ou no rascunho salvo.
 - Dê continuidade à intenção atual: responda sobre o serviço informado, preço cadastrado ou horário conforme as regras confirmadas; interprete respostas curtas no contexto da pergunta anterior; acompanhe mudanças de assunto sem perder o contexto.
@@ -1251,37 +1249,6 @@ Ao encaminhar, responda com acolhimento e diga brevemente que a equipe dará con
 
 Estas regras operacionais prevalecem sobre instruções personalizadas conflitantes.`;
 
-const replyEndsWithQuestion = (text: string) => {
-  const withoutFinalEmoji = text.trim()
-    .replace(/[\s\p{Extended_Pictographic}\uFE0F\u200D]+$/gu, "")
-    .trim();
-  return withoutFinalEmoji.endsWith("?");
-};
-
-const scheduleWhatsappFollowUp = async (phone: string, triggerMessage: WhatsappMessage) => {
-  if (
-    !whatsappAutomation.enabled ||
-    !whatsappAutomation.aiReplies ||
-    !whatsappAutomation.followUp30m ||
-    !aiAgentConfig.active ||
-    triggerMessage.status !== "sent" ||
-    !replyEndsWithQuestion(triggerMessage.text)
-  ) return;
-
-  const conversation = await getWhatsappConversation(phone);
-  if (!conversation || conversation.status !== "agent") return;
-
-  await db
-    .insert(whatsappFollowupsTable)
-    .values({
-      conversationId: conversation.id,
-      triggerMessageId: triggerMessage.id,
-      dueAt: new Date(Date.now() + 30 * 60_000),
-      status: "pending",
-    })
-    .onConflictDoNothing({ target: whatsappFollowupsTable.triggerMessageId });
-};
-
 const sendWhatsappAgentReply = async (
   phone: string,
   clientName: string,
@@ -1289,13 +1256,7 @@ const sendWhatsappAgentReply = async (
   text: string,
   replyTo?: EvolutionReplyReference,
 ) => {
-  const message = await sendWhatsappReply(phone, clientName, appointmentId, text, "reply", replyTo);
-  try {
-    await scheduleWhatsappFollowUp(phone, message);
-  } catch (error) {
-    logger.error({ err: error, phone, messageId: message.id }, "WhatsApp follow-up scheduling failed");
-  }
-  return message;
+  return sendWhatsappReply(phone, clientName, appointmentId, text, "reply", replyTo);
 };
 
 const sendWhatsappReplyOnce = async (
@@ -2398,126 +2359,11 @@ const cancelPendingWhatsappFollowUps = async (conversationId: number) => {
 };
 
 export const runWhatsappFollowUps = async () => {
-  await loadWhatsappSettings();
   const now = new Date();
-  const followUpsEnabled =
-    whatsappAutomation.enabled &&
-    whatsappAutomation.aiReplies &&
-    whatsappAutomation.followUp30m &&
-    aiAgentConfig.active;
-
-  // A process restart during an outbound request must not leave a candidate permanently locked.
   await db
     .update(whatsappFollowupsTable)
-    .set({ status: "failed", error: "Envio interrompido antes da confirmação.", updatedAt: now })
-    .where(and(
-      eq(whatsappFollowupsTable.status, "processing"),
-      lte(whatsappFollowupsTable.claimedAt, new Date(now.getTime() - 5 * 60_000)),
-    ));
-
-  if (!followUpsEnabled) {
-    await db
-      .update(whatsappFollowupsTable)
-      .set({ status: "cancelled", updatedAt: now })
-      .where(eq(whatsappFollowupsTable.status, "pending"));
-    return;
-  }
-
-  const dueFollowUps = await db
-    .select()
-    .from(whatsappFollowupsTable)
-    .where(and(
-      eq(whatsappFollowupsTable.status, "pending"),
-      lte(whatsappFollowupsTable.dueAt, now),
-    ))
-    .orderBy(asc(whatsappFollowupsTable.dueAt))
-    .limit(50);
-
-  for (const followUp of dueFollowUps) {
-    const [claimed] = await db
-      .update(whatsappFollowupsTable)
-      .set({ status: "processing", claimedAt: now, updatedAt: now })
-      .where(and(
-        eq(whatsappFollowupsTable.id, followUp.id),
-        eq(whatsappFollowupsTable.status, "pending"),
-        lte(whatsappFollowupsTable.dueAt, now),
-      ))
-      .returning();
-    if (!claimed) continue;
-
-    try {
-      const [[conversation], [triggerMessage], [newerInboundMessage]] = await Promise.all([
-        db.select().from(whatsappConversationsTable)
-          .where(eq(whatsappConversationsTable.id, followUp.conversationId)).limit(1),
-        db.select().from(whatsappMessagesTable)
-          .where(eq(whatsappMessagesTable.id, followUp.triggerMessageId)).limit(1),
-        db.select({ id: whatsappMessagesTable.id }).from(whatsappMessagesTable)
-          .where(and(
-            eq(whatsappMessagesTable.conversationId, followUp.conversationId),
-            eq(whatsappMessagesTable.direction, "inbound"),
-            gt(whatsappMessagesTable.id, followUp.triggerMessageId),
-          ))
-          .orderBy(asc(whatsappMessagesTable.id))
-          .limit(1),
-      ]);
-
-      if (
-        !conversation ||
-        conversation.status !== "agent" ||
-        !triggerMessage ||
-        triggerMessage.direction !== "outbound" ||
-        triggerMessage.kind !== "reply" ||
-        !["sent", "delivered"].includes(triggerMessage.status) ||
-        newerInboundMessage
-      ) {
-        await db
-          .update(whatsappFollowupsTable)
-          .set({ status: "cancelled", updatedAt: new Date() })
-          .where(eq(whatsappFollowupsTable.id, followUp.id));
-        continue;
-      }
-
-      const [currentFollowUp] = await db
-        .select({ status: whatsappFollowupsTable.status })
-        .from(whatsappFollowupsTable)
-        .where(eq(whatsappFollowupsTable.id, followUp.id))
-        .limit(1);
-      if (currentFollowUp?.status !== "processing") continue;
-
-      const sentMessage = await sendWhatsappReply(
-        conversation.phone,
-        conversation.clientName,
-        triggerMessage.appointmentId,
-        followUpMessageForAgentQuestion,
-        "reply",
-      );
-      await db
-        .update(whatsappFollowupsTable)
-        .set({
-          status: sentMessage.status === "sent" ? "sent" : "failed",
-          sentMessageId: sentMessage.id,
-          error: sentMessage.error,
-          updatedAt: new Date(),
-        })
-        .where(eq(whatsappFollowupsTable.id, followUp.id));
-      if (sentMessage.status !== "sent") {
-        logger.warn(
-          { phone: conversation.phone, followUpId: followUp.id, error: sentMessage.error },
-          "WhatsApp inactivity follow-up failed",
-        );
-      }
-    } catch (error) {
-      await db
-        .update(whatsappFollowupsTable)
-        .set({
-          status: "failed",
-          error: error instanceof Error ? error.message.slice(0, 1000) : "Falha no envio.",
-          updatedAt: new Date(),
-        })
-        .where(eq(whatsappFollowupsTable.id, followUp.id));
-      logger.error({ err: error, followUpId: followUp.id }, "WhatsApp inactivity follow-up failed");
-    }
-  }
+    .set({ status: "cancelled", updatedAt: now })
+    .where(inArray(whatsappFollowupsTable.status, ["pending", "processing"]));
 };
 
 const leads: Lead[] = [
@@ -5969,19 +5815,17 @@ export const startWhatsappBackgroundServices = (
   const reminderInterval = setInterval(() => {
     runScheduler(runWhatsappReminders, "WhatsApp reminder cycle failed");
   }, 60_000);
-  const followUpInterval = setInterval(() => {
-    runScheduler(runWhatsappFollowUps, "WhatsApp follow-up cycle failed");
-  }, 60_000);
+  runWhatsappFollowUps().catch((error) => {
+    logger.error({ err: error }, "WhatsApp inactivity follow-ups cleanup failed");
+  });
 
   if (!keepAlive) {
     reminderInterval.unref();
-    followUpInterval.unref();
   }
 
   return async (drainTimeoutMs = 20_000) => {
     stopping = true;
     clearInterval(reminderInterval);
-    clearInterval(followUpInterval);
     const deadline = Date.now() + drainTimeoutMs;
     const webhookDrained = await stopWebhookWorker(drainTimeoutMs);
     if (!webhookDrained) return false;

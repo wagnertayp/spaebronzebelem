@@ -66,7 +66,7 @@ const existingSystemFlows = [
   {
     title: 'Agendamento e lembretes',
     media: 'Agenda',
-    details: 'O sistema valida horários e controla confirmações, lembretes e follow-up.',
+    details: 'O sistema valida horários e controla confirmações e lembretes, sem retomar conversas antigas.',
   },
 ];
 
