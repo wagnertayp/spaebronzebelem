@@ -62,3 +62,9 @@ Treat the WhatsApp interaction as consultative sales: use the full conversation 
 **Why:** The user asked for charismatic, empathetic, context-aware service that presents relevant services and clarified that catalogs should be sent naturally during discovery, not only when requested.
 
 **How to apply:** Ground suggestions and benefits in confirmed service information, avoid repeated or unrelated upsells, and send the paired catalogs once when broad service discovery begins, explaining each PDF in its own caption. Do not send them in arrival updates, logistics, or a specific booking exchange.
+
+The user requires that conversations avoid this class of error: do not repeat a question after a clear answer, lose or alter a clearly stated visit date, or perform an operational action that contradicts the client's intent. Preserve explicit negatives and dates across the full atendimento.
+
+**Why:** The user stated they do not want any errors of this kind in customer conversations.
+
+**How to apply:** Treat clear answers, corrections, and dates as state. For safety screens and queue actions, use deterministic checks and regression tests based on real conversation sequences before deploying.
