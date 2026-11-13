@@ -308,6 +308,14 @@ export const TestAiAgentResponse = zod.object({
 
 
 /**
+ * @summary Envia uma imagem de resposta ao ImgBB
+ */
+export const UploadWhatsappFlowImageResponse = zod.object({
+  "imageUrl": zod.string().url()
+})
+
+
+/**
  * @summary Verifica a conexão da instância da Evolution API
  */
 export const GetWhatsappConnectionResponse = zod.object({
@@ -349,6 +357,16 @@ export const DisconnectWhatsappResponse = zod.object({
 export const getWhatsappAutomationResponseFollowUp30mDefault = true;
 export const getWhatsappAutomationResponseTimezoneMin = 3;
 
+export const getWhatsappAutomationResponseKeywordFlowsItemIdMax = 80;
+
+export const getWhatsappAutomationResponseKeywordFlowsItemNameMax = 100;
+
+export const getWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax = 80;
+
+
+export const getWhatsappAutomationResponseKeywordFlowsItemEnabledDefault = false;
+export const getWhatsappAutomationResponseKeywordFlowsItemMessageMax = 1500;
+
 
 
 export const GetWhatsappAutomationResponse = zod.object({
@@ -359,7 +377,15 @@ export const GetWhatsappAutomationResponse = zod.object({
   "reminder24h": zod.boolean(),
   "reminder2h": zod.boolean(),
   "followUp30m": zod.boolean().default(getWhatsappAutomationResponseFollowUp30mDefault),
-  "timezone": zod.string().min(getWhatsappAutomationResponseTimezoneMin)
+  "timezone": zod.string().min(getWhatsappAutomationResponseTimezoneMin),
+  "keywordFlows": zod.array(zod.object({
+  "id": zod.string().min(1).max(getWhatsappAutomationResponseKeywordFlowsItemIdMax),
+  "name": zod.string().min(1).max(getWhatsappAutomationResponseKeywordFlowsItemNameMax),
+  "keywords": zod.array(zod.string().min(1).max(getWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax)).min(1),
+  "enabled": zod.boolean().default(getWhatsappAutomationResponseKeywordFlowsItemEnabledDefault),
+  "message": zod.string().max(getWhatsappAutomationResponseKeywordFlowsItemMessageMax),
+  "imageUrl": zod.string().url().nullable()
+})).optional()
 })
 
 
@@ -368,6 +394,16 @@ export const GetWhatsappAutomationResponse = zod.object({
  */
 export const updateWhatsappAutomationBodyFollowUp30mDefault = true;
 export const updateWhatsappAutomationBodyTimezoneMin = 3;
+
+export const updateWhatsappAutomationBodyKeywordFlowsItemIdMax = 80;
+
+export const updateWhatsappAutomationBodyKeywordFlowsItemNameMax = 100;
+
+export const updateWhatsappAutomationBodyKeywordFlowsItemKeywordsItemMax = 80;
+
+
+export const updateWhatsappAutomationBodyKeywordFlowsItemEnabledDefault = false;
+export const updateWhatsappAutomationBodyKeywordFlowsItemMessageMax = 1500;
 
 
 
@@ -379,11 +415,29 @@ export const UpdateWhatsappAutomationBody = zod.object({
   "reminder24h": zod.boolean(),
   "reminder2h": zod.boolean(),
   "followUp30m": zod.boolean().default(updateWhatsappAutomationBodyFollowUp30mDefault),
-  "timezone": zod.string().min(updateWhatsappAutomationBodyTimezoneMin)
+  "timezone": zod.string().min(updateWhatsappAutomationBodyTimezoneMin),
+  "keywordFlows": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateWhatsappAutomationBodyKeywordFlowsItemIdMax),
+  "name": zod.string().min(1).max(updateWhatsappAutomationBodyKeywordFlowsItemNameMax),
+  "keywords": zod.array(zod.string().min(1).max(updateWhatsappAutomationBodyKeywordFlowsItemKeywordsItemMax)).min(1),
+  "enabled": zod.boolean().default(updateWhatsappAutomationBodyKeywordFlowsItemEnabledDefault),
+  "message": zod.string().max(updateWhatsappAutomationBodyKeywordFlowsItemMessageMax),
+  "imageUrl": zod.string().url().nullable()
+})).optional()
 })
 
 export const updateWhatsappAutomationResponseFollowUp30mDefault = true;
 export const updateWhatsappAutomationResponseTimezoneMin = 3;
+
+export const updateWhatsappAutomationResponseKeywordFlowsItemIdMax = 80;
+
+export const updateWhatsappAutomationResponseKeywordFlowsItemNameMax = 100;
+
+export const updateWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax = 80;
+
+
+export const updateWhatsappAutomationResponseKeywordFlowsItemEnabledDefault = false;
+export const updateWhatsappAutomationResponseKeywordFlowsItemMessageMax = 1500;
 
 
 
@@ -395,7 +449,15 @@ export const UpdateWhatsappAutomationResponse = zod.object({
   "reminder24h": zod.boolean(),
   "reminder2h": zod.boolean(),
   "followUp30m": zod.boolean().default(updateWhatsappAutomationResponseFollowUp30mDefault),
-  "timezone": zod.string().min(updateWhatsappAutomationResponseTimezoneMin)
+  "timezone": zod.string().min(updateWhatsappAutomationResponseTimezoneMin),
+  "keywordFlows": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateWhatsappAutomationResponseKeywordFlowsItemIdMax),
+  "name": zod.string().min(1).max(updateWhatsappAutomationResponseKeywordFlowsItemNameMax),
+  "keywords": zod.array(zod.string().min(1).max(updateWhatsappAutomationResponseKeywordFlowsItemKeywordsItemMax)).min(1),
+  "enabled": zod.boolean().default(updateWhatsappAutomationResponseKeywordFlowsItemEnabledDefault),
+  "message": zod.string().max(updateWhatsappAutomationResponseKeywordFlowsItemMessageMax),
+  "imageUrl": zod.string().url().nullable()
+})).optional()
 })
 
 

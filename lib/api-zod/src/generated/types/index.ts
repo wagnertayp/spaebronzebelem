@@ -134,6 +134,8 @@ export * from './whatsappConversationUpdateStatus';
 export * from './whatsappDisconnectResponse';
 export * from './whatsappDocumentInput';
 export * from './whatsappDocumentInputDocument';
+export * from './whatsappFlowImage';
+export * from './whatsappKeywordFlow';
 export * from './whatsappMessage';
 export * from './whatsappMessageDirection';
 export * from './whatsappMessageKind';

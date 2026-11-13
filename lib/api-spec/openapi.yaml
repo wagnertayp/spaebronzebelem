@@ -252,6 +252,24 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AiAgentTestResponse" }
+  /ai-agent/flows/upload-image:
+    post:
+      operationId: uploadWhatsappFlowImage
+      tags: [ai-agent]
+      summary: Envia uma imagem de resposta ao ImgBB
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Image uploaded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappFlowImage" }
+        "400": { description: Invalid image }
+        "503": { description: ImgBB key is not configured }
   /whatsapp/connection:
     get:
       operationId: getWhatsappConnection
@@ -1473,7 +1491,28 @@ components:
         reminder2h: { type: boolean }
         followUp30m: { type: boolean, default: true }
         timezone: { type: string, minLength: 3 }
+        keywordFlows:
+          type: array
+          items: { $ref: "#/components/schemas/WhatsappKeywordFlow" }
       required: [enabled, aiReplies, humanSupervision, confirmations, reminder24h, reminder2h, followUp30m, timezone]
+    WhatsappKeywordFlow:
+      type: object
+      properties:
+        id: { type: string, minLength: 1, maxLength: 80 }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        keywords:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1, maxLength: 80 }
+        enabled: { type: boolean, default: false }
+        message: { type: string, maxLength: 1500 }
+        imageUrl: { type: ["string", "null"], format: uri }
+      required: [id, name, keywords, enabled, message, imageUrl]
+    WhatsappFlowImage:
+      type: object
+      properties:
+        imageUrl: { type: string, format: uri }
+      required: [imageUrl]
     WhatsappMessage:
       type: object
       properties:

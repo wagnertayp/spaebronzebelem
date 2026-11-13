@@ -262,6 +262,30 @@ export interface WhatsappDisconnectResponse {
   message: string;
 }
 
+export interface WhatsappKeywordFlow {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     * @items.maxLength 80
+     */
+  keywords: string[];
+  enabled: boolean;
+  /** @maxLength 1500 */
+  message: string;
+  /** @nullable */
+  imageUrl: string | null;
+}
+
 export interface WhatsappAutomation {
   enabled: boolean;
   aiReplies: boolean;
@@ -272,6 +296,11 @@ export interface WhatsappAutomation {
   followUp30m: boolean;
   /** @minLength 3 */
   timezone: string;
+  keywordFlows?: WhatsappKeywordFlow[];
+}
+
+export interface WhatsappFlowImage {
+  imageUrl: string;
 }
 
 export type WhatsappMessageDirection = typeof WhatsappMessageDirection[keyof typeof WhatsappMessageDirection];

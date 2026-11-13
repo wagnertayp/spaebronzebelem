@@ -5,6 +5,7 @@
  * API do sistema operacional do Spa e Bronze Belém
  * OpenAPI spec version: 0.1.0
  */
+import type { WhatsappKeywordFlow } from './whatsappKeywordFlow';
 
 export interface WhatsappAutomation {
   enabled: boolean;
@@ -16,4 +17,5 @@ export interface WhatsappAutomation {
   followUp30m: boolean;
   /** @minLength 3 */
   timezone: string;
+  keywordFlows?: WhatsappKeywordFlow[];
 }

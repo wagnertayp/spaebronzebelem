@@ -97,6 +97,7 @@ import type {
   WhatsappConversationUpdate,
   WhatsappDisconnectResponse,
   WhatsappDocumentInput,
+  WhatsappFlowImage,
   WhatsappMessage,
   WhatsappReplyInput,
   WhatsappUnansweredConversation,
@@ -1141,6 +1142,77 @@ export const useTestAiAgent = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getTestAiAgentMutationOptions(options));
+    }
+
+export const getUploadWhatsappFlowImageUrl = () => {
+
+
+
+
+  return `/api/ai-agent/flows/upload-image`
+}
+
+/**
+ * @summary Envia uma imagem de resposta ao ImgBB
+ */
+export const uploadWhatsappFlowImage = async (uploadWhatsappFlowImageBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<WhatsappFlowImage> => {
+
+  return customFetch<WhatsappFlowImage>(getUploadWhatsappFlowImageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
+    body: uploadWhatsappFlowImageBody
+  }
+);}
+
+
+
+
+
+export const getUploadWhatsappFlowImageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadWhatsappFlowImage>>, TError,{data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadWhatsappFlowImage>>, TError,{data: BodyType<Blob>}, TContext> => {
+
+const mutationKey = ['uploadWhatsappFlowImage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadWhatsappFlowImage>>, {data: BodyType<Blob>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadWhatsappFlowImage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadWhatsappFlowImageMutationResult = NonNullable<Awaited<ReturnType<typeof uploadWhatsappFlowImage>>>
+    export type UploadWhatsappFlowImageMutationBody = BodyType<Blob>
+    export type UploadWhatsappFlowImageMutationError = ErrorType<void>
+
+    /**
+ * @summary Envia uma imagem de resposta ao ImgBB
+ */
+export const useUploadWhatsappFlowImage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadWhatsappFlowImage>>, TError,{data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadWhatsappFlowImage>>,
+        TError,
+        {data: BodyType<Blob>},
+        TContext
+      > => {
+      return useMutation(getUploadWhatsappFlowImageMutationOptions(options));
     }
 
 export const getGetWhatsappConnectionUrl = () => {
