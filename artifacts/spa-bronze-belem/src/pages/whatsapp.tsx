@@ -67,9 +67,12 @@ const DEFAULT_BUSINESS_HOURS = [
   'domingo: 07:30–11:30',
 ].join('\n');
 
+const LIVE_WHATSAPP_REFRESH_MS = 3_000;
+
 export function WhatsApp() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const conversationMessagesContainerRef = useRef<HTMLDivElement>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [qrImageFailed, setQrImageFailed] = useState(false);
@@ -96,8 +99,28 @@ export function WhatsApp() {
   const updateWhatsappAutomation = useUpdateWhatsappAutomation();
   const sendWhatsappReply = useSendWhatsappReply();
   const sendWhatsappDocument = useSendWhatsappDocument();
-  const { data: whatsappMessages = [] } = useListWhatsappMessages({ limit: 50 });
-  const { data: whatsappConversations = [] } = useListWhatsappConversations({ limit: 50 });
+  const { data: whatsappMessages = [] } = useListWhatsappMessages(
+    { limit: 100 },
+    {
+      query: {
+        queryKey: getListWhatsappMessagesQueryKey({ limit: 100 }),
+        refetchInterval: LIVE_WHATSAPP_REFRESH_MS,
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: true,
+      },
+    },
+  );
+  const { data: whatsappConversations = [] } = useListWhatsappConversations(
+    { limit: 50 },
+    {
+      query: {
+        queryKey: getListWhatsappConversationsQueryKey({ limit: 50 }),
+        refetchInterval: LIVE_WHATSAPP_REFRESH_MS,
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: true,
+      },
+    },
+  );
   const {
     data: unansweredConversations = [],
     isLoading: isUnansweredLoading,
@@ -107,7 +130,9 @@ export function WhatsApp() {
     {
       query: {
         queryKey: getListWhatsappUnansweredQueryKey({ limit: 100 }),
-        refetchInterval: 30_000,
+        refetchInterval: LIVE_WHATSAPP_REFRESH_MS,
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: true,
       },
     },
   );
@@ -121,6 +146,9 @@ export function WhatsApp() {
   } = useListServices();
   const agentStatusKnown = Boolean(config) && !isConfigLoading && !isConfigError;
   const agentIsActive = agentStatusKnown && Boolean(config?.active);
+  const keywordFlowsAreActive = Boolean(
+    agentIsActive && whatsappAutomation?.enabled && whatsappAutomation.aiReplies,
+  );
   const createService = useCreateService();
   const updateService = useUpdateService();
   const conversationArchiveSelection = useBulkArchiveSelection({
@@ -341,6 +369,12 @@ export function WhatsApp() {
     });
   }
   selectedConversationMessages.sort((left, right) => left.id - right.id);
+  useEffect(() => {
+    const container = conversationMessagesContainerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+  }, [selectedPhone, selectedConversationMessages.length]);
+
   const conversationStatusLabel: Record<WhatsappConversation['status'], string> = {
     agent: 'Agente',
     human: 'Atendimento humano',
@@ -707,11 +741,46 @@ export function WhatsApp() {
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                 <RefreshCw className="w-4 h-4 text-primary" /> Supervisão do atendimento
               </div>
-              <p className="text-xs text-text-muted mt-1">
-                Acompanhe as conversas e responda manualmente. A fila considera apenas mensagens já salvas no app e não envia respostas automáticas.
+              <p data-testid="text-whatsapp-live-status" className="text-xs text-text-muted mt-1">
+                Conversas e mensagens atualizadas em até 3 segundos. O agente responde quando está ativo; fluxos por palavra-chave também exigem as respostas automáticas ativadas.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 self-start">
+              <span
+                data-testid="status-whatsapp-agent-inbox"
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                  agentIsActive ? "bg-success/10 text-success" : "bg-warning/10 text-warning",
+                )}
+              >
+                {isConfigLoading
+                  ? 'Verificando agente'
+                  : !agentStatusKnown
+                    ? 'Status indisponível'
+                    : agentIsActive
+                      ? 'Agente ativo'
+                      : 'Agente pausado'}
+              </span>
+              <span
+                data-testid="status-whatsapp-keyword-flows"
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                  keywordFlowsAreActive ? "bg-success/10 text-success" : "bg-surface-soft text-text-secondary",
+                )}
+              >
+                {keywordFlowsAreActive ? 'Fluxos ativos' : 'Fluxos pausados'}
+              </span>
+              {agentStatusKnown && whatsappAutomation && (!agentIsActive || !keywordFlowsAreActive) && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  data-testid="button-configure-whatsapp-agent"
+                  onClick={() => setActiveTab('config')}
+                >
+                  Abrir configuração
+                </Button>
+              )}
               <span className="rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-semibold text-text-secondary">
                 {whatsappConversations.length} {whatsappConversations.length === 1 ? 'conversa' : 'conversas'}
               </span>
@@ -737,13 +806,13 @@ export function WhatsApp() {
                       </span>
                     </div>
                     {isUnansweredLoading ? (
-                      <p className="text-[11px] text-text-muted">Verificando mensagens salvas...</p>
+                        <p className="text-[11px] text-text-muted">Atualizando mensagens...</p>
                     ) : isUnansweredError ? (
                       <p className="text-[11px] text-error">Não foi possível atualizar a fila de mensagens sem resposta.</p>
                     ) : unansweredConversations.length === 0 ? (
                       <p className="text-[11px] text-text-muted">Nenhuma mensagem pendente.</p>
                     ) : (
-                      <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
+                      <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1" aria-live="polite">
                         {unansweredConversations.map((item) => (
                           <button
                             key={item.messageId}
@@ -772,7 +841,7 @@ export function WhatsApp() {
                       </div>
                     )}
                   </section>
-                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1" aria-live="polite">
                     {whatsappConversations.map((conversation) => {
                       const isUnanswered = unansweredConversations.some((item) => item.phone === conversation.phone);
                       return (
@@ -864,7 +933,12 @@ export function WhatsApp() {
                     </div>
                   )}
                   {selectedPhone && (
-                    <div className="min-h-40 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-soft p-2.5 space-y-2">
+                    <div
+                      ref={conversationMessagesContainerRef}
+                      data-testid="list-whatsapp-messages"
+                      aria-live="polite"
+                      className="min-h-40 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-soft p-2.5 space-y-2"
+                    >
                       {selectedConversationMessages.length === 0 ? (
                         <p className="text-[11px] text-text-muted">Nenhuma mensagem recente disponível para esta conversa.</p>
                       ) : selectedConversationMessages.map((message) => (
