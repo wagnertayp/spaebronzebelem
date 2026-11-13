@@ -32,6 +32,44 @@ export type AgentFlowsProps = {
   isLoading?: boolean;
 };
 
+const existingSystemFlows = [
+  {
+    title: 'Catálogos do Spa',
+    media: '2 PDFs',
+    details: 'O interesse geral em serviços pode enviar o cardápio do Spa e o catálogo de estética avançada.',
+  },
+  {
+    title: 'DAP com fotos de referência',
+    media: 'Texto + 2 imagens',
+    details: 'As fotos são acompanhadas de uma explicação de que cada caso é individual e os resultados variam.',
+  },
+  {
+    title: 'Banho de Lua',
+    media: 'Texto + banner',
+    details: 'Há banners separados para 5 passos (R$ 120) e Clareador de 7 passos (R$ 150).',
+  },
+  {
+    title: 'Preparo para sessão de bronze',
+    media: 'Texto + imagem',
+    details: 'O agente pode enviar a imagem com as orientações confirmadas para a sessão.',
+  },
+  {
+    title: 'Áudios de bronze e combos',
+    media: 'Texto + áudio',
+    details: 'Os áudios são enviados apenas quando pertinentes e cada um pode ser tentado uma vez por conversa.',
+  },
+  {
+    title: 'Fila de bronze',
+    media: 'Triagem + confirmação',
+    details: 'A equipe só inclui a cliente após a triagem de gravidez e a confirmação explícita da ida.',
+  },
+  {
+    title: 'Agendamento e lembretes',
+    media: 'Agenda',
+    details: 'O sistema valida horários e controla confirmações, lembretes e follow-up.',
+  },
+];
+
 const emptyFlow = (): AgentFlow => ({
   id: `flow-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   name: '',
@@ -198,14 +236,37 @@ export function AgentFlows({
         </div>
       </div>
 
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 className="text-base font-semibold text-text-primary">Fluxos já usados pelo agente</h3>
+            <p className="mt-1 text-xs text-text-muted">Regras e mídias que já fazem parte do atendimento atual.</p>
+          </div>
+          <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] font-semibold text-text-muted">
+            {existingSystemFlows.length} fluxos existentes
+          </span>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {existingSystemFlows.map((flow) => (
+            <Card key={flow.title} className="rounded-xl border-border/75 bg-surface p-4">
+              <div className="flex items-start justify-between gap-3">
+                <h4 className="text-sm font-semibold text-text-primary">{flow.title}</h4>
+                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">{flow.media}</span>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-text-secondary">{flow.details}</p>
+            </Card>
+          ))}
+        </div>
+      </div>
+
       {drafts.length === 0 ? (
         <Card className="rounded-2xl border-dashed border-primary/25 bg-surface p-7 text-center sm:p-10">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <MessageCircle className="h-5 w-5" />
           </span>
-          <h3 className="mt-4 font-semibold text-text-primary">Nenhum fluxo configurado</h3>
+          <h3 className="mt-4 font-semibold text-text-primary">Nenhum fluxo personalizado</h3>
           <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-text-secondary">
-            Crie uma resposta para uma dúvida recorrente. Ela ficará desligada até você decidir ativá-la.
+            Os fluxos atuais estão listados acima. Crie respostas por palavra-chave aqui; elas ficam desligadas até você ativá-las.
           </p>
           <Button type="button" onClick={addFlow} data-testid="button-create-first-flow" className="mt-5 gap-2 rounded-xl">
             <Plus className="h-4 w-4" />
