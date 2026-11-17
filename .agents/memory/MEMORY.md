@@ -1,5 +1,5 @@
 - [Evolution QR connection flow](evolution-qr-flow.md) — one Evolution instance has one global webhook; prevent Replit development from overriding Heroku's callback.
-- [WhatsApp unanswered-message scope](whatsapp-unanswered-scope.md) — only saved app messages are in scope; do not recover provider history or send automatic replies.
+- [WhatsApp unanswered-message scope](whatsapp-unanswered-scope.md) — process only new inbound events after activation; never drain old pending queues or send catch-up replies.
 - [WhatsApp PTT audio](whatsapp-ptt-audio.md) — preserve PTT delivery; the bronze clip is one attempt only, then compare solar exposure with WB Ultra.
 - [Arrival and bronze guidance](whatsapp-arrival-neon.md) — acknowledge arrivals, classify service flow, give confirmed tanning care, and recommend Neon only while the client is choosing.
 - [OpenAI provider access](openai-provider-access.md) — a valid-looking managed integration can still return 401 when the Replit account is restricted.
