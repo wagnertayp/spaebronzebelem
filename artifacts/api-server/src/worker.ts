@@ -17,6 +17,14 @@ const memoryLimitMb = positiveNumber("DYNO_MEMORY_LIMIT_MB", 512);
 const memoryWarnPercent = positiveNumber("WHATSAPP_WORKER_MEMORY_WARN_PERCENT", 80);
 const pendingWarnCount = positiveNumber("WHATSAPP_QUEUE_PENDING_WARN_COUNT", 25);
 const oldestPendingWarnSeconds = positiveNumber("WHATSAPP_QUEUE_OLDEST_WARN_SECONDS", 60);
+const configuredActivationCutoff = process.env["WHATSAPP_WEBHOOK_WORKER_CUTOFF_AT"];
+const workerActivationCutoff = configuredActivationCutoff
+  ? new Date(configuredActivationCutoff)
+  : new Date();
+
+if (Number.isNaN(workerActivationCutoff.getTime())) {
+  throw new Error("WHATSAPP_WEBHOOK_WORKER_CUTOFF_AT must be a valid date-time.");
+}
 
 if (memoryWarnPercent > 100) {
   throw new Error("WHATSAPP_WORKER_MEMORY_WARN_PERCENT must be at most 100.");
@@ -27,11 +35,15 @@ logger.info(
     concurrencyPerDyno: process.env["WHATSAPP_WEBHOOK_WORKER_CONCURRENCY"] ?? 2,
     memoryLimitMb,
     memoryWarnPercent,
+    activationCutoff: workerActivationCutoff.toISOString(),
   },
   "WhatsApp background worker started",
 );
 
-const stopBackgroundServices = startWhatsappBackgroundServices({ keepAlive: true });
+const stopBackgroundServices = startWhatsappBackgroundServices({
+  keepAlive: true,
+  activationCutoff: workerActivationCutoff,
+});
 let reportingMetrics = false;
 
 const reportWorkerHealth = async () => {
@@ -39,7 +51,7 @@ const reportWorkerHealth = async () => {
   reportingMetrics = true;
   try {
     const [queue, memory] = await Promise.all([
-      getWhatsappWebhookQueueStats(),
+      getWhatsappWebhookQueueStats(workerActivationCutoff),
       Promise.resolve(process.memoryUsage()),
     ]);
     const toMb = (bytes: number) => Math.round((bytes / 1024 / 1024) * 10) / 10;

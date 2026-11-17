@@ -1,0 +1,20 @@
+[Unit]
+Description=Spa e Bronze Belém WhatsApp Worker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/spaebronzebelem
+EnvironmentFile=/etc/spaebronzebelem.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --enable-source-maps artifacts/api-server/dist/worker.mjs
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

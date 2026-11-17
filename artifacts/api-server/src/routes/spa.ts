@@ -5761,7 +5761,7 @@ router.post("/integrations/evolution/webhook", async (req, res) => {
   res.status(acknowledgement.statusCode).json(acknowledgement.body);
 });
 
-export const startWhatsappWebhookWorker = () =>
+export const startWhatsappWebhookWorker = (activationCutoff: Date = new Date()) =>
   startWhatsappWebhookInboxWorker(async (payload, inboxJob) => {
     const data = (payload["data"] as Record<string, unknown> | undefined) ?? payload;
     const rawMessage = (data["message"] as Record<string, unknown> | undefined) ?? {};
@@ -5796,12 +5796,15 @@ export const startWhatsappWebhookWorker = () =>
       );
       throw error;
     }
-  });
+  }, activationCutoff);
 
 export const startWhatsappBackgroundServices = (
-  { keepAlive = false }: { keepAlive?: boolean } = {},
+  {
+    keepAlive = false,
+    activationCutoff = new Date(),
+  }: { keepAlive?: boolean; activationCutoff?: Date } = {},
 ) => {
-  const stopWebhookWorker = startWhatsappWebhookWorker();
+  const stopWebhookWorker = startWhatsappWebhookWorker(activationCutoff);
   let stopping = false;
   const schedulerRuns = new Set<Promise<void>>();
   const runScheduler = (run: () => Promise<void>, message: string) => {

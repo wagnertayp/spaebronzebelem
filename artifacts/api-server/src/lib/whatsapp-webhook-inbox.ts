@@ -62,7 +62,9 @@ export const enqueueWhatsappWebhook = async (
   return result.rowCount === 1;
 };
 
-const claimNextWhatsappWebhook = async (): Promise<WhatsappWebhookJob | null> => {
+const claimNextWhatsappWebhook = async (
+  activationCutoff: Date,
+): Promise<WhatsappWebhookJob | null> => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -74,19 +76,21 @@ const claimNextWhatsappWebhook = async (): Promise<WhatsappWebhookJob | null> =>
     }>(
       `SELECT candidate.id, candidate.event_key, candidate.payload, candidate.attempts
        FROM whatsapp_webhook_inbox AS candidate
-       WHERE (
-         (candidate.status = 'pending' AND candidate.available_at <= NOW())
-         OR (
-           candidate.status = 'processing'
-           AND candidate.locked_at < NOW() - ($1 * INTERVAL '1 second')
+       WHERE candidate.created_at >= $1
+         AND (
+           (candidate.status = 'pending' AND candidate.available_at <= NOW())
+           OR (
+             candidate.status = 'processing'
+             AND candidate.locked_at < NOW() - ($2 * INTERVAL '1 second')
+           )
          )
-       )
        AND (
          NULLIF(${remotePhoneDigitsSql("candidate")}, '') IS NULL
          OR NOT EXISTS (
            SELECT 1
            FROM whatsapp_webhook_inbox AS earlier
            WHERE earlier.id < candidate.id
+              AND earlier.created_at >= $1
              AND NULLIF(${remotePhoneDigitsSql("earlier")}, '') =
                  NULLIF(${remotePhoneDigitsSql("candidate")}, '')
              AND earlier.status IN ('pending', 'processing')
@@ -95,7 +99,7 @@ const claimNextWhatsappWebhook = async (): Promise<WhatsappWebhookJob | null> =>
        ORDER BY candidate.available_at, candidate.id
        LIMIT 1
        FOR UPDATE OF candidate SKIP LOCKED`,
-      [CLAIM_LEASE_SECONDS],
+       [activationCutoff, CLAIM_LEASE_SECONDS],
     );
     const item = candidate.rows[0];
     if (!item) {
@@ -240,7 +244,7 @@ const releaseUnstartedWhatsappWebhook = async (job: WhatsappWebhookJob) => {
   );
 };
 
-export const getWhatsappWebhookQueueStats = async () => {
+export const getWhatsappWebhookQueueStats = async (activationCutoff: Date) => {
   const result = await pool.query<{
     pending_count: number;
     processing_count: number;
@@ -248,19 +252,30 @@ export const getWhatsappWebhookQueueStats = async () => {
     oldest_pending_seconds: number;
   }>(
     `SELECT
-       COUNT(*) FILTER (WHERE status = 'pending')::int AS pending_count,
-       COUNT(*) FILTER (WHERE status = 'processing')::int AS processing_count,
-       COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_count,
+       COUNT(*) FILTER (
+         WHERE status = 'pending' AND created_at >= $1
+       )::int AS pending_count,
+       COUNT(*) FILTER (
+         WHERE status = 'processing' AND created_at >= $1
+       )::int AS processing_count,
+       COUNT(*) FILTER (
+         WHERE status = 'failed' AND created_at >= $1
+       )::int AS failed_count,
        COALESCE(
          FLOOR(EXTRACT(EPOCH FROM (
            NOW() - (
              MIN(created_at)
-             FILTER (WHERE status = 'pending' AND available_at <= NOW())
+              FILTER (
+                WHERE status = 'pending'
+                  AND available_at <= NOW()
+                  AND created_at >= $1
+              )
            )
          ))),
          0
        )::int AS oldest_pending_seconds
      FROM whatsapp_webhook_inbox`,
+    [activationCutoff],
   );
   const stats = result.rows[0];
   return {
@@ -276,10 +291,11 @@ export const startWhatsappWebhookInboxWorker = (
     payload: WhatsappWebhookPayload,
     job: WhatsappWebhookJobContext,
   ) => Promise<unknown>,
+  activationCutoff: Date = new Date(),
 ) => {
   const worker = createDurableInboxWorker({
     store: {
-      claim: claimNextWhatsappWebhook,
+      claim: () => claimNextWhatsappWebhook(activationCutoff),
       renewLease: updateWhatsappWebhookLease,
       complete: completeWhatsappWebhook,
       retry: retryWhatsappWebhook,
